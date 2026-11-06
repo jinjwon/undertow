@@ -1,7 +1,7 @@
 {
-  "name": "undertow",
+  "name": "evoke",
   "owner": { "name": "jinjwon" },
   "plugins": [
-    { "name": "undertow", "source": "./plugins/undertow", "description": "An underwater, slanted menu for Claude Code: tool menu, project switcher, AI usage" }
+    { "name": "evoke", "source": "./plugins/evoke", "description": "An underwater, slanted menu for Claude Code: tool menu, project switcher, AI usage" }
   ]
 }

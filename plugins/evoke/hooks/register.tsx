@@ -6,9 +6,9 @@ import { baseName, dayOf, entryOf, fitName, lastUsedOf, layoutOf, menuOf, opener
 import { action, content, cut, hud, limitName } from './views'
 import type { View } from './views'
 
-const PANE = 'undertow'
+const PANE = 'evoke'
 // Transparent: the water runs on under the pane, so transcript and menu are one surface.
-const PANE_ARGS = { id: PANE, title: 'UNDERTOW', columns: 56, backgroundColor: 'transparent' }
+const PANE_ARGS = { id: PANE, title: 'EVOKE', columns: 56, backgroundColor: 'transparent' }
 // Each menu entry is a real slash command: pressing it fills the prompt, Enter runs it.
 const MENU = {
   SKILL: '/skills',
@@ -38,20 +38,20 @@ const SAYS: Record<keyof typeof MENU, string> = {
 const ART_TERMINALS = ['ghostty', 'kitty', 'iTerm.app', 'WezTerm']
 const SPINNER = { requesting: 'Calling', thinking: 'Analyzing', responding: 'Reporting', 'tool-input': 'Preparing', 'tool-use': 'Running' } as const
 
-const counts = atom({ plugin: 'undertow', key: 'counts' } as const, {})
-const last = atom({ plugin: 'undertow', key: 'last' } as const, null)
-const day = atom({ plugin: 'undertow', key: 'day' } as const, '')
-const usage = atom({ plugin: 'undertow', key: 'usage' } as const, null)
-const projects = atom({ plugin: 'undertow', key: 'projects' } as const, [])
-const place = atom({ plugin: 'undertow', key: 'place' } as const, { cwd: '', branch: '', art: true })
-const page = atom({ plugin: 'undertow', key: 'page' } as const, 0)
+const counts = atom({ plugin: 'evoke', key: 'counts' } as const, {})
+const last = atom({ plugin: 'evoke', key: 'last' } as const, null)
+const day = atom({ plugin: 'evoke', key: 'day' } as const, '')
+const usage = atom({ plugin: 'evoke', key: 'usage' } as const, null)
+const projects = atom({ plugin: 'evoke', key: 'projects' } as const, [])
+const place = atom({ plugin: 'evoke', key: 'place' } as const, { cwd: '', branch: '', art: true })
+const page = atom({ plugin: 'evoke', key: 'page' } as const, 0)
 
-const skills = atom({ plugin: 'undertow', key: 'skills' } as const, [])
-const uses = atom({ plugin: 'undertow', key: 'uses' } as const, {})
-const log = atom({ plugin: 'undertow', key: 'log' } as const, {})
+const skills = atom({ plugin: 'evoke', key: 'skills' } as const, [])
+const uses = atom({ plugin: 'evoke', key: 'uses' } as const, {})
+const log = atom({ plugin: 'evoke', key: 'log' } as const, {})
 
-const PROJECTS = 'undertow-projects'
-const BOOK = 'undertow-skills'
+const PROJECTS = 'evoke-projects'
+const BOOK = 'evoke-skills'
 // More small frames instead of a few large ones: an Image swap is cheap, so the cut-in reads as motion.
 const FRAMES = [25, 50, 75, 90]
 const scene = (root: string, menu: string, frame: number) => ({ file: `${root}/scenes/${menu}_${frame}.png`, format: 'png' as const })

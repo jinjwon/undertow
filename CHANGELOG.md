@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.0 - 2026-11-06
+
+### Changed
+
+- Renamed the project from Undertow to Evoke, with a new `>-` logo. The plugin, its pane and the Ghostty files take the new name.
+- Skill use counts start again, because they are stored under the plugin's name.
+
+### Upgrade
+
+- Delete `~/.config/ghostty/undertow.conf` and its `config-file` line, then run `ghostty/install.sh` again.
+
 ## 1.5.2 - 2026-11-06
 
 ### Changed

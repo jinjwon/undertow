@@ -23,10 +23,10 @@ export const untilReset = (iso: string | undefined, now: number) => {
   return `${Math.floor(minutes / 1440)}d${Math.floor((minutes % 1440) / 60)}h`
 }
 
-// The most used come first; Undertow's own commands are not skills worth listing.
+// The most used come first; Evoke's own commands are not skills worth listing.
 export const skillsOf = (commands: CommandInfo[], used: Record<string, number>) =>
   commands
-    .filter(c => (c.source === 'plugin' || c.source === 'user') && !c.plugin?.startsWith('undertow'))
+    .filter(c => (c.source === 'plugin' || c.source === 'user') && !c.plugin?.startsWith('evoke'))
     .map(c => ({ name: c.name, description: c.description, plugin: c.name.includes(':') ? c.name.split(':')[0] : 'personal' }))
     .sort((a, b) => (used[b.name] ?? 0) - (used[a.name] ?? 0) || a.name.localeCompare(b.name))
 

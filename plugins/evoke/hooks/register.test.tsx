@@ -44,7 +44,7 @@ test('a tool call shows in the band guide', async ($, on) => {
   await ($.tool as any).call({ tool: 'Bash', command: 'ls' })
   await new Promise(done => setTimeout(done, 5)) // the cut-in settles the state after the call
   const ui = await $.ui.mount({
-    plugin: 'undertow',
+    plugin: 'evoke',
     surface: 'terminal',
     component: 'AbovePrompt',
     props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 80, scroll: { offset: 0, bodyRows: 10 }, view: {} },
@@ -72,9 +72,9 @@ test('only trusted real project paths are offered, bad data gives none', async (
   expect(projectsOf(twice, '/x')).toHaveLength(1)
 })
 
-test('skills sort by use and leave out Undertow and built-ins', async () => {
+test('skills sort by use and leave out Evoke and built-ins', async () => {
   const c = (name: string, source: 'plugin' | 'user' | 'builtin', plugin?: string) => ({ name, description: '', source, plugin })
-  const found = skillsOf([c('help', 'builtin'), c('menu', 'plugin', 'undertow'), c('alpha', 'user'), c('x:beta', 'plugin', 'x')], { 'x:beta': 2 })
+  const found = skillsOf([c('help', 'builtin'), c('menu', 'plugin', 'evoke'), c('alpha', 'user'), c('x:beta', 'plugin', 'x')], { 'x:beta': 2 })
   expect(found.map(s => s.name)).toEqual(['x:beta', 'alpha'])
   expect(found.map(s => s.plugin)).toEqual(['x', 'personal'])
 })
@@ -94,10 +94,10 @@ test('the skillbook draws its skills', async ($, on) => {
   on('ui.open', () => ({ value: { isPlaced: true } }))
   await $.command.run({ command: 'skillbook', args: '' } as never)
   const ui = await $.ui.mount({
-    plugin: 'undertow',
+    plugin: 'evoke',
     surface: 'terminal',
     component: 'Pane',
-    requestId: 'undertow-skills',
+    requestId: 'evoke-skills',
     props: { title: 'SKILLBOOK', isFocused: true, bodyColumns: 56, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} },
   })
   expect((await ui.find({ type: 'Text', text: /x:beta/ }))?.text).toContain('x:beta')
@@ -164,11 +164,11 @@ test('each menu draws its own content at every size, however long its log', asyn
     await new Promise(done => setTimeout(done, 5))
     for (const [bodyColumns, bodyRows] of [[56, 41], [56, 30], [30, 40], [56, 12], [200, 90]] as const) {
       const ui = await ($.ui as any).mount({
-        plugin: 'undertow',
+        plugin: 'evoke',
         surface: 'terminal',
         component: 'Pane',
-        requestId: 'undertow',
-        props: { title: 'UNDERTOW', isFocused: false, bodyColumns, placement: 'dock', scroll: { offset: 0, bodyRows }, view: {} },
+        requestId: 'evoke',
+        props: { title: 'EVOKE', isFocused: false, bodyColumns, placement: 'dock', scroll: { offset: 0, bodyRows }, view: {} },
       })
       expect(await ui.find({ type: 'Text', text: shows })).toBeTruthy()
       await ui.unmount()
@@ -196,11 +196,11 @@ test('the keys still move the menu, fill the prompt and turn the page', async ($
   on('fs.read', () => ({ value: '{}' }) as never)
   await $.command.run({ command: 'skillbook', args: '' } as never) // loads the skills
   const ui = await $.ui.mount({
-    plugin: 'undertow',
+    plugin: 'evoke',
     surface: 'terminal',
     component: 'Pane',
-    requestId: 'undertow',
-    props: { title: 'UNDERTOW', isFocused: true, bodyColumns: 56, placement: 'dock', scroll: { offset: 0, bodyRows: 41 }, view: {} },
+    requestId: 'evoke',
+    props: { title: 'EVOKE', isFocused: true, bodyColumns: 56, placement: 'dock', scroll: { offset: 0, bodyRows: 41 }, view: {} },
   })
   const shows = async (text: RegExp) => expect(await ui.find({ type: 'Text', text })).toBeTruthy()
   await shows(/^\/skills/)
@@ -218,7 +218,7 @@ test('the keys still move the menu, fill the prompt and turn the page', async ($
   await shows(/^\/config/)
   expect(filled).toEqual(['/skills', '/config'])
   await ui.press({ key: 'projects' })
-  expect(opened).toContain('undertow-projects') // One key, no prompt to send.
+  expect(opened).toContain('evoke-projects') // One key, no prompt to send.
   await ui.press({ key: 'skillbook' })
   expect(filled.slice(-1)).toEqual(['/skillbook'])
   await ui.unmount()
@@ -262,12 +262,12 @@ test('a windows session starts with no unix tools and no git, and opens a projec
   on('clock.now', () => ({ value: Date.UTC(2026, 10, 6) }))
   await $.session.start({ cwd: 'C:\\Users\\me\\here', surface: 'terminal', isInteractive: true })
   const props = (title: string, bodyColumns = 56) => ({ title, isFocused: true, bodyColumns, placement: 'dock', scroll: { offset: 0, bodyRows: 41 }, view: {} })
-  const pane = await $.ui.mount({ plugin: 'undertow', surface: 'terminal', component: 'Pane', requestId: 'undertow', props: props('UNDERTOW') })
+  const pane = await $.ui.mount({ plugin: 'evoke', surface: 'terminal', component: 'Pane', requestId: 'evoke', props: props('EVOKE') })
   expect(await pane.findAll({ type: 'Image' })).toHaveLength(0) // Windows Terminal draws plain rows.
   expect(await pane.find({ type: 'Text', text: /SKILL/ })).toBeTruthy()
   await pane.unmount()
   await $.command.run({ command: 'projects', args: '' })
-  const picker = await $.ui.mount({ plugin: 'undertow', surface: 'terminal', component: 'Pane', requestId: 'undertow-projects', props: props('PROJECT') })
+  const picker = await $.ui.mount({ plugin: 'evoke', surface: 'terminal', component: 'Pane', requestId: 'evoke-projects', props: props('PROJECT') })
   expect((await picker.find({ type: 'Text', text: /NOW/ }))?.text).toContain('here')
   const before = ran.length
   await picker.press({ key: 'C:/Users/me/here' })

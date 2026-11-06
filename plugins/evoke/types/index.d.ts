@@ -5,7 +5,7 @@ export type Skill = { name: string; description: string; plugin: string }
 
 declare module 'claude-code' {
   interface PluginState {
-    'undertow': {
+    'evoke': {
       counts: Record<string, number>
       last: Last | null
       day: string

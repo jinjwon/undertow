@@ -1,13 +1,13 @@
 #!/bin/zsh
-# Writes the Undertow look to ~/.config/ghostty/undertow.conf and includes it once. Delete that line to undo.
-# Every new Ghostty window then starts Claude Code with the menu; remove the `command` line from undertow.conf for a plain shell with the same look.
+# Writes the Evoke look to ~/.config/ghostty/evoke.conf and includes it once. Delete that line to undo.
+# Every new Ghostty window then starts Claude Code with the menu; remove the `command` line from evoke.conf for a plain shell with the same look.
 set -e
 R="${0:a:h:h}"; D="$HOME/.config/ghostty"
 # The path goes inside a quoted shell command below: a quote, $, ` or \\ in it would break or inject into that command.
-[[ "$R" != *[\'\"\$\`\\]* ]] || { echo "Move Undertow to a folder whose path has no quotes, \$, \` or backslashes: $R" >&2; exit 1; }
+[[ "$R" != *[\'\"\$\`\\]* ]] || { echo "Move Evoke to a folder whose path has no quotes, \$, \` or backslashes: $R" >&2; exit 1; }
 mkdir -p "$D"
-cat > "$D/undertow.conf" <<CONF
-title = Undertow
+cat > "$D/evoke.conf" <<CONF
+title = Evoke
 font-family = Iosevka
 font-family = Pretendard
 font-style = Medium
@@ -24,11 +24,11 @@ window-width = 170
 window-height = 50
 window-padding-x = 6
 macos-titlebar-style = transparent
-custom-shader = $R/ghostty/undertow.glsl
+custom-shader = $R/ghostty/evoke.glsl
 custom-shader-animation = true
 background-image = $R/ghostty/background.png
 background-image-fit = cover
-command = /bin/zsh -lc "claude --plugin-dir '$R/plugins/undertow' /menu; exec zsh"
+command = /bin/zsh -lc "claude --plugin-dir '$R/plugins/evoke' /menu; exec zsh"
 CONF
-grep -qs 'config-file = undertow.conf' "$D/config" || echo 'config-file = undertow.conf' >> "$D/config"
-echo "Undertow look installed. Restart Ghostty."
+grep -qs 'config-file = evoke.conf' "$D/config" || echo 'config-file = evoke.conf' >> "$D/config"
+echo "Evoke look installed. Restart Ghostty."

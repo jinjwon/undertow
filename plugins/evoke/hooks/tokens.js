@@ -1,5 +1,5 @@
 // The design tokens, shared by the pane (register.tsx) and the art (tools/scene.html).
-// ghostty/undertow.glsl and background.html keep NAVY as their key colour: change them together.
+// ghostty/evoke.glsl and background.html keep NAVY as their key colour: change them together.
 export const COLOR = {
   INK: '#01030C', // the HUD's plate: far enough from NAVY that the shader leaves them solid
   ABYSS: '#050A24', // dark planes and bands

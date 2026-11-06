@@ -7,7 +7,7 @@ func c(_ r: CGFloat,_ g: CGFloat,_ b: CGFloat,_ a: CGFloat = 1) throws -> Data {
 }
 let font = NSFont(name: "Iosevka-Medium", size: 14) ?? NSFont.monospacedSystemFont(ofSize: 14, weight: .medium)
 var p: [String: Any] = [
-  "name": "Undertow", "type": "Window Settings", "ProfileCurrentVersion": 2.09,
+  "name": "Evoke", "type": "Window Settings", "ProfileCurrentVersion": 2.09,
   "BackgroundColor": try c(11,22,72,1.0),
   "TextColor": try c(255,255,255), "TextBoldColor": try c(255,255,255),
   "CursorColor": try c(232,16,30), "SelectionColor": try c(255,255,255,0.35),

@@ -1,12 +1,12 @@
-# Undertow
+# Evoke
 
-<img src="assets/logo.png" width="96" alt="Undertow logo">
+<img src="assets/logo.png" width="96" alt="Evoke logo">
 
 **English** | [한국어](README.ko.md)
 
 An underwater, slanted, game-menu interface for [Claude Code](https://claude.com/claude-code) in [Ghostty](https://ghostty.org). The water runs behind both the transcript and the menu, so the terminal reads as one surface.
 
-<img src="assets/preview.png" width="720" alt="Undertow in Ghostty: the transcript on the left, the SYSTEM menu on the right">
+<img src="assets/preview.png" width="720" alt="Evoke in Ghostty: the transcript on the left, the SKILL menu on the right">
 
 ## Features
 
@@ -27,7 +27,7 @@ git clone https://github.com/jinjwon/undertow.git
 undertow/ghostty/install.sh
 ```
 
-Restart Ghostty. The clone's path may contain spaces, but not quotes, `$`, backticks or backslashes. The installer writes `~/.config/ghostty/undertow.conf` and adds one include line to `~/.config/ghostty/config`.
+Restart Ghostty. The clone's path may contain spaces, but not quotes, `$`, backticks or backslashes. The installer writes `~/.config/ghostty/evoke.conf` and adds one include line to `~/.config/ghostty/config`.
 
 **Every new Ghostty window then starts Claude Code with the menu.** See [Settings](#settings) to keep a plain shell instead.
 
@@ -36,7 +36,7 @@ Restart Ghostty. The clone's path may contain spaces, but not quotes, `$`, backt
 Run this at the Claude Code prompt, then `/menu`. Terminals that cannot draw images get plain rows instead of the art.
 
 ```
-/plugin install undertow --marketplace jinjwon/undertow
+/plugin install evoke --marketplace jinjwon/undertow
 ```
 
 ### Windows
@@ -57,10 +57,10 @@ Terminal has no animated water or art, so the menu uses plain rows. This profile
 
 | To change | Do this |
 | --- | --- |
-| Keep a plain shell in Ghostty | Delete the `command` line from `~/.config/ghostty/undertow.conf` |
-| Window size | `window-width` and `window-height` in `undertow.conf`. The docked menu needs at least 110 columns |
-| Font | `font-family` and `font-size` in `undertow.conf`. The art lines up with Iosevka at size 14 |
-| Add your own image | Put a transparent PNG you have the rights to at `plugins/undertow/hero.png`, then run `plugins/undertow/tools/render.sh` (needs Google Chrome). `hero.png` is git-ignored |
+| Keep a plain shell in Ghostty | Delete the `command` line from `~/.config/ghostty/evoke.conf` |
+| Window size | `window-width` and `window-height` in `evoke.conf`. The docked menu needs at least 110 columns |
+| Font | `font-family` and `font-size` in `evoke.conf`. The art lines up with Iosevka at size 14 |
+| Add your own image | Put a transparent PNG you have the rights to at `plugins/evoke/hero.png`, then run `plugins/evoke/tools/render.sh` (needs Google Chrome). `hero.png` is git-ignored |
 
 ## Commands and shortcuts
 
@@ -85,24 +85,24 @@ To click a menu, use its number at the right edge: the slanted names are part of
 
 ## Uninstall and restore
 
-**Ghostty:** delete the `config-file = undertow.conf` line from `~/.config/ghostty/config`, delete `~/.config/ghostty/undertow.conf`, and restart Ghostty.
+**Ghostty:** delete the `config-file = evoke.conf` line from `~/.config/ghostty/config`, delete `~/.config/ghostty/evoke.conf`, and restart Ghostty.
 
-**Plugin:** run `/plugin uninstall undertow`, or `claude plugin uninstall undertow` in a shell.
+**Plugin:** run `/plugin uninstall evoke`, or `claude plugin uninstall evoke` in a shell.
 
-**Terminal:** in Terminal > Settings > Profiles, delete the Undertow profile. If you used `--default`, choose another default first.
+**Terminal:** in Terminal > Settings > Profiles, delete the Evoke profile. If you used `--default`, choose another default first.
 
 Delete the cloned folder last: the Ghostty and Terminal setups read their files from it.
 
 ## How credits are used
 
-Undertow makes no AI requests of its own. Its code has no model, agent or network calls: the HUD only draws the usage figures Claude Code already holds. Measured with Claude Code 2.1.319 on macOS:
+Evoke makes no AI requests of its own. Its code has no model, agent or network calls: the HUD only draws the usage figures Claude Code already holds. Measured with Claude Code 2.1.319 on macOS:
 
 | Setup | AI requests | Result |
 | --- | --- | --- |
-| Ghostty with the Undertow look and a plain shell (no `command` line) | None | No Claude process and no TCP connections in a 12-second sample |
-| zsh | None | Undertow adds nothing to your shell. It loads only inside Claude Code |
-| Claude Code + Undertow, opened with `/menu`, no prompt sent | No model reply, session cost $0 | One `quota_check` request at start, the same as without Undertow |
-| Claude Code + Undertow, one prompt | Your prompt only | First request 29,175 context tokens with and without Undertow, in 3 of 3 pairs |
+| Ghostty with the Evoke look and a plain shell (no `command` line) | None | No Claude process and no TCP connections in a 12-second sample |
+| zsh | None | Evoke adds nothing to your shell. It loads only inside Claude Code |
+| Claude Code + Evoke, opened with `/menu`, no prompt sent | No model reply, session cost $0 | One `quota_check` request at start, the same as without Evoke |
+| Claude Code + Evoke, one prompt | Your prompt only | First request 29,175 context tokens with and without Evoke, in 3 of 3 pairs |
 
 The `quota_check` request belongs to Claude Code and happens on every start. We have not verified whether it counts against your plan.
 
@@ -112,6 +112,6 @@ The `quota_check` request belongs to Claude Code and happens on every start. We 
 
 ## License and notice
 
-[MIT](LICENSE). The art's typeface is [Barlow](https://github.com/jpt/barlow) ([OFL](plugins/undertow/tools/fonts/OFL.txt)).
+[MIT](LICENSE). The art's typeface is [Barlow](https://github.com/jpt/barlow) ([OFL](plugins/evoke/tools/fonts/OFL.txt)).
 
-Undertow is an unofficial fan project inspired by the menu design of Persona 3 Reload. It is not affiliated with or endorsed by ATLUS or SEGA, and it contains no game assets. To report a vulnerability, see [SECURITY.md](SECURITY.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+Evoke is an unofficial fan project inspired by the menu design of Persona 3 Reload. It is not affiliated with or endorsed by ATLUS or SEGA, and it contains no game assets. To report a vulnerability, see [SECURITY.md](SECURITY.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).

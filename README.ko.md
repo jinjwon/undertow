@@ -1,12 +1,12 @@
-# Undertow
+# Evoke
 
-<img src="assets/logo.png" width="96" alt="Undertow 로고">
+<img src="assets/logo.png" width="96" alt="Evoke 로고">
 
 [English](README.md) | **한국어**
 
 [Ghostty](https://ghostty.org)에서 쓰는 [Claude Code](https://claude.com/claude-code)용 수중 테마의 기울어진 게임 메뉴 인터페이스입니다. 대화 영역과 메뉴 뒤로 물결이 이어져 터미널 전체가 하나의 화면처럼 보입니다.
 
-<img src="assets/preview.png" width="720" alt="Ghostty에서 실행한 Undertow: 왼쪽은 대화 영역, 오른쪽은 SYSTEM 메뉴">
+<img src="assets/preview.png" width="720" alt="Ghostty에서 실행한 Evoke: 왼쪽은 대화 영역, 오른쪽은 SKILL 메뉴">
 
 ## 주요 기능
 
@@ -27,7 +27,7 @@ git clone https://github.com/jinjwon/undertow.git
 undertow/ghostty/install.sh
 ```
 
-Ghostty를 다시 시작하세요. 클론 경로에 공백은 쓸 수 있지만 따옴표, `$`, 백틱, 백슬래시는 쓸 수 없습니다. 설치 스크립트는 `~/.config/ghostty/undertow.conf`를 만들고 `~/.config/ghostty/config`에 포함 줄 하나를 추가합니다.
+Ghostty를 다시 시작하세요. 클론 경로에 공백은 쓸 수 있지만 따옴표, `$`, 백틱, 백슬래시는 쓸 수 없습니다. 설치 스크립트는 `~/.config/ghostty/evoke.conf`를 만들고 `~/.config/ghostty/config`에 포함 줄 하나를 추가합니다.
 
 **이후 새 Ghostty 창은 모두 메뉴와 함께 Claude Code를 시작합니다.** 일반 셸을 유지하려면 [설정](#설정)을 참고하세요.
 
@@ -36,7 +36,7 @@ Ghostty를 다시 시작하세요. 클론 경로에 공백은 쓸 수 있지만 
 Claude Code 프롬프트에서 아래 명령을 실행한 뒤 `/menu`를 입력하세요. 이미지를 표시할 수 없는 터미널에서는 아트 대신 일반 텍스트 행으로 나옵니다.
 
 ```
-/plugin install undertow --marketplace jinjwon/undertow
+/plugin install evoke --marketplace jinjwon/undertow
 ```
 
 ### Windows
@@ -57,10 +57,10 @@ undertow/terminal/install.sh            # 기본 프로필로 쓰려면 --defaul
 
 | 바꿀 내용 | 방법 |
 | --- | --- |
-| Ghostty에서 일반 셸 유지 | `~/.config/ghostty/undertow.conf`에서 `command` 줄 삭제 |
-| 창 크기 | `undertow.conf`의 `window-width`, `window-height`. 메뉴를 옆에 고정하려면 110열 이상이 필요합니다 |
-| 글꼴 | `undertow.conf`의 `font-family`, `font-size`. 아트는 Iosevka 14 기준으로 맞춰져 있습니다 |
-| 내 이미지 추가 | 권리를 가진 투명 PNG를 `plugins/undertow/hero.png`에 넣고 `plugins/undertow/tools/render.sh` 실행 (Google Chrome 필요). `hero.png`는 git에서 제외됩니다 |
+| Ghostty에서 일반 셸 유지 | `~/.config/ghostty/evoke.conf`에서 `command` 줄 삭제 |
+| 창 크기 | `evoke.conf`의 `window-width`, `window-height`. 메뉴를 옆에 고정하려면 110열 이상이 필요합니다 |
+| 글꼴 | `evoke.conf`의 `font-family`, `font-size`. 아트는 Iosevka 14 기준으로 맞춰져 있습니다 |
+| 내 이미지 추가 | 권리를 가진 투명 PNG를 `plugins/evoke/hero.png`에 넣고 `plugins/evoke/tools/render.sh` 실행 (Google Chrome 필요). `hero.png`는 git에서 제외됩니다 |
 
 ## 명령어와 단축키
 
@@ -85,24 +85,24 @@ undertow/terminal/install.sh            # 기본 프로필로 쓰려면 --defaul
 
 ## 제거 및 복구
 
-**Ghostty:** `~/.config/ghostty/config`에서 `config-file = undertow.conf` 줄을 지우고, `~/.config/ghostty/undertow.conf`를 삭제한 뒤 Ghostty를 다시 시작하세요.
+**Ghostty:** `~/.config/ghostty/config`에서 `config-file = evoke.conf` 줄을 지우고, `~/.config/ghostty/evoke.conf`를 삭제한 뒤 Ghostty를 다시 시작하세요.
 
-**플러그인:** `/plugin uninstall undertow`를 실행하거나, 셸에서 `claude plugin uninstall undertow`를 실행하세요.
+**플러그인:** `/plugin uninstall evoke`를 실행하거나, 셸에서 `claude plugin uninstall evoke`를 실행하세요.
 
-**터미널:** 터미널 > 설정 > 프로파일에서 Undertow 프로필을 삭제하세요. `--default`를 썼다면 먼저 다른 기본 프로필을 고르세요.
+**터미널:** 터미널 > 설정 > 프로파일에서 Evoke 프로필을 삭제하세요. `--default`를 썼다면 먼저 다른 기본 프로필을 고르세요.
 
 클론한 폴더는 마지막에 삭제하세요. Ghostty와 터미널 설정이 이 폴더의 파일을 읽습니다.
 
 ## 크레딧 사용 구조
 
-Undertow는 자체적으로 AI 요청을 보내지 않습니다. 코드에 모델, 에이전트, 네트워크 호출이 없고, HUD는 Claude Code가 이미 가진 사용량 수치를 그리기만 합니다. Claude Code 2.1.319, macOS에서 측정한 결과입니다.
+Evoke는 자체적으로 AI 요청을 보내지 않습니다. 코드에 모델, 에이전트, 네트워크 호출이 없고, HUD는 Claude Code가 이미 가진 사용량 수치를 그리기만 합니다. Claude Code 2.1.319, macOS에서 측정한 결과입니다.
 
 | 환경 | AI 요청 | 결과 |
 | --- | --- | --- |
-| Undertow 외관을 적용한 Ghostty + 일반 셸 (`command` 줄 없음) | 없음 | 12초 샘플에서 Claude 프로세스와 TCP 연결 없음 |
-| zsh | 없음 | Undertow는 셸에 아무것도 추가하지 않습니다. Claude Code 안에서만 로드됩니다 |
-| Claude Code + Undertow, `/menu`로 시작, 프롬프트 전송 안 함 | 모델 응답 없음, 세션 비용 $0 | 시작 시 `quota_check` 요청 1회. Undertow가 없을 때와 같습니다 |
-| Claude Code + Undertow, 프롬프트 1회 | 내 프롬프트만 | 첫 요청 컨텍스트 29,175토큰. Undertow 유무와 관계없이 3쌍 모두 동일 |
+| Evoke 외관을 적용한 Ghostty + 일반 셸 (`command` 줄 없음) | 없음 | 12초 샘플에서 Claude 프로세스와 TCP 연결 없음 |
+| zsh | 없음 | Evoke는 셸에 아무것도 추가하지 않습니다. Claude Code 안에서만 로드됩니다 |
+| Claude Code + Evoke, `/menu`로 시작, 프롬프트 전송 안 함 | 모델 응답 없음, 세션 비용 $0 | 시작 시 `quota_check` 요청 1회. Evoke가 없을 때와 같습니다 |
+| Claude Code + Evoke, 프롬프트 1회 | 내 프롬프트만 | 첫 요청 컨텍스트 29,175토큰. Evoke 유무와 관계없이 3쌍 모두 동일 |
 
 `quota_check` 요청은 Claude Code의 동작으로, 시작할 때마다 발생합니다. 이 요청이 요금제 사용량에 포함되는지는 확인하지 못했습니다.
 
@@ -112,6 +112,6 @@ Undertow는 자체적으로 AI 요청을 보내지 않습니다. 코드에 모�
 
 ## 라이선스 및 안내
 
-[MIT](LICENSE). 아트의 서체는 [Barlow](https://github.com/jpt/barlow)([OFL](plugins/undertow/tools/fonts/OFL.txt))입니다.
+[MIT](LICENSE). 아트의 서체는 [Barlow](https://github.com/jpt/barlow)([OFL](plugins/evoke/tools/fonts/OFL.txt))입니다.
 
-Undertow는 Persona 3 Reload의 메뉴 디자인에서 영감을 받은 비공식 팬 프로젝트입니다. ATLUS 또는 SEGA와 관련이 없고 이들의 승인을 받지 않았으며, 게임 에셋을 포함하지 않습니다. 취약점 제보는 [SECURITY.md](SECURITY.md)를, 변경 내역은 [CHANGELOG.md](CHANGELOG.md)를 참고하세요.
+Evoke는 Persona 3 Reload의 메뉴 디자인에서 영감을 받은 비공식 팬 프로젝트입니다. ATLUS 또는 SEGA와 관련이 없고 이들의 승인을 받지 않았으며, 게임 에셋을 포함하지 않습니다. 취약점 제보는 [SECURITY.md](SECURITY.md)를, 변경 내역은 [CHANGELOG.md](CHANGELOG.md)를 참고하세요.
