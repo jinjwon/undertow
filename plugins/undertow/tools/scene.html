@@ -1,0 +1,60 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;background:#0A1FA8;width:1400px;height:1500px;overflow:hidden}
+text{font-family:"Arial Black","Helvetica Neue";font-weight:900}
+</style></head><body><svg id="s" xmlns="http://www.w3.org/2000/svg" width="1400" height="1500" viewBox="0 0 1400 1500"></svg>
+<script>
+const q=new URLSearchParams(location.search), MENU=q.get('menu')||'SKILL', T=+(q.get('t')||1);
+const NAMES=['SKILL','ITEM','EQUIP','AGENT','STATUS','QUEST','LINK','CALENDAR','SYSTEM'];
+const INK='#000',GREY='#8C93A8',NAVY='#06127A',RED='#E8101E',PINK='#FF2E88';
+// One composition per menu: the field that cuts the frame and the word cropped by the left zone.
+const C={
+ SKILL:{field:`M0 0H640C540 300 720 560 610 900C540 1120 400 1300 360 1500H0Z`,from:[-1,0],word:{x:190,y:1490,s:400,r:-90,c:INK}},
+ ITEM:{field:`M0 0H520L760 620L300 1500H0Z`,from:[-1,-.4],word:{x:30,y:1400,s:480,r:-14,c:GREY}},
+ EQUIP:{field:`M0 0H760L640 760L720 1500H0Z`,from:[-.6,1],word:{x:-30,y:1440,s:400,r:-4,c:GREY}},
+ AGENT:{circle:[330,700,640,NAVY],field:`M0 1240L800 1500H0Z`,from:[-1,0],word:{x:-10,y:1460,s:250,r:-4,c:INK},num:{x:70,y:640,c:GREY}},
+ STATUS:{field:`M0 0H420L700 700L380 1500H0Z`,from:[-1,-.2],word:{x:110,y:30,s:290,r:90,c:INK}},
+ QUEST:{field:`M0 1060L840 700V1000L0 1500Z`,from:[-1,.6],word:{x:20,y:1370,s:340,r:-23,c:GREY}},
+ LINK:{field:`M0 0H560L0 620ZM0 1500L700 760V1500Z`,from:[-1,1],word:{x:270,y:1490,s:290,r:-48,c:GREY}},
+ CALENDAR:{moon:[340,480,360],field:`M0 1200L780 1060V1500H0Z`,from:[0,1],word:{x:-10,y:1440,s:190,r:-6,c:INK}},
+ SYSTEM:{field:`M0 0H1400V1500H0Z`,circle:[470,640,930,NAVY],from:[-1,1],word:{x:-20,y:1490,s:300,r:-12,c:INK},num:{x:120,y:620,c:GREY},noClip:1},
+};
+const c=C[MENU], i=NAMES.indexOf(MENU);
+const ease=x=>1-Math.pow(1-Math.max(0,Math.min(1,x)),3);
+const f=ease(T*1.25), g=ease((T-.2)*1.4);
+const fx=(1-f)*1500*c.from[0], fy=(1-f)*1500*c.from[1];
+let seed=(i+3)*7919; const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+const shard=(x,y,s,col,op)=>{const a=rnd()*6.28,p=[0,1,2].map(k=>{const b=a+k*2.1+rnd()*.5,r=s*(.5+rnd()*.7);return `${x+Math.cos(b)*r},${y+Math.sin(b)*r}`}).join(' ');return `<polygon points="${p}" fill="${col}" opacity="${op}"/>`};
+let shards='';for(let k=0;k<8;k++){const cols=[PINK,'#B04BFF','#5FD8FF',PINK];shards+=shard(rnd()*720+(1-f)*-200,rnd()*1500+(1-f)*300,12+rnd()*30,cols[k%4],.45+rnd()*.4)}
+const word=`<g clip-path="url(#zone)"><text transform="translate(${c.word.x+(1-g)*fx*.7} ${c.word.y+(1-g)*fy*.7}) rotate(${c.word.r}) skewX(-10)" font-size="${c.word.s}" letter-spacing="${-c.word.s*.05}" fill="${c.word.c}" ${c.word.c===GREY?'opacity=".88"':''}>${MENU}</text></g>`;
+const num=c.num?`<text x="${c.num.x}" y="${c.num.y+200*(1-g)}" font-size="520" fill="${c.num.c}" opacity="${.95*g}" transform="skewX(-8)" font-family="Helvetica Neue">${i+1}</text>`:'';
+// Fixed rhythm: one size, one step, one slant; SYSTEM sits apart below a rule.
+const X=790,Y0=390,STEP=104,SIZE=84;
+const column=mode=>NAMES.map((n,k)=>{const BLUE=mode==='blue',on=n===MENU;
+  if(on!==(mode==='sel'))return '';
+  const u=ease((T-.15-k*.035)*2.4),x=X+k*9+(1-u)*260,y=Y0+k*STEP+(n==='SYSTEM'?56:0);
+  const t=`translate(${x} ${y}) rotate(-10) skewX(-11)`;
+  if(!on)return `<text transform="${t}" font-size="${SIZE}" letter-spacing="-4" fill="${BLUE?'#0B2FC8':k%2?'#7BE3FF':'#F2FCFF'}" opacity="${u}">${n}</text>`;
+  const S=SIZE*1.16,L=Math.min(n.length*S*.72,540);
+  // The selected word is split by the blade: black below the cut, red above it.
+  return `<g transform="${t}" opacity="${u}"><polygon points="-70,${S*.1} ${L+70},${-S*1.15} ${L+30},${S*.1} 60,${S*.3}" fill="#fff" stroke="${PINK}" stroke-width="8" stroke-linejoin="miter"/>
+  <clipPath id="cut"><polygon points="-40,${S*.5} ${L+60},${S*.5} ${L+60},${-S*.32} -40,${S*.1}"/></clipPath>
+  <text font-size="${S}" letter-spacing="-4" fill="${RED}" textLength="${L}" lengthAdjust="spacingAndGlyphs">${n}</text>
+  <text clip-path="url(#cut)" font-size="${S}" letter-spacing="-4" fill="#000" textLength="${L}" lengthAdjust="spacingAndGlyphs">${n}</text></g>`;
+}).join('')+(mode==='light'?`<polygon points="${X+30},${Y0+8*STEP-34} ${X+540},${Y0+8*STEP-124} ${X+540},${Y0+8*STEP-119} ${X+30},${Y0+8*STEP-29}" fill="#F2FCFF" opacity="${g}"/>`:'');
+const windows=[0,1,2,3,4,5,6,7].map(k=>{const x=60+k*185;return `<polygon points="${x},40 ${x+26},40 ${x+60},1160 ${x+20},1160" fill="#0A1A9C" opacity=".38"/>`}).join('')
+ +`<polygon points="0,520 1400,350 1400,382 0,560" fill="#0A1A9C" opacity=".38"/>`
+ +[0,1,2,3,4,5].map(k=>`<polygon points="${k*250-60},${1190+k%2*40} ${k*250+150},${1150+k%2*40} ${k*250+190},${1190+k%2*40} ${k*250-20},${1234+k%2*40}" fill="#061478" opacity=".5"/><rect x="${k*250-30}" y="${1230+k%2*40}" width="14" height="150" fill="#061478" opacity=".5"/>`).join('');
+const moon=c.moon?`<g opacity="${g}"><circle cx="${c.moon[0]}" cy="${c.moon[1]}" r="${c.moon[2]}" fill="#fff"/><circle cx="${c.moon[0]-100}" cy="${c.moon[1]-30}" r="${c.moon[2]*.92}" fill="#0F46D8"/></g>`:'';
+const circle=c.circle?`<circle cx="${c.circle[0]+fx*.4}" cy="${c.circle[1]+fy*.4}" r="${c.circle[2]*(.7+.3*f)}" fill="${c.circle[3]}" opacity=".97"/>`:'';
+const hero=q.get('hero')?`<image href="../hero.png" x="${20+(1-g)*fx*.4}" y="${90+(1-g)*fy*.4}" width="740" height="1400" preserveAspectRatio="xMidYMax meet" opacity="${g}"/>`:'';
+s.innerHTML=`<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1E86EE"/><stop offset=".35" stop-color="#1160E6"/><stop offset=".72" stop-color="#0D35D0"/><stop offset="1" stop-color="#0A1FA8"/></linearGradient>
+<linearGradient id="wf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".22" stop-color="#fff" stop-opacity=".7"/><stop offset=".42" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<mask id="wm"><rect width="1400" height="1500" fill="url(#wf)"/></mask>
+<clipPath id="zone"><polygon points="0,0 880,0 700,1500 0,1500"/></clipPath>
+<filter id="caustic" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".0034 .0115" numOctaves="3" seed="${i+11}"/>
+<feColorMatrix values="0 0 0 0 .34  0 0 0 0 .74  0 0 0 0 1  2.6 0 0 0 -.72"/><feComponentTransfer><feFuncA type="discrete" tableValues="0 0 0 .55 .85 1"/></feComponentTransfer></filter>
+</defs>
+<rect width="1400" height="1500" fill="url(#bg)"/><rect width="1400" height="1500" filter="url(#caustic)" mask="url(#wm)"/>${windows}
+<g transform="translate(${fx} ${fy})"><path d="${c.field}" fill="#fff"/></g>${circle}${moon}${num}${word}${hero}${shards}<clipPath id="fc"><path d="${c.field}" transform="translate(${fx} ${fy})"/></clipPath>${column('light')}${c.noClip?'':`<g clip-path="url(#fc)">${column('blue')}</g>`}${column('sel')}`;
+</script></body></html>

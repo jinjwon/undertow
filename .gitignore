@@ -1,0 +1,6 @@
+.art/
+.DS_Store
+.claude-plugin/types/
+plugins/*/.claude-plugin/types/
+# Your own hero image stays on your machine.
+plugins/undertow/hero.png
