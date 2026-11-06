@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.2 - 2026-11-06
+
+### Changed
+
+- The project picker lists the most recently used project first and the open one last. Enter or `1` opens the top one.
+- `p` opens the picker directly instead of filling the prompt.
+- Picking the project you are already in closes the picker instead of opening a second window.
+
 ## 1.5.1 - 2026-11-06
 
 ### Added

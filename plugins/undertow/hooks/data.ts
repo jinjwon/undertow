@@ -30,8 +30,8 @@ export const skillsOf = (commands: CommandInfo[], used: Record<string, number>) 
     .map(c => ({ name: c.name, description: c.description, plugin: c.name.includes(':') ? c.name.split(':')[0] : 'personal' }))
     .sort((a, b) => (used[b.name] ?? 0) - (used[a.name] ?? 0) || a.name.localeCompare(b.name))
 
-// Windows paths can use either separator, so they are compared and cut in one form.
-const slashed = (path: string) => path.replace(/\\/g, '/')
+// Windows paths can use either separator and macOS can decompose Korean, so paths are compared and cut in one form.
+const slashed = (path: string) => path.replace(/\\/g, '/').normalize('NFC')
 export const samePath = (a: string, b: string) => slashed(a) === slashed(b)
 export const baseName = (path: string) => slashed(path).split('/').filter(Boolean).pop() ?? path
 
@@ -48,13 +48,31 @@ export const projectsOf = (json: string, home: string) => {
     const known = (JSON.parse(json) as { projects?: Record<string, { hasTrustDialogAccepted?: boolean }> }).projects ?? {}
     return Object.entries(known)
       .filter(([path, v]) => v.hasTrustDialogAccepted && /^(\/|[A-Za-z]:[\\/])/.test(path) && !samePath(path, home) && !/\/(Library|AppData)\//.test(slashed(path)))
-      .map(([path]) => ({ name: baseName(path).normalize('NFC'), path }))
+      .map(([path]) => ({ name: baseName(path), path }))
       // macOS can list one Korean folder twice, composed and decomposed.
-      .filter((p, i, all) => all.findIndex(o => samePath(o.path.normalize('NFC'), p.path.normalize('NFC'))) === i)
+      .filter((p, i, all) => all.findIndex(o => samePath(o.path, p.path)) === i)
   } catch {
     return []
   }
 }
+
+// When each project last got a prompt, from Claude Code's prompt history. Only paths and times are kept.
+export const lastUsedOf = (history: string) => {
+  const last = new Map<string, number>()
+  for (const line of history.split('\n')) {
+    try {
+      const { project, timestamp } = JSON.parse(line) as { project?: unknown; timestamp?: unknown }
+      if (typeof project === 'string' && typeof timestamp === 'number') last.set(slashed(project), Math.max(timestamp, last.get(slashed(project)) ?? 0))
+    } catch {
+      // A line cut off mid-write says nothing about the others.
+    }
+  }
+  return last
+}
+
+// Key 1 goes to the project most likely wanted: most recent first, and the one already open last.
+export const rankProjects = <P extends { path: string }>(list: P[], last: Map<string, number>, cwd: string) =>
+  [...list].sort((a, b) => Number(samePath(a.path, cwd)) - Number(samePath(b.path, cwd)) || (last.get(slashed(b.path)) ?? 0) - (last.get(slashed(a.path)) ?? 0))
 
 export const menuOf = (tool: string) => {
   if (tool === 'Skill') return 'SKILL'

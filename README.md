@@ -13,7 +13,7 @@ An underwater, slanted, game-menu interface for [Claude Code](https://claude.com
 - **Nine menus:** each has its own composition and kind of content. Tool calls light up their menu.
 - **AI usage HUD:** context, 5-hour and 7-day gauges with reset countdowns, plus session cost. A toast warns at 85%.
 - **Skills:** grouped and paged, most used first. `/skillbook` shows them all.
-- **Project switcher:** `/projects` lists your trusted Claude Code projects and opens one in a new window.
+- **Project switcher:** `p` or `/projects` lists your trusted Claude Code projects, most recently used first. Press `1` or Enter to open the top one in a new window.
 - **Status band:** session state, project, branch and tool count above the prompt.
 
 ## Install
@@ -78,7 +78,7 @@ Give the pane the keyboard with a click or `ctrl+x tab`, then:
 | `j` / `k` | Next / previous menu |
 | `e` | Fill the prompt with the current menu's command |
 | `n` / `b` | Next / previous page of skills |
-| `p` | Fill the prompt with `/projects` |
+| `p` | Open the project picker |
 | `s` | Fill the prompt with `/skillbook` |
 
 To click a menu, use its number at the right edge: the slanted names are part of the picture.

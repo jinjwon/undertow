@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { ART, COLOR as K, GRID, ITEM_ROWS } from './tokens.js'
-import { baseName, dayOf, entryOf, layoutOf, menuOf, openerOf, projectsOf, samePath, skillsOf, usageOf } from './data'
+import { baseName, dayOf, entryOf, fitName, lastUsedOf, layoutOf, menuOf, openerOf, projectsOf, rankProjects, samePath, skillsOf, usageOf } from './data'
 import { action, content, cut, hud, limitName } from './views'
 import type { View } from './views'
 
@@ -91,6 +91,17 @@ async function show($: EngineInterface, menu: string, tool: string) {
   await update($, last, () => ({ menu, tool }))
 }
 
+const openProjects = async ($: EngineInterface) => {
+  const home = (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE')) ?? ''
+  const found = projectsOf(await $.fs.read(`${home}/.claude.json`), home)
+  const real = (await Promise.all(found.map(async p => ((await $.fs.exists(p.path).catch(() => false)) ? p : null)))).filter(p => p !== null)
+  // shortcut: a history over the 4 MiB read limit leaves the file's own order, read its tail if that ever matters.
+  const last = lastUsedOf(await $.fs.read(`${home}/.claude/history.jsonl`).catch(() => ''))
+  const { cwd } = await read($, place)
+  await update($, projects, () => rankProjects(real, last, cwd).slice(0, 9))
+  await $.ui.open({ id: PROJECTS, title: 'PROJECT', columns: 56, backgroundColor: K.NAVY, focus: true, closeOnEscape: true })
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'menu', description: 'Open the MENU pane' })
@@ -174,11 +185,7 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'projects' }, async $ => {
-    const home = (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE')) ?? ''
-    const found = projectsOf(await $.fs.read(`${home}/.claude.json`), home)
-    const real = await Promise.all(found.map(async p => ((await $.fs.exists(p.path).catch(() => false)) ? p : null)))
-    await update($, projects, () => real.filter(p => p !== null).slice(0, 9))
-    await $.ui.open({ id: PROJECTS, title: 'PROJECT', columns: 56, backgroundColor: K.NAVY, focus: true, closeOnEscape: true })
+    await openProjects($)
     return { text: '프로젝트를 고르면 새 창으로 열어요.' }
   })
 
@@ -199,7 +206,9 @@ export const register: Register = on => {
                 key={p.path}
                 plain
                 hotkey={String(i + 1)}
+                autoFocus={i === 0 ? true : undefined}
                 onPress={async () => {
+                  if (isHere) return $.ui.close({ id: PROJECTS }) // Already here: a second window helps nobody.
                   const opener = openerOf(p.path, (await $.env.get('OS')) === 'Windows_NT', await $.env.get('TERM_PROGRAM'))
                   // A terminal that is not installed rejects rather than exiting non-zero.
                   const { exitCode, stderr } = opener ? await $.process.run(opener).catch(e => ({ exitCode: 1, stderr: String(e) })) : { exitCode: 1, stderr: '이 경로는 열 수 없어요.' }
@@ -207,7 +216,7 @@ export const register: Register = on => {
                   else await $.ui.close({ id: PROJECTS })
                 }}
               >
-                <Text backgroundColor={ground} color={isHere ? K.RED : K.WHITE} bold italic>{p.name}{isHere ? '  ◀ NOW' : ''}</Text>
+                <Text backgroundColor={ground} color={isHere ? K.RED : K.WHITE} bold italic>{fitName(p.name, e.props.bodyColumns - 12)}{isHere ? '  ◀ NOW' : ''}</Text>
               </Button>
               <Text backgroundColor={ground} color={isHere ? K.BLACK : K.ICE} wrap="truncate">   {p.path}</Text>
             </Box>
@@ -363,7 +372,7 @@ export const register: Register = on => {
         <Text>  </Text>
         <Button key="run" plain hotkey="e" label="실행" onPress={() => $.prompt.fill({ text: MENU[on_] })} />
         <Text>  </Text>
-        <Button key="projects" plain hotkey="p" label="프로젝트" onPress={() => $.prompt.fill({ text: '/projects' })} />
+        <Button key="projects" plain hotkey="p" label="프로젝트" onPress={() => openProjects($)} />
         <Text>  </Text>
         <Button key="skillbook" plain hotkey="s" label="스킬북" onPress={() => $.prompt.fill({ text: '/skillbook' })} />
       </Box>

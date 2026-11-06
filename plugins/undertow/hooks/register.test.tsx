@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { baseName, dayOf, entryOf, fitName, gauge, layoutOf, menuOf, monthOf, moon, openerOf, pageOf, projectsOf, rank, samePath, skillRows, skillsOf, slotsOf, tallied, untilReset } from './data'
+import { baseName, dayOf, entryOf, fitName, gauge, lastUsedOf, layoutOf, menuOf, monthOf, moon, openerOf, pageOf, projectsOf, rank, rankProjects, samePath, skillRows, skillsOf, slotsOf, tallied, untilReset } from './data'
 import { ART, GRID, ITEM_ROWS } from './tokens.js'
 
 declare const setTimeout: (done: (value?: unknown) => void, ms: number) => void
@@ -187,7 +187,13 @@ test('the keys still move the menu, fill the prompt and turn the page', async ($
     return { isFilled: true } as never
   })
   on('command.list', () => ({ value: Array.from({ length: 30 }, (_, i) => ({ name: `x:skill${i}`, description: 'd', source: 'plugin', plugin: 'x' })) }))
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  const opened: string[] = []
+  on('ui.open', (_$, e) => {
+    opened.push(e.id)
+    return { value: { isPlaced: true } } as never
+  })
+  on('env.get', () => ({ value: '/home/me' }) as never)
+  on('fs.read', () => ({ value: '{}' }) as never)
   await $.command.run({ command: 'skillbook', args: '' } as never) // loads the skills
   const ui = await $.ui.mount({
     plugin: 'undertow',
@@ -212,8 +218,9 @@ test('the keys still move the menu, fill the prompt and turn the page', async ($
   await shows(/^\/config/)
   expect(filled).toEqual(['/skills', '/config'])
   await ui.press({ key: 'projects' })
+  expect(opened).toContain('undertow-projects') // One key, no prompt to send.
   await ui.press({ key: 'skillbook' })
-  expect(filled.slice(-2)).toEqual(['/projects', '/skillbook'])
+  expect(filled.slice(-1)).toEqual(['/skillbook'])
   await ui.unmount()
 })
 
@@ -242,7 +249,7 @@ test('a windows session starts with no unix tools and no git, and opens a projec
     return { value: { exitCode: 0, stdout: '', stderr: '' } }
   })
   on('env.get', (_: any, e: any) => ({ value: env[e.name] }))
-  on('fs.read', () => ({ value: JSON.stringify({ projects: { 'C:/Users/me/app': { hasTrustDialogAccepted: true } } }) }))
+  on('fs.read', () => ({ value: JSON.stringify({ projects: { 'C:/Users/me/here': { hasTrustDialogAccepted: true }, 'C:/Users/me/app': { hasTrustDialogAccepted: true } } }) }))
   on('fs.exists', () => ({ value: true }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.close', () => ({ value: undefined }))
@@ -253,7 +260,7 @@ test('a windows session starts with no unix tools and no git, and opens a projec
   on('command.register', () => ({ value: undefined }))
   on('clock.every', () => ({ value: undefined }))
   on('clock.now', () => ({ value: Date.UTC(2026, 10, 6) }))
-  await $.session.start({ cwd: 'C:\\Users\\me\\app', surface: 'terminal', isInteractive: true })
+  await $.session.start({ cwd: 'C:\\Users\\me\\here', surface: 'terminal', isInteractive: true })
   const props = (title: string, bodyColumns = 56) => ({ title, isFocused: true, bodyColumns, placement: 'dock', scroll: { offset: 0, bodyRows: 41 }, view: {} })
   const pane = await $.ui.mount({ plugin: 'undertow', surface: 'terminal', component: 'Pane', requestId: 'undertow', props: props('UNDERTOW') })
   expect(await pane.findAll({ type: 'Image' })).toHaveLength(0) // Windows Terminal draws plain rows.
@@ -261,8 +268,26 @@ test('a windows session starts with no unix tools and no git, and opens a projec
   await pane.unmount()
   await $.command.run({ command: 'projects', args: '' })
   const picker = await $.ui.mount({ plugin: 'undertow', surface: 'terminal', component: 'Pane', requestId: 'undertow-projects', props: props('PROJECT') })
-  expect((await picker.find({ type: 'Text', text: /NOW/ }))?.text).toContain('app')
+  expect((await picker.find({ type: 'Text', text: /NOW/ }))?.text).toContain('here')
+  const before = ran.length
+  await picker.press({ key: 'C:/Users/me/here' })
+  expect(ran).toHaveLength(before) // The project already open gets no second window.
   await picker.press({ key: 'C:/Users/me/app' })
   expect(ran.at(-1)).toEqual(['wt', '-d', 'C:/Users/me/app'])
   await picker.unmount()
+})
+
+test('projects rank by last prompt, with the open one last', async () => {
+  const history = [
+    JSON.stringify({ project: '/a/old', timestamp: 1, display: 'private' }),
+    'cut off mid-wri',
+    JSON.stringify({ project: '/a/new', timestamp: 5 }),
+    JSON.stringify({ project: '/a/here', timestamp: 9 }),
+    JSON.stringify({ project: '/a/old', timestamp: 2 }),
+    JSON.stringify({ project: '/a/한글'.normalize('NFD'), timestamp: 3 }),
+  ].join('\n')
+  const last = lastUsedOf(history)
+  const list = ['/a/never', '/a/old', '/a/here', '/a/한글', '/a/new'].map(path => ({ path }))
+  expect(rankProjects(list, last, '/a/here').map(p => p.path)).toEqual(['/a/new', '/a/한글', '/a/old', '/a/never', '/a/here'])
+  expect(lastUsedOf('').size).toBe(0)
 })
