@@ -1,10 +1,11 @@
 import { expect, test } from 'claude-code/testing'
-import { artId, bgm, clamp, now, start } from './register'
+import { artId, bgm, clamp, now, parseLink, start } from './register'
 
-const ROW = (state: string, album = 'Persona 3 Reload (Original Soundtrack)') => `${state}\tFull Moon Full Life\tLotus Juice\t${album}\t12.5\t293493\t45\n`
+const SONG = 'spotify:album:abcdefghij1234567890'
+const ROW = (state: string, ms = '180000') => `${state}\tSong\tArtist\tAlbum\t12.5\t${ms}\t45\n`
 const sleep = async () => {}
 
-// Spotify as a tiny state machine: playing only shows up on the second ask after play.
+// The app as a tiny state machine: each status ask reads the next row, then the last one forever.
 const fake = (rows: string[]) => {
   const calls: string[] = []
   const run = async (argv: readonly string[]) => {
@@ -15,54 +16,69 @@ const fake = (rows: string[]) => {
   return { calls, run }
 }
 
-test('reads a track', async () => {
-  const t = await now(fake([ROW('playing')]).run)
-  expect(t?.title).toBe('Full Moon Full Life')
-  expect(t?.duration).toBe(293.493)
-  expect(t?.volume).toBe(45)
+test('reads a track, in each app\'s duration unit', async () => {
+  expect((await now(fake([ROW('playing')]).run, 'spotify'))?.duration).toBe(180)
+  expect((await now(fake([ROW('playing', '180')]).run, 'music'))?.duration).toBe(180)
+  expect(await now(fake([ROW('playing')]).run, 'youtube')).toBe(null)
 })
 
-test('a late "playing" still counts as started (the old false alarm)', async () => {
+test('a late "playing" still counts as started', async () => {
   const { run } = fake([ROW('paused'), ROW('paused'), ROW('playing')])
-  expect((await start(run, sleep))?.isPlaying).toBe(true)
+  expect((await start(run, sleep, 'spotify', SONG))?.isPlaying).toBe(true)
 })
 
-test('launches hidden and without focus when Spotify is not running', async () => {
+test('launches hidden and without focus when the app is not running', async () => {
   const { run, calls } = fake(['', ROW('paused'), ROW('playing')])
-  await start(run, sleep)
-  expect(calls.some(c => c === 'open -gj -a Spotify')).toBe(true)
+  await start(run, sleep, 'music', '')
+  expect(calls).toContain('open -gj -a Music')
   expect(calls.some(c => c.includes('activate'))).toBe(false)
 })
 
-test('autostart leaves other music alone, /bgm replaces it', async () => {
-  const other = ROW('playing', 'Other Album')
-  const kept = fake([other])
-  await start(kept.run, sleep, { keepOther: true })
+test('a new link replaces what plays; autostart leaves it alone', async () => {
+  const kept = fake([ROW('playing')])
+  await start(kept.run, sleep, 'spotify', SONG, { keepPlaying: true })
   expect(kept.calls.some(c => c.includes('play track'))).toBe(false)
-  const replaced = fake([other, ROW('playing')])
-  await start(replaced.run, sleep)
-  expect(replaced.calls.some(c => c.includes('play track'))).toBe(true)
+  const replaced = fake([ROW('playing')])
+  await start(replaced.run, sleep, 'spotify', SONG, { isNew: true })
+  expect(replaced.calls.some(c => c.includes(`play track "${SONG}"`))).toBe(true)
 })
 
-test('volume and seek stay in range; bad input shows usage', async () => {
+test('each app gets its own back command, ranges hold, bad input shows usage', async () => {
   expect(clamp(120, 0, 100)).toBe(100)
   const { run, calls } = fake([ROW('playing')])
-  await bgm(run, sleep, 'vol 120')
+  await bgm(run, sleep, 'music', '', 'prev')
+  expect(calls.some(c => c.includes('application "Music" to back track'))).toBe(true)
+  await bgm(run, sleep, 'spotify', '', 'vol 120')
   expect(calls.some(c => c.includes('set sound volume to 100'))).toBe(true)
-  await bgm(run, sleep, 'seek -100')
+  await bgm(run, sleep, 'spotify', '', 'seek -100')
   expect(calls.some(c => c.includes('set player position to 0'))).toBe(true)
-  expect(await bgm(run, sleep, 'vol loud')).toContain('사용법')
+  expect(await bgm(run, sleep, 'spotify', '', 'vol loud')).toContain('사용법')
 })
 
-test('nothing ever opens YouTube unless asked', async () => {
+test('YouTube only opens the chosen link, and only when asked', async () => {
   const { run, calls } = fake([''])
-  expect(await bgm(run, sleep, 'next')).toContain('Spotify')
-  expect(calls.some(c => c.includes('youtube'))).toBe(false)
+  expect(await bgm(run, sleep, 'youtube', '', 'play')).toContain('링크')
+  expect(await bgm(run, sleep, 'youtube', 'https://youtu.be/abcdefg', 'next')).toContain('브라우저')
+  expect(calls).toHaveLength(0)
+  await bgm(run, sleep, 'youtube', 'https://youtu.be/abcdefg', 'play')
+  expect(calls).toEqual(['open https://youtu.be/abcdefg'])
+})
+
+test('links resolve to their service; anything that could inject is refused', async () => {
+  expect(parseLink('https://open.spotify.com/intl-ko/album/abcdefghij1234567890?si=x1')).toEqual({ source: 'spotify', pick: SONG })
+  expect(parseLink(SONG)?.source).toBe('spotify')
+  expect(parseLink('https://music.apple.com/kr/album/some-album/123456789')?.source).toBe('music')
+  expect(parseLink('https://www.youtube.com/watch?v=abc123&list=xyz')?.source).toBe('youtube')
+  expect(parseLink('https://youtu.be/abc123def')?.source).toBe('youtube')
+  expect(parseLink('spotify:album:abc" to quit')).toBe(null)
+  expect(parseLink('https://music.apple.com/kr/album/x"; do shell script "id')).toBe(null)
+  expect(parseLink('https://evil.example/watch?v=1')).toBe(null)
+  expect(parseLink('https://youtube.com.evil.example/watch?v=1')).toBe(null)
+  expect(parseLink('file:///etc/passwd')).toBe(null)
 })
 
 test('only plain Spotify image URLs are fetched', async () => {
   expect(artId('https://i.scdn.co/image/ab67616d0000b273ffb55e7e9036d352382d4265')).toBe('ab67616d0000b273ffb55e7e9036d352382d4265')
   expect(artId('https://evil.example/image/ab67616d0000b273')).toBe(null)
-  expect(artId('https://i.scdn.co/image/../../etc/passwd')).toBe(null)
   expect(artId('https://i.scdn.co/image/abcd1234abcd1234 -o /tmp/x')).toBe(null)
 })

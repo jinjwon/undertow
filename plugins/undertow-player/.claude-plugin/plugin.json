@@ -1,7 +1,7 @@
 {
   "name": "undertow-player",
   "version": "1.0.0",
-  "description": "A hardware-style Spotify player inside the Undertow pane",
+  "description": "A hardware-style player for your Spotify, Apple Music or YouTube picks",
   "license": "MIT",
   "types": "./types/index.d.ts"
 }

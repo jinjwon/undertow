@@ -1,7 +1,7 @@
 {
   "name": "undertow",
-  "version": "1.0.0",
-  "description": "A slanted cobalt menu for Claude Code: live tool menu, project switcher, AI usage, session status",
+  "version": "1.5.0",
+  "description": "An underwater, slanted menu for Claude Code: live tool menu, project switcher, AI usage, session status",
   "license": "MIT",
   "types": "./types/index.d.ts"
 }

@@ -2,51 +2,110 @@
 
 <img src="assets/logo.png" width="96" alt="Undertow logo">
 
-A slanted, cobalt, game-menu look for [Claude Code](https://claude.com/claude-code) in [Ghostty](https://ghostty.org), with a project switcher, AI usage meters and a hardware-style Spotify player.
+**English** | [한국어](README.ko.md)
 
-<img src="assets/preview.png" width="480" alt="The Undertow menu">
+An underwater, slanted, game-menu interface for [Claude Code](https://claude.com/claude-code) in [Ghostty](https://ghostty.org). The water runs behind both the transcript and the menu, so the terminal reads as one surface.
 
-## What it does
+<img src="assets/preview.png" width="720" alt="Undertow in Ghostty: the transcript on the left, the SYSTEM menu on the right">
 
-- **Menu:** nine menus, each with its own full composition. Tool calls light up their menu.
+## Features
+
+- **Nine menus:** each has its own composition and kind of content. Tool calls light up their menu.
+- **AI usage HUD:** context, 5-hour and 7-day gauges with reset countdowns, plus session cost. A toast warns at 85%.
+- **Skills:** grouped and paged, most used first. `/skillbook` shows them all.
 - **Project switcher:** `/projects` lists your trusted Claude Code projects and opens one in a new window.
-- **AI usage:** context, 5-hour and 7-day limits, and session cost, updated as you work.
-- **Player:** album art, seek bar, play controls and volume, driven by the Spotify desktop app. Spotify stays in the background.
-- **Status line:** session state, project, git branch and tool count above the prompt.
+- **Status band:** session state, project, branch and tool count above the prompt.
 
 ## Install
 
-Requires macOS. The player needs the Spotify desktop app, signed in. Run these at the Claude Code prompt:
+Requires macOS and Claude Code. For the full look, also install Ghostty, [Iosevka](https://github.com/be5invis/Iosevka) and [Pretendard](https://github.com/orioncactus/pretendard).
+
+### Ghostty (full look)
+
+```sh
+git clone https://github.com/jinjwon/undertow.git
+undertow/ghostty/install.sh
+```
+
+Restart Ghostty. The clone's path may contain spaces, but not quotes, `$`, backticks or backslashes. The installer writes `~/.config/ghostty/undertow.conf` and adds one include line to `~/.config/ghostty/config`.
+
+**Every new Ghostty window then starts Claude Code with the menu.** See [Settings](#settings) to keep a plain shell instead.
+
+### Plugin only
+
+Run this at the Claude Code prompt, then `/menu`. Terminals that cannot draw images get plain rows instead of the art.
 
 ```
 /plugin install undertow --marketplace jinjwon/undertow
-/plugin install undertow-player --marketplace jinjwon/undertow
 ```
 
-For the full-window look, clone this repository and run `ghostty/install.sh`, then restart Ghostty.
+### macOS Terminal
 
-## Commands
+```sh
+undertow/terminal/install.sh            # add --default to make it the default profile
+```
+
+Terminal has no animated water or art, so the menu uses plain rows. This profile also starts Claude Code.
+
+## Settings
+
+| To change | Do this |
+| --- | --- |
+| Keep a plain shell in Ghostty | Delete the `command` line from `~/.config/ghostty/undertow.conf` |
+| Window size | `window-width` and `window-height` in `undertow.conf`. The docked menu needs at least 110 columns |
+| Font | `font-family` and `font-size` in `undertow.conf`. The art lines up with Iosevka at size 14 |
+| Add your own image | Put a transparent PNG you have the rights to at `plugins/undertow/hero.png`, then run `plugins/undertow/tools/render.sh` (needs Google Chrome). `hero.png` is git-ignored |
+
+## Commands and shortcuts
 
 | Command | Does |
 | --- | --- |
 | `/menu` | Open the menu pane |
 | `/projects` | Pick a project |
-| `/bgm` | Play. Also `pause`, `next`, `prev`, `now`, `vol 0-100`, `seek +10` |
-| `/bgm on`, `/bgm off` | Turn autoplay on launch on or off |
+| `/skillbook` | Browse skills by group and pick one |
 
-In the menu pane: `1`-`9` choose a menu, `j`/`k` move, `e` runs, `p` opens projects.
+Give the pane the keyboard with a click or `ctrl+x tab`, then:
 
-## Your own image
+| Key | Does |
+| --- | --- |
+| `1`-`9` | Choose a menu and fill the prompt with its command |
+| `j` / `k` | Next / previous menu |
+| `e` | Fill the prompt with the current menu's command |
+| `n` / `b` | Next / previous page of skills |
+| `p` | Fill the prompt with `/projects` |
+| `s` | Fill the prompt with `/skillbook` |
 
-Put a transparent PNG you have the rights to at `plugins/undertow/hero.png` and run `plugins/undertow/tools/render.sh` (needs Google Chrome). It is placed beside the menu, uncropped. `hero.png` is git-ignored: do not redistribute images you do not have the rights to share.
+To click a menu, use its number at the right edge: the slanted names are part of the picture.
 
-## Notes
+## Uninstall and restore
 
-- The player's default album is set by `ALBUM` in `plugins/undertow-player/hooks/register.tsx`. Music streams through your own Spotify account; none is included here.
-- Album art is fetched only from Spotify's image host and cached in `plugins/undertow-player/.art`.
-- With several windows open, closing one pauses the music.
-- The menu's slanted style is inspired by stylish JRPG interfaces. Undertow is an unofficial fan project, is not affiliated with or endorsed by any game publisher, and contains no game assets.
+**Ghostty:** delete the `config-file = undertow.conf` line from `~/.config/ghostty/config`, delete `~/.config/ghostty/undertow.conf`, and restart Ghostty.
 
-## License
+**Plugin:** run `/plugin uninstall undertow`, or `claude plugin uninstall undertow` in a shell.
 
-[MIT](LICENSE)
+**Terminal:** in Terminal > Settings > Profiles, delete the Undertow profile. If you used `--default`, choose another default first.
+
+Delete the cloned folder last: the Ghostty and Terminal setups read their files from it.
+
+## How credits are used
+
+Undertow makes no AI requests of its own. Its code has no model, agent or network calls: the HUD only draws the usage figures Claude Code already holds. Measured with Claude Code 2.1.319 on macOS:
+
+| Setup | AI requests | Result |
+| --- | --- | --- |
+| Ghostty with the Undertow look and a plain shell (no `command` line) | None | No Claude process and no TCP connections in a 12-second sample |
+| zsh | None | Undertow adds nothing to your shell. It loads only inside Claude Code |
+| Claude Code + Undertow, opened with `/menu`, no prompt sent | No model reply, session cost $0 | One `quota_check` request at start, the same as without Undertow |
+| Claude Code + Undertow, one prompt | Your prompt only | First request 29,175 context tokens with and without Undertow, in 3 of 3 pairs |
+
+The `quota_check` request belongs to Claude Code and happens on every start. We have not verified whether it counts against your plan.
+
+- **Using Claude Code still uses your plan.** Ghostty's `command` line starts Claude Code, but nothing is sent to a model until you send a prompt.
+- **Not measured:** the `/menu` confirmation line, which is short text in the transcript that Claude Code can include in later requests.
+- **Other skills are separate.** Installing a skill is not the same as running it. For example, invoking the Ponytail skill added 1,557 context tokens to that request.
+
+## License and notice
+
+[MIT](LICENSE). The art's typeface is [Barlow](https://github.com/jpt/barlow) ([OFL](plugins/undertow/tools/fonts/OFL.txt)).
+
+Undertow is an unofficial fan project inspired by the menu design of Persona 3 Reload. It is not affiliated with or endorsed by ATLUS or SEGA, and it contains no game assets. To report a vulnerability, see [SECURITY.md](SECURITY.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).

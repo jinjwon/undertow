@@ -2,7 +2,6 @@
   "name": "undertow",
   "owner": { "name": "jinjwon" },
   "plugins": [
-    { "name": "undertow", "source": "./plugins/undertow", "description": "A slanted cobalt menu for Claude Code: tool menu, project switcher, AI usage" },
-    { "name": "undertow-player", "source": "./plugins/undertow-player", "description": "A hardware-style Spotify player inside the Undertow pane (macOS)" }
+    { "name": "undertow", "source": "./plugins/undertow", "description": "An underwater, slanted menu for Claude Code: tool menu, project switcher, AI usage" }
   ]
 }

@@ -1,0 +1,31 @@
+# Changelog
+
+## 1.5.0 - 2026-11-06
+
+### Changed
+
+- Redesigned the interface: water now runs behind the transcript and the menu, and each of the nine menus has its own composition and content layout.
+- Rebuilt the HUD with aligned underline gauges.
+- Skills are now grouped and paged. `n` and `b` turn the page.
+- The Ghostty installer now sets the fonts and window size, and loads the plugin from the clone.
+
+### Fixed
+
+- Closing the skillbook and project panes after a pick now uses the correct call.
+- Tool chips no longer wrap when space is tight.
+- The Terminal profile now works from a folder whose path has spaces or quotes.
+- Control characters in tool input no longer reach the terminal through the menu pane.
+- The Ghostty installer now refuses a folder path that would break or inject into its launch command.
+
+## 1.3.0
+
+### Changed
+
+- Restyled Undertow and listed skills in the menu.
+- Removed the music player from the install.
+
+## 1.0.0
+
+### Added
+
+- First version: menu, project switcher, AI usage meters and music player.
