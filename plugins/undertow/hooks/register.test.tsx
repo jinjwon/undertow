@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { dayOf, entryOf, fitName, gauge, layoutOf, menuOf, monthOf, moon, pageOf, projectsOf, rank, skillRows, skillsOf, slotsOf, tallied, untilReset } from './data'
+import { baseName, dayOf, entryOf, fitName, gauge, layoutOf, menuOf, monthOf, moon, openerOf, pageOf, projectsOf, rank, samePath, skillRows, skillsOf, slotsOf, tallied, untilReset } from './data'
 import { ART, GRID, ITEM_ROWS } from './tokens.js'
 
 declare const setTimeout: (done: (value?: unknown) => void, ms: number) => void
@@ -215,4 +215,54 @@ test('the keys still move the menu, fill the prompt and turn the page', async ($
   await ui.press({ key: 'skillbook' })
   expect(filled.slice(-2)).toEqual(['/projects', '/skillbook'])
   await ui.unmount()
+})
+
+test('windows paths are understood and an unsafe one is not opened', async () => {
+  expect(baseName('C:\\Users\\me\\a.ts')).toBe('a.ts')
+  expect(baseName('/a/b/')).toBe('b')
+  expect(samePath('C:\\a\\b', 'C:/a/b')).toBe(true)
+  const json = JSON.stringify({ projects: {
+    'C:/Users/me': { hasTrustDialogAccepted: true },
+    'C:/Users/me/app': { hasTrustDialogAccepted: true },
+    'C:/Users/me/AppData/Local/Temp/x': { hasTrustDialogAccepted: true },
+    'relative/path': { hasTrustDialogAccepted: true },
+  } })
+  expect(projectsOf(json, 'C:\\Users\\me')).toEqual([{ name: 'app', path: 'C:/Users/me/app' }])
+  expect(openerOf('C:/a', true)).toEqual(['wt', '-d', 'C:/a'])
+  expect(openerOf('C:/a; calc', true)).toBeNull()
+  expect(openerOf('/a', false, 'ghostty')?.[0]).toBe('open')
+})
+
+test('a windows session starts with no unix tools and no git, and opens a project in Windows Terminal', async ($: any, on: any) => {
+  const ran: string[][] = []
+  const env: Record<string, string> = { OS: 'Windows_NT', USERPROFILE: 'C:\\Users\\me' }
+  on('process.run', (_: any, e: any) => {
+    ran.push([...e.argv])
+    if (e.argv[0] !== 'wt') throw new Error(`spawn ${e.argv[0]} ENOENT`)
+    return { value: { exitCode: 0, stdout: '', stderr: '' } }
+  })
+  on('env.get', (_: any, e: any) => ({ value: env[e.name] }))
+  on('fs.read', () => ({ value: JSON.stringify({ projects: { 'C:/Users/me/app': { hasTrustDialogAccepted: true } } }) }))
+  on('fs.exists', () => ({ value: true }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.close', () => ({ value: undefined }))
+  on('session.usage', () => ({ value: { context: {}, rateLimits: [] } }))
+  on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
+  on('store.get', () => ({ value: undefined }))
+  on('command.list', () => ({ value: [] }))
+  on('command.register', () => ({ value: undefined }))
+  on('clock.every', () => ({ value: undefined }))
+  on('clock.now', () => ({ value: Date.UTC(2026, 10, 6) }))
+  await $.session.start({ cwd: 'C:\\Users\\me\\app', surface: 'terminal', isInteractive: true })
+  const props = (title: string, bodyColumns = 56) => ({ title, isFocused: true, bodyColumns, placement: 'dock', scroll: { offset: 0, bodyRows: 41 }, view: {} })
+  const pane = await $.ui.mount({ plugin: 'undertow', surface: 'terminal', component: 'Pane', requestId: 'undertow', props: props('UNDERTOW') })
+  expect(await pane.findAll({ type: 'Image' })).toHaveLength(0) // Windows Terminal draws plain rows.
+  expect(await pane.find({ type: 'Text', text: /SKILL/ })).toBeTruthy()
+  await pane.unmount()
+  await $.command.run({ command: 'projects', args: '' })
+  const picker = await $.ui.mount({ plugin: 'undertow', surface: 'terminal', component: 'Pane', requestId: 'undertow-projects', props: props('PROJECT') })
+  expect((await picker.find({ type: 'Text', text: /NOW/ }))?.text).toContain('app')
+  await picker.press({ key: 'C:/Users/me/app' })
+  expect(ran.at(-1)).toEqual(['wt', '-d', 'C:/Users/me/app'])
+  await picker.unmount()
 })

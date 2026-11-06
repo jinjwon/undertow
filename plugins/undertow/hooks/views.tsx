@@ -1,6 +1,6 @@
 // The drawing: the HUD, each menu's own content and the action bar. It reads what it is handed and keeps no state.
 import { COLOR as K, MENUS } from './tokens.js'
-import { callOf, fitName, gauge, monthOf, pageOf, rank, skillRows, slotsOf, tallied, untilReset } from './data'
+import { baseName, callOf, fitName, gauge, monthOf, pageOf, rank, skillRows, slotsOf, tallied, untilReset } from './data'
 
 type Parts = { Box: (p: any) => any; Text: (p: any) => any; Button: (p: any) => any }
 export type View = {
@@ -221,7 +221,7 @@ const agent = (v: View) => {
 const status = (v: View) => {
   const { Box, Text } = v.ui
   const facts: [string, string][] = [
-    ['PROJECT', v.where.cwd.split('/').pop() ?? ''],
+    ['PROJECT', baseName(v.where.cwd)],
     ['BRANCH', v.where.branch || '--'],
     ['TOOLS', String(v.total)],
     ['COST', v.ai?.usd != null ? `$${v.ai.usd.toFixed(2)}` : '--'],

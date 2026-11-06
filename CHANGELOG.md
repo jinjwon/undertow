@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.1 - 2026-11-06
+
+### Added
+
+- Windows support for the plugin: plain-row menu, and `/projects` opens Windows Terminal. Tested by simulation, not yet on a Windows machine.
+
+### Fixed
+
+- The plugin no longer depends on `printenv` and `test`, and starts without git.
+- Removed background lines that could cross text in the menu's footer and the prompt.
+
 ## 1.5.0 - 2026-11-06
 
 ### Changed

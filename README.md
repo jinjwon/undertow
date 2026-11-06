@@ -18,7 +18,7 @@ An underwater, slanted, game-menu interface for [Claude Code](https://claude.com
 
 ## Install
 
-Requires macOS and Claude Code. For the full look, also install Ghostty, [Iosevka](https://github.com/be5invis/Iosevka) and [Pretendard](https://github.com/orioncactus/pretendard).
+Requires Claude Code. The plugin runs on macOS and Windows; the full look needs macOS and Ghostty, which has no Windows build. For the full look, also install Ghostty, [Iosevka](https://github.com/be5invis/Iosevka) and [Pretendard](https://github.com/orioncactus/pretendard).
 
 ### Ghostty (full look)
 
@@ -38,6 +38,12 @@ Run this at the Claude Code prompt, then `/menu`. Terminals that cannot draw ima
 ```
 /plugin install undertow --marketplace jinjwon/undertow
 ```
+
+### Windows
+
+Use the plugin install above. The menu, HUD, skills and commands appear as plain rows, without the water or art. `/projects` opens projects in Windows Terminal (`wt`).
+
+Windows support is checked by automated tests that simulate Windows. It has not yet been run on a Windows machine, so please report anything that breaks.
 
 ### macOS Terminal
 

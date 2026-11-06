@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { ART, COLOR as K, GRID, ITEM_ROWS } from './tokens.js'
-import { dayOf, entryOf, layoutOf, menuOf, projectsOf, skillsOf, usageOf } from './data'
+import { baseName, dayOf, entryOf, layoutOf, menuOf, openerOf, projectsOf, samePath, skillsOf, usageOf } from './data'
 import { action, content, cut, hud, limitName } from './views'
 import type { View } from './views'
 
@@ -97,9 +97,10 @@ export const register: Register = on => {
     await $.command.register({ name: 'projects', description: 'Pick a project and open it in a new window' })
     await $.command.register({ name: 'skillbook', description: 'Browse skills, most used first, and pick one' })
     await loadSkills($)
-    const { stdout, exitCode } = await $.process.run(['git', '-C', e.cwd, 'rev-parse', '--abbrev-ref', 'HEAD'])
-    const terminal = (await $.process.run(['printenv', 'TERM_PROGRAM'])).stdout.trim()
-    await update($, place, () => ({ cwd: e.cwd, branch: exitCode === 0 ? stdout.trim() : '', art: ART_TERMINALS.includes(terminal) }))
+    // No git on the machine only costs the branch name.
+    const git = await $.process.run(['git', '-C', e.cwd, 'rev-parse', '--abbrev-ref', 'HEAD']).catch(() => null)
+    const terminal = await $.env.get('TERM_PROGRAM')
+    await update($, place, () => ({ cwd: e.cwd, branch: git?.exitCode === 0 ? git.stdout.trim() : '', art: ART_TERMINALS.includes(terminal ?? '') }))
     const seen = await $.session.usage()
     await update($, usage, () => usageOf(seen))
     void $.ui.open(PANE_ARGS)
@@ -173,9 +174,9 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'projects' }, async $ => {
-    const home = (await $.process.run(['printenv', 'HOME'])).stdout.trim()
+    const home = (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE')) ?? ''
     const found = projectsOf(await $.fs.read(`${home}/.claude.json`), home)
-    const real = await Promise.all(found.map(async p => ((await $.process.run(['test', '-d', p.path])).exitCode === 0 ? p : null)))
+    const real = await Promise.all(found.map(async p => ((await $.fs.exists(p.path).catch(() => false)) ? p : null)))
     await update($, projects, () => real.filter(p => p !== null).slice(0, 9))
     await $.ui.open({ id: PROJECTS, title: 'PROJECT', columns: 56, backgroundColor: K.NAVY, focus: true, closeOnEscape: true })
     return { text: '프로젝트를 고르면 새 창으로 열어요.' }
@@ -190,7 +191,7 @@ export const register: Register = on => {
         {cut(Text, 'PROJECT', K.WHITE, K.BLACK)}
         {list.length === 0 ? <Text color={K.ICE}>열 수 있는 프로젝트가 없어요.</Text> : null}
         {list.map((p, i) => {
-          const isHere = p.path === cwd
+          const isHere = samePath(p.path, cwd)
           const ground = isHere ? K.WHITE : K.ABYSS
           return (
             <Box backgroundColor={ground} marginTop={1} flexDirection="column">
@@ -199,8 +200,9 @@ export const register: Register = on => {
                 plain
                 hotkey={String(i + 1)}
                 onPress={async () => {
-                  const isGhostty = (await $.process.run(['printenv', 'TERM_PROGRAM'])).stdout.trim() === 'ghostty'
-                  const { exitCode, stderr } = await $.process.run(isGhostty ? ['open', '-na', 'Ghostty.app', '--args', `--working-directory=${p.path}`] : ['open', '-a', 'Terminal', p.path])
+                  const opener = openerOf(p.path, (await $.env.get('OS')) === 'Windows_NT', await $.env.get('TERM_PROGRAM'))
+                  // A terminal that is not installed rejects rather than exiting non-zero.
+                  const { exitCode, stderr } = opener ? await $.process.run(opener).catch(e => ({ exitCode: 1, stderr: String(e) })) : { exitCode: 1, stderr: '이 경로는 열 수 없어요.' }
                   if (exitCode !== 0) $.ui.toast(`열지 못했어요: ${stderr.trim()}`)
                   else await $.ui.close({ id: PROJECTS })
                 }}
@@ -301,7 +303,7 @@ export const register: Register = on => {
           <Box flexShrink={1}>
             <Box flexShrink={0}>{cut(Text, e.props.isWorking ? 'ACTIVE ' : 'STANDBY', e.props.isWorking ? K.RED : K.WHITE, e.props.isWorking ? K.WHITE : K.BLACK)}</Box>
             <Text wrap="truncate">
-              <Text color={K.WHITE} bold italic> {where.cwd.split('/').pop()}</Text>
+              <Text color={K.WHITE} bold italic> {baseName(where.cwd)}</Text>
               <Text color={K.ICE} italic>{where.branch ? ` / ${where.branch}` : ''}</Text>
               <Text color={K.GRAY}>  TOOLS {total}</Text>
             </Text>

@@ -30,15 +30,27 @@ export const skillsOf = (commands: CommandInfo[], used: Record<string, number>) 
     .map(c => ({ name: c.name, description: c.description, plugin: c.name.includes(':') ? c.name.split(':')[0] : 'personal' }))
     .sort((a, b) => (used[b.name] ?? 0) - (used[a.name] ?? 0) || a.name.localeCompare(b.name))
 
+// Windows paths can use either separator, so they are compared and cut in one form.
+const slashed = (path: string) => path.replace(/\\/g, '/')
+export const samePath = (a: string, b: string) => slashed(a) === slashed(b)
+export const baseName = (path: string) => slashed(path).split('/').filter(Boolean).pop() ?? path
+
+// What opens a project in a new window, or null when it cannot be opened safely.
+export const openerOf = (path: string, isWindows: boolean, terminal?: string) => {
+  // wt reads `;` as the start of another command, even inside one argument.
+  if (isWindows) return path.includes(';') ? null : ['wt', '-d', path]
+  return terminal === 'ghostty' ? ['open', '-na', 'Ghostty.app', '--args', `--working-directory=${path}`] : ['open', '-a', 'Terminal', path]
+}
+
 // The file holds every project Claude Code has seen; only trusted, real folders are offered, never scratch space.
 export const projectsOf = (json: string, home: string) => {
   try {
     const known = (JSON.parse(json) as { projects?: Record<string, { hasTrustDialogAccepted?: boolean }> }).projects ?? {}
     return Object.entries(known)
-      .filter(([path, v]) => v.hasTrustDialogAccepted && path.startsWith('/') && path !== home && !path.includes('/Library/'))
-      .map(([path]) => ({ name: (path.split('/').pop() as string).normalize('NFC'), path }))
+      .filter(([path, v]) => v.hasTrustDialogAccepted && /^(\/|[A-Za-z]:[\\/])/.test(path) && !samePath(path, home) && !/\/(Library|AppData)\//.test(slashed(path)))
+      .map(([path]) => ({ name: baseName(path).normalize('NFC'), path }))
       // macOS can list one Korean folder twice, composed and decomposed.
-      .filter((p, i, all) => all.findIndex(o => o.path.normalize('NFC') === p.path.normalize('NFC')) === i)
+      .filter((p, i, all) => all.findIndex(o => samePath(o.path.normalize('NFC'), p.path.normalize('NFC'))) === i)
   } catch {
     return []
   }
@@ -74,7 +86,7 @@ const printable = (text: string) => text.replace(/[\u0000-\u001f\u007f-\u009f]/g
 // What a tool call worked on, short enough for a row: a file's name, else its command or query.
 export const entryOf = (tool: string, input: Record<string, unknown>) => {
   const file = input.file_path ?? input.notebook_path
-  if (typeof file === 'string') return printable(file.split('/').pop() as string)
+  if (typeof file === 'string') return printable(baseName(file))
   const said = [input.skill, input.command, input.query, input.url, input.description, input.prompt].find(v => typeof v === 'string' && v)
   return said ? printable(`${tool} ${String(said).split('\n')[0]}`) : tool
 }

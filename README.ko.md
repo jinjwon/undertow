@@ -18,7 +18,7 @@
 
 ## 설치
 
-macOS와 Claude Code가 필요합니다. 전체 화면 구성을 쓰려면 Ghostty, [Iosevka](https://github.com/be5invis/Iosevka), [Pretendard](https://github.com/orioncactus/pretendard)도 설치하세요.
+Claude Code가 필요합니다. 플러그인은 macOS와 Windows에서 동작하고, 전체 화면 구성은 macOS와 Ghostty가 필요합니다. Ghostty는 Windows 빌드가 없습니다. 전체 화면 구성을 쓰려면 Ghostty, [Iosevka](https://github.com/be5invis/Iosevka), [Pretendard](https://github.com/orioncactus/pretendard)도 설치하세요.
 
 ### Ghostty (전체 화면 구성)
 
@@ -38,6 +38,12 @@ Claude Code 프롬프트에서 아래 명령을 실행한 뒤 `/menu`를 입력�
 ```
 /plugin install undertow --marketplace jinjwon/undertow
 ```
+
+### Windows
+
+위의 플러그인 설치를 사용하세요. 메뉴, HUD, 스킬, 명령어가 물결과 아트 없이 일반 텍스트 행으로 나옵니다. `/projects`는 Windows Terminal(`wt`)로 프로젝트를 엽니다.
+
+Windows 지원은 Windows 환경을 시뮬레이션한 자동 테스트로 확인했습니다. 실제 Windows 기기에서는 아직 실행해 보지 않았으니, 문제가 있으면 알려 주세요.
 
 ### macOS 터미널
 
