@@ -5,7 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { execFile } = require('node:child_process')
 const pty = require('node-pty')
-const { inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf } = require('./paths.cjs')
+const { inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
 
 const home = os.homedir()
@@ -203,16 +203,25 @@ ipcMain.handle('pty:spawn', async (_, id, cwd, cols, rows, kind, resume) => {
   delete env.TERM_PROGRAM // xterm.js draws no images: the Evoke pane falls back to plain rows
   const term = pty.spawn(file, args, { name: 'xterm-256color', cwd, cols, rows, env })
   terms.set(id, term)
-  term.onData(data => win?.webContents.send(`pty:data:${id}`, data))
+  term.onData(data => sendTo(win, `pty:data:${id}`, data))
   term.onExit(({ exitCode }) => {
     if (terms.get(id) !== term) return // a resumed session replaced this one
     terms.delete(id)
-    win?.webContents.send(`pty:exit:${id}`, exitCode)
+    sendTo(win, `pty:exit:${id}`, exitCode)
   })
 })
 ipcMain.on('pty:write', (_, id, data) => terms.get(id)?.write(data))
 ipcMain.on('pty:resize', (_, id, cols, rows) => terms.get(id)?.resize(Math.max(cols, 2), Math.max(rows, 2)))
 ipcMain.on('pty:kill', (_, id) => terms.get(id)?.kill())
+
+// The Dock (macOS) and taskbar (Windows) icon follow the theme, so the app looks like the window it opens.
+const THEME_ICONS = ['tide', 'rebel']
+const iconOf = theme => path.join(app.isPackaged ? process.resourcesPath : path.join(__dirname, '..', 'assets'), `logo-${theme}.png`)
+ipcMain.on('theme:set', (_, theme) => {
+  if (!THEME_ICONS.includes(theme)) return
+  if (process.platform === 'darwin') app.dock?.setIcon(iconOf(theme))
+  else win?.setIcon(iconOf(theme))
+})
 
 app.whenReady().then(() => {
   win = new BrowserWindow({
@@ -229,6 +238,10 @@ app.whenReady().then(() => {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('will-navigate', e => e.preventDefault())
   win.loadFile(path.join(__dirname, 'dist', 'index.html'))
+})
+app.on('before-quit', () => {
+  for (const term of terms.values()) term.kill()
+  terms.clear()
 })
 app.on('window-all-closed', () => {
   for (const term of terms.values()) term.kill()

@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('evoke', {
   status: root => ipcRenderer.invoke('git:status', root),
   head: (root, file) => ipcRenderer.invoke('git:head', root, file),
   usage: () => ipcRenderer.invoke('usage:get'),
+  setTheme: theme => ipcRenderer.send('theme:set', theme),
   sessions: root => ipcRenderer.invoke('sessions:list', root),
   skills: () => ipcRenderer.invoke('skills:list'),
   equip: root => ipcRenderer.invoke('equip:list', root),

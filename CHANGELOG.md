@@ -11,6 +11,18 @@
 - File badges in the tree, on tabs and in quick open.
 - Prompt variables (`{{name}}`) are highlighted in the editor.
 
+- The Dock (macOS) and taskbar (Windows) icon follows the theme: TIDE's clock tower or REBEL's mask.
+
+### Fixed
+
+- Quitting could show "Uncaught Exception: Object has been destroyed": terminal output arriving after the window closed was sent to it. It is now dropped, and terminals end before the app quits.
+
+### Security
+
+- Vite 6.4 and electron-builder 26.18: clears Vite's high and moderate advisories (build tools only, not shipped in the app).
+- GitHub: Dependabot alerts and security updates, secret scanning with push protection, CodeQL, and a CI workflow (tests, `npm audit --audit-level=high`, build) on every PR.
+- Known: 6 moderate advisories remain in `minimatch` inside electron-builder (build time only).
+
 ### Changed
 
 - REBEL is now a prompt-engineering theme in three colours only: blood red, pitch black, stark white. Cut-out corners on panels, the terminal and sheets; red and black halftone seams; a thief's mask on folders and alerts; `{{variables}}` cut out letter by letter like a ransom note. Its editor and terminal colours fold onto the same three.

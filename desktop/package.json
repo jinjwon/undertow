@@ -64,7 +64,17 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Evoke",
       "artifactName": "Evoke-Setup-${version}.${ext}"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "../assets/logo-tide.png",
+        "to": "logo-tide.png"
+      },
+      {
+        "from": "../assets/logo-rebel.png",
+        "to": "logo-rebel.png"
+      }
+    ]
   },
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
@@ -78,7 +88,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",
     "electron": "^45.2.3",
-    "electron-builder": "^26.0.0",
-    "vite": "^5.4.0"
+    "electron-builder": "^26.18.0",
+    "vite": "^6.4.5"
   }
 }

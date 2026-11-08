@@ -131,6 +131,7 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
+    api.setTheme(theme)
     try { localStorage.setItem('theme', theme) } catch {}
   }, [theme])
   useEffect(() => {
