@@ -13,7 +13,7 @@
     "dist:mac": "vite build && electron-builder --mac",
     "dist:win": "vite build && electron-builder --win",
     "dist:win:zip": "vite build && electron-builder --win zip --x64",
-    "test": "node --test paths.test.cjs"
+    "test": "node --test paths.test.cjs match.test.cjs"
   },
   "build": {
     "appId": "dev.evoke.desktop",
@@ -22,6 +22,7 @@
       "main.cjs",
       "preload.cjs",
       "paths.cjs",
+      "match.cjs",
       "dist/**",
       "!node_modules/node-pty/build/**",
       "!node_modules/node-pty/**/*.pdb"

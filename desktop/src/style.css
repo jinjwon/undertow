@@ -136,3 +136,11 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .xterm-viewport { background: transparent !important; }
 .xterm-viewport::-webkit-scrollbar { width: 6px; }
 .xterm-viewport::-webkit-scrollbar-thumb { background: var(--line); }
+
+/* Quick open and search share the project sheet. */
+.finder input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--text); font: 600 15px Pretendard, sans-serif; }
+.finder .head { display: flex; align-items: center; }
+.hits { max-height: 56vh; overflow: auto; }
+.row.on { background: var(--sel); color: var(--sel-ink); }
+.row .preview { font-family: Iosevka, Menlo, Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-theme='rebel'] .row.on { background: #FFFFFF; color: #000000; box-shadow: 5px 4px 0 #FF1A2D; }

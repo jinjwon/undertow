@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('evoke', {
   openProject: root => ipcRenderer.invoke('project:open', root),
   list: dir => ipcRenderer.invoke('fs:list', dir),
   read: file => ipcRenderer.invoke('fs:read', file),
+  files: (root, query) => ipcRenderer.invoke('fs:files', root, query),
+  search: (root, query) => ipcRenderer.invoke('fs:search', root, query),
   write: (file, text) => ipcRenderer.invoke('fs:write', file, text),
   branch: root => ipcRenderer.invoke('git:branch', root),
   usage: () => ipcRenderer.invoke('usage:get'),

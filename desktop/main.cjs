@@ -6,6 +6,7 @@ const path = require('node:path')
 const { execFile } = require('node:child_process')
 const pty = require('node-pty')
 const { inside, latestUsage, trusted } = require('./paths.cjs')
+const { walkSkip, fuzzy, searchText } = require('./match.cjs')
 
 const home = os.homedir()
 const roots = new Set() // real paths of the folders the window has opened; file access stays inside them
@@ -49,6 +50,51 @@ ipcMain.handle('fs:list', async (_, dir) => {
     .filter(e => e.name !== '.git' && e.name !== '.DS_Store')
     .map(e => ({ name: e.name, path: path.join(dir, e.name), dir: e.isDirectory() }))
     .sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name))
+})
+// Every file of a project, skipping build and dependency folders; symlinks are not followed, so the walk stays inside.
+const listFiles = async root => {
+  const out = []
+  const dirs = [root]
+  while (dirs.length && out.length < 20000) {
+    const dir = dirs.pop()
+    for (const e of await fs.readdir(dir, { withFileTypes: true }).catch(() => [])) {
+      if (e.isDirectory()) walkSkip(e.name) || dirs.push(path.join(dir, e.name))
+      else if (e.isFile()) out.push(path.join(dir, e.name))
+    }
+  }
+  return out
+}
+const walks = new Map() // root -> { at, files }: quick open asks on every key, so one walk serves ten seconds
+const filesOf = async root => {
+  const seen = walks.get(root)
+  if (seen && Date.now() - seen.at < 10000) return seen.files
+  const files = await listFiles(root)
+  walks.set(root, { at: Date.now(), files })
+  return files
+}
+// Ranked here, next to the file list, so the window gets 50 rows instead of 20000 paths.
+ipcMain.handle('fs:files', async (_, root, query) => {
+  await guard(root)
+  return (await filesOf(root))
+    .map(file => ({ path: file, rel: path.relative(root, file) }))
+    .map(f => ({ ...f, score: fuzzy(String(query), f.rel) }))
+    .filter(f => f.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 50)
+})
+ipcMain.handle('fs:search', async (_, root, query) => {
+  await guard(root)
+  const q = String(query)
+  if (q.length < 2) return []
+  const hits = []
+  for (const file of await filesOf(root)) {
+    if (hits.length >= 500) break
+    const stat = await fs.stat(file).catch(() => null)
+    if (!stat || stat.size > 1e6) continue
+    const text = await fs.readFile(file, 'utf8').catch(() => '')
+    for (const h of searchText(text, q, 500 - hits.length)) hits.push({ path: file, rel: path.relative(root, file), ...h })
+  }
+  return hits
 })
 ipcMain.handle('fs:read', async (_, file) => fs.readFile(await guard(file), 'utf8'))
 ipcMain.handle('fs:write', async (_, file, text) => fs.writeFile(await guard(file), String(text), 'utf8'))

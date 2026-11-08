@@ -14,6 +14,8 @@ const api = window.evoke
 type Project = { name: string; path: string }
 type Entry = { name: string; path: string; dir: boolean }
 type Tab = { path: string; text: string; saved: string }
+type Hit = { path: string; rel: string; line?: number; col?: number; preview?: string }
+type Finder = { mode: 'files' | 'search'; query: string; hits: Hit[]; at: number }
 type Usage = { context: number | null; limits: { kind: string; percent: number; resetsAt?: string }[]; usd: number | null }
 
 const LIMITS: Record<string, string> = { five_hour: '5H', seven_day: '7D', spend_limit: 'SPEND' } // same labels as the pane's HUD
@@ -42,6 +44,9 @@ export function App() {
   const [usage, setUsage] = useState<Usage | null>(null)
   const [now, setNow] = useState(Date.now())
   const [theme, setTheme] = useState<ThemeName>(stored)
+  const [finder, setFinder] = useState<Finder | null>(null)
+  const editorRef = useRef<any>(null)
+  const jump = useRef<{ path: string; line: number; col: number } | null>(null)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -86,13 +91,26 @@ export function App() {
     return () => clearInterval(id)
   }, [])
 
-  const openFile = async (path: string) => {
+  const openFile = async (path: string, line?: number, col = 1) => {
+    if (line) jump.current = { path, line, col }
     if (!tabs.some(t => t.path === path)) {
       const text = await api.read(path)
       setTabs(t => [...t, { path, text, saved: text }])
     }
     setActive(path)
+    if (path === active) reveal()
   }
+  // Puts the cursor on the line a search result or quick open asked for, once that file is the editor's model.
+  const reveal = () => {
+    const e = editorRef.current
+    const j = jump.current
+    if (!e || !j || j.path !== live.current.active) return
+    jump.current = null
+    e.revealLineInCenter(j.line)
+    e.setPosition({ lineNumber: j.line, column: j.col })
+    e.focus()
+  }
+  useEffect(() => { requestAnimationFrame(reveal) }, [active])
   const closeTab = (path: string) => {
     const tab = tabs.find(t => t.path === path)
     if (tab && tab.text !== tab.saved && !confirm(`${baseName(path)}: 저장하지 않은 변경을 버릴까요?`)) return
@@ -114,7 +132,16 @@ export function App() {
   // Keys 1-9 and Enter pick a project while the picker is open, like the MENU pane's switcher.
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'o') {
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault()
+        e.stopPropagation()
+        setFinder({ mode: 'files', query: '', hits: [], at: 0 })
+      } else if (mod && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        e.stopPropagation()
+        setFinder({ mode: 'search', query: '', hits: [], at: 0 })
+      } else if (mod && e.key === 'o') {
         e.preventDefault()
         setPicker(p => !p)
       } else if (picker) {
@@ -123,9 +150,25 @@ export function App() {
         else if (n >= 1 && projects[n - 1]) open(projects[n - 1].path)
       }
     }
-    window.addEventListener('keydown', key)
-    return () => window.removeEventListener('keydown', key)
+    window.addEventListener('keydown', key, true) // capture: before Monaco and xterm take the keys
+    return () => window.removeEventListener('keydown', key, true)
   }, [picker, projects, open])
+
+  // Quick open ranks on every key; search waits for a pause, since it reads every file.
+  useEffect(() => {
+    if (!finder || !root) return
+    const { mode, query } = finder
+    const id = setTimeout(async () => {
+      const hits: Hit[] = mode === 'files' ? await api.files(root, query) : await api.search(root, query)
+      setFinder(f => (f && f.mode === mode && f.query === query ? { ...f, hits, at: 0 } : f))
+    }, mode === 'files' ? 60 : 250)
+    return () => clearTimeout(id)
+  }, [finder?.mode, finder?.query, root])
+  const pickHit = (h?: Hit) => {
+    if (!h) return
+    setFinder(null)
+    openFile(h.path, h.line, h.col)
+  }
 
   const tab = tabs.find(t => t.path === active)
   const save = async (path: string, text: string) => {
@@ -137,6 +180,8 @@ export function App() {
 
   // ⌘S saves; ⌘L hands the selection to Claude Code as an @file reference with its lines.
   const onMount: OnMount = (editor, monaco) => {
+    editorRef.current = editor
+    requestAnimationFrame(reveal)
     // ⌘S formats first when the language has a formatter (TS/JS, JSON, CSS, HTML), as format-on-save does.
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async () => {
       const { save, active } = live.current
@@ -199,7 +244,7 @@ export function App() {
           <div className="empty">
             <img className="mark" src={THEMES[theme].logo} alt="Evoke" />
             <div className="big">EVOKE</div>
-            <p>파일을 고르면 열린다 · {MOD}S 저장 · {MOD}L 선택을 Claude에게 · {MOD}O 프로젝트</p>
+            <p>{MOD}P 파일 열기 · {MOD}⇧F 검색 · {MOD}S 저장 · {MOD}L 선택을 Claude에게 · {MOD}O 프로젝트</p>
           </div>
         )}
       </main>
@@ -215,6 +260,39 @@ export function App() {
         <span className="usd">{usage?.usd != null ? `$${usage.usd.toFixed(2)}` : ''}</span>
         {!usage && <span className="quiet">사용량은 Evoke 플러그인이 켜진 세션에서 들어온다</span>}
       </footer>
+
+      {finder && (
+        <div className="picker" onClick={() => setFinder(null)}>
+          <div className="sheet finder" onClick={e => e.stopPropagation()}>
+            <div className="head">
+              <Cut label={finder.mode === 'files' ? 'FILES' : 'SEARCH'} />
+              <input
+                autoFocus
+                value={finder.query}
+                placeholder={finder.mode === 'files' ? '파일 이름' : '프로젝트에서 찾을 글자 (2자 이상)'}
+                onChange={e => setFinder({ ...finder, query: e.target.value })}
+                onKeyDown={e => {
+                  const n = finder.hits.length
+                  if (e.key === 'Escape') setFinder(null)
+                  else if (e.key === 'Enter') pickHit(finder.hits[finder.at])
+                  else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault()
+                    setFinder({ ...finder, at: n ? (finder.at + (e.key === 'ArrowDown' ? 1 : n - 1)) % n : 0 })
+                  }
+                }}
+              />
+            </div>
+            <div className="hits">
+              {finder.hits.map((h, i) => (
+                <button key={`${h.path}:${h.line}`} className={`row ${i === finder.at ? 'on' : ''}`} onClick={() => pickHit(h)}>
+                  {h.line ? <><b>{h.line}</b> <span className="preview">{h.preview}</span> <span className="quiet">{h.rel}</span></> : <><b>›</b> {baseName(h.rel)} <span className="quiet">{h.rel}</span></>}
+                </button>
+              ))}
+              {finder.query.length >= (finder.mode === 'files' ? 1 : 2) && !finder.hits.length && <div className="row quiet">결과 없음</div>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {picker && (
         <div className="picker" onClick={() => setPicker(false)}>
