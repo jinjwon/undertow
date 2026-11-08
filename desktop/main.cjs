@@ -6,7 +6,7 @@ const path = require('node:path')
 const { execFile } = require('node:child_process')
 const pty = require('node-pty')
 const { inside, latestUsage, trusted } = require('./paths.cjs')
-const { walkSkip, fuzzy, searchText } = require('./match.cjs')
+const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
 
 const home = os.homedir()
 const roots = new Set() // real paths of the folders the window has opened; file access stays inside them
@@ -102,6 +102,21 @@ ipcMain.handle('fs:write', async (_, file, text) => fs.writeFile(await guard(fil
 ipcMain.handle('git:branch', async (_, root) => {
   await guard(root)
   return new Promise(resolve => execFile('git', ['-C', root, 'rev-parse', '--abbrev-ref', 'HEAD'], (err, out) => resolve(err ? '' : out.trim())))
+})
+
+const git = (root, args) =>
+  new Promise(resolve => execFile('git', ['-C', root, ...args], { maxBuffer: 16e6 }, (err, out) => resolve(err ? null : out)))
+ipcMain.handle('git:status', async (_, root) => {
+  await guard(root)
+  const out = await git(root, ['status', '--porcelain=v1', '-z', '-uall'])
+  return out == null ? [] : parseStatus(out).map(c => ({ ...c, path: path.join(root, c.path) }))
+})
+// The file as of the last commit: '' for a new file. A deleted file has no real path, so this checks the name only.
+ipcMain.handle('git:head', async (_, root, file) => {
+  await guard(root)
+  if (!inside(root, String(file))) throw new Error(`Outside the project: ${file}`)
+  const rel = path.relative(root, String(file)).split(path.sep).join('/')
+  return (await git(root, ['show', `HEAD:${rel}`])) ?? ''
 })
 
 // The Evoke plugin saves its last usage in its store file; the newest one wins.

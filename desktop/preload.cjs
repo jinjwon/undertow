@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('evoke', {
   search: (root, query) => ipcRenderer.invoke('fs:search', root, query),
   write: (file, text) => ipcRenderer.invoke('fs:write', file, text),
   branch: root => ipcRenderer.invoke('git:branch', root),
+  status: root => ipcRenderer.invoke('git:status', root),
+  head: (root, file) => ipcRenderer.invoke('git:head', root, file),
   usage: () => ipcRenderer.invoke('usage:get'),
   pty: {
     spawn: (id, cwd, cols, rows) => ipcRenderer.invoke('pty:spawn', id, cwd, cols, rows),

@@ -1,6 +1,6 @@
 // The window: projects on top, files on the left, the editor in the middle, Claude Code on the right, the HUD below.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Editor, { type OnMount } from '@monaco-editor/react'
+import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
@@ -13,7 +13,8 @@ const api = window.evoke
 
 type Project = { name: string; path: string }
 type Entry = { name: string; path: string; dir: boolean }
-type Tab = { path: string; text: string; saved: string }
+type Tab = { path: string; text: string; saved: string; head?: string } // head: a diff tab against the last commit
+type Change = { path: string; code: string }
 type Hit = { path: string; rel: string; line?: number; col?: number; preview?: string }
 type Finder = { mode: 'files' | 'search'; query: string; hits: Hit[]; at: number }
 type Usage = { context: number | null; limits: { kind: string; percent: number; resetsAt?: string }[]; usd: number | null }
@@ -45,6 +46,20 @@ export function App() {
   const [now, setNow] = useState(Date.now())
   const [theme, setTheme] = useState<ThemeName>(stored)
   const [finder, setFinder] = useState<Finder | null>(null)
+  const [side, setSide] = useState<'files' | 'git'>('files')
+  const [changes, setChanges] = useState<Change[]>([])
+  const refreshGit = useCallback(async () => setChanges(root ? await api.status(root) : []), [root])
+  useEffect(() => {
+    refreshGit()
+    window.addEventListener('focus', refreshGit)
+    return () => window.removeEventListener('focus', refreshGit)
+  }, [refreshGit])
+  const openDiff = async (file: string) => {
+    const id = `diff:${file}`
+    const [head, now] = await Promise.all([api.head(root, file), api.read(file).catch(() => '')])
+    setTabs(ts => [...ts.filter(t => t.path !== id), { path: id, text: now, saved: now, head }])
+    setActive(id)
+  }
   const editorRef = useRef<any>(null)
   const jump = useRef<{ path: string; line: number; col: number } | null>(null)
 
@@ -122,7 +137,7 @@ export function App() {
   // Claude Code edits files on disk: tabs without your own unsaved edits follow the disk when you come back to the window.
   useEffect(() => {
     const sync = async () => {
-      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved ? api.read(t.path).catch(() => t.saved) : t.saved)))
+      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved && t.head === undefined ? api.read(t.path).catch(() => t.saved) : t.saved)))
       setTabs(ts => ts.map((t, i) => (t.text === t.saved && fresh[i] !== undefined && fresh[i] !== t.saved ? { ...t, text: fresh[i], saved: fresh[i] } : t)))
     }
     window.addEventListener('focus', sync)
@@ -174,6 +189,7 @@ export function App() {
   const save = async (path: string, text: string) => {
     await api.write(path, text)
     setTabs(ts => ts.map(t => (t.path === path ? { ...t, saved: text } : t)))
+    refreshGit()
   }
   const live = useRef({ save, root, active })
   live.current = { save, root, active }
@@ -213,20 +229,37 @@ export function App() {
       </header>
 
       <aside className="side">
-        <div className="head"><Cut label="ITEM" ground="var(--sel)" /> 파일</div>
-        {root && <Tree key={root} dir={root} depth={0} onOpen={openFile} active={active} />}
+        <div className="head sides">
+          <button onClick={() => setSide('files')} className={side === 'files' ? 'on' : ''}><Cut label="ITEM" ground={side === 'files' ? 'var(--sel)' : 'var(--mid)'} /></button>
+          <button onClick={() => (setSide('git'), refreshGit())} className={side === 'git' ? 'on' : ''}><Cut label={`GIT ${changes.length || ''}`.trim()} ground={side === 'git' ? 'var(--sel)' : 'var(--mid)'} /></button>
+        </div>
+        {root && side === 'files' && <Tree key={root} dir={root} depth={0} onOpen={openFile} active={active} />}
+        {side === 'git' && (changes.length ? changes.map(c => (
+          <div key={c.path} className={`entry change ${active === `diff:${c.path}` ? 'on' : ''}`} onClick={() => openDiff(c.path)} title={relative(root, c.path)}>
+            <b className={`code c-${c.code.replace('??', 'U')[0]}`}>{c.code.replace('??', 'U')}</b> {baseName(c.path)} <span className="quiet">{relative(root, c.path).slice(0, -baseName(c.path).length)}</span>
+          </div>
+        )) : <div className="entry quiet">변경 없음</div>)}
       </aside>
 
       <main className="center">
         <nav className="tabs">
           {tabs.map(t => (
             <div key={t.path} className={`tab ${t.path === active ? 'on' : ''}`} onClick={() => setActive(t.path)} title={t.path}>
-              {baseName(t.path)}{t.text !== t.saved && ' ●'}
+              {t.head !== undefined && 'Δ '}{baseName(t.path)}{t.text !== t.saved && ' ●'}
               <span className="x" onClick={e => (e.stopPropagation(), closeTab(t.path))}>×</span>
             </div>
           ))}
         </nav>
-        {tab ? (
+        {tab?.head !== undefined ? (
+          <DiffEditor
+            original={tab.head}
+            modified={tab.text}
+            language={langOf(tab.path)}
+            theme={`evoke-${theme}`}
+            beforeMount={defineThemes}
+            options={{ readOnly: true, renderSideBySide: true, fontFamily: 'Iosevka, Menlo, Consolas, monospace', fontSize: 13, minimap: { enabled: false } }}
+          />
+        ) : tab ? (
           <Editor
             path={tab.path}
             language={langOf(tab.path)}

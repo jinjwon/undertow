@@ -30,4 +30,17 @@ const searchText = (text, query, limit) => {
   return hits
 }
 
-module.exports = { walkSkip, fuzzy, searchText }
+// `git status --porcelain=v1 -z`: "XY path" records split by NUL; a rename or copy carries its old path as the next record.
+const parseStatus = z => {
+  const parts = z.split('\0')
+  const out = []
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i].length < 4) continue
+    const code = parts[i].slice(0, 2).trim()
+    out.push({ path: parts[i].slice(3), code })
+    if (/[RC]/.test(parts[i].slice(0, 2))) i++
+  }
+  return out
+}
+
+module.exports = { walkSkip, fuzzy, searchText, parseStatus }

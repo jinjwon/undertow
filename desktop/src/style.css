@@ -144,3 +144,13 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .row.on { background: var(--sel); color: var(--sel-ink); }
 .row .preview { font-family: Iosevka, Menlo, Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 [data-theme='rebel'] .row.on { background: #FFFFFF; color: #000000; box-shadow: 5px 4px 0 #FF1A2D; }
+
+/* Sidebar tabs and the change list. */
+.sides { display: flex; gap: 2px; padding: 8px 8px; }
+.sides button { opacity: .75; }
+.sides button.on { opacity: 1; }
+.change .code { display: inline-block; width: 22px; font-weight: 800; }
+.c-M { color: #FFC24A; } .c-A, .c-U { color: #4ADE80; } .c-D { color: var(--hot); } .c-R { color: var(--hi); }
+::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); }
+::-webkit-scrollbar-corner { background: transparent; }
