@@ -40,6 +40,8 @@ const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const stored = (): ThemeName => {
   try { const t = localStorage.getItem('theme') as ThemeName; return THEMES[t] ? t : 'tide' } catch { return 'tide' }
 }
+// Text typed into a terminal for you: no control characters, so a file or skill name can never press Enter or send keys.
+const typed = (text: string) => text.replace(/[\x00-\x1f\x7f]/g, '')
 const relative = (root: string, path: string) => path.slice(root.length).replace(/^[\\/]/, '')
 
 const Cut = ({ label, ground = 'var(--chip)', ink = 'var(--chip-ink)' }: { label: string; ground?: string; ink?: string }) => (
@@ -91,7 +93,7 @@ export function App() {
     if (menu === 'QUEST') (setQuests(null), api.search(root, 'TODO').then(setQuests))
   }, [menu, root])
   const say = (text: string) => {
-    api.pty.write(`claude:${root}`, text)
+    api.pty.write(`claude:${root}`, typed(text))
     showPane('claude')
     document.querySelector<HTMLElement>('.claude.on .xterm-helper-textarea')?.focus()
   }
@@ -267,7 +269,7 @@ export function App() {
       const s = editor.getSelection()
       if (!active || !s) return
       const lines = s.isEmpty() ? '' : `#L${s.startLineNumber}${s.endLineNumber > s.startLineNumber ? `-${s.endLineNumber}` : ''}`
-      api.pty.write(`claude:${root}`, `@${relative(root, active)}${lines} `)
+      api.pty.write(`claude:${root}`, typed(`@${relative(root, active)}${lines} `))
       document.querySelector<HTMLElement>('.claude.on .xterm-helper-textarea')?.focus()
     })
   }

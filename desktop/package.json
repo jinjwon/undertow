@@ -1,7 +1,7 @@
 {
   "name": "evoke-desktop",
   "productName": "Evoke",
-  "version": "1.8.0",
+  "version": "2.0.0",
   "private": true,
   "description": "Evoke as a desktop editor: files, Monaco, and Claude Code side by side.",
   "author": "jinjwon",
@@ -37,7 +37,10 @@
     "mac": {
       "icon": "../assets/icon.png",
       "target": "dmg",
-      "category": "public.app-category.developer-tools"
+      "category": "public.app-category.developer-tools",
+      "files": [
+        "!node_modules/node-pty/prebuilds/win32-*/**"
+      ]
     },
     "win": {
       "icon": "../assets/icon.png",
@@ -48,11 +51,19 @@
             "x64"
           ]
         }
+      ],
+      "files": [
+        "!node_modules/node-pty/prebuilds/darwin-*/**",
+        "!node_modules/node-pty/prebuilds/win32-arm64/**"
       ]
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Evoke",
+      "artifactName": "Evoke-Setup-${version}.${ext}"
     }
   },
   "dependencies": {

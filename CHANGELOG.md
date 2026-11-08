@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.0.0 - 2026-11-08
+
+Evoke is now the desktop app. The terminal setups are retired.
+
+### Added
+
+- **MENU pane:** the terminal pane's nine menus, art, cut-ins and HUD, as the app's left column. SKILL puts a skill in Claude's prompt, ITEM shows files, EQUIP lists MCP servers and plugins, AGENT resumes past sessions, STATUS diffs changes, QUEST lists TODOs, LINK switches projects, CALENDAR shows the days you worked with Claude, SYSTEM holds theme and keys. A toast warns at 85% usage.
+- **Editor:** completion, errors and formatting for TS/JS, JSON, CSS and HTML; format on save; bracket colors and guides; matching HTML tags rename together.
+- `⌘P` quick open and `⌘⇧F` project search.
+- Git changes with a diff against the last commit.
+- A SHELL pane next to CLAUDE, one per project.
+- File badges in the tree.
+- Windows installer with Start menu and desktop shortcuts, built by GitHub Actions.
+
+### Changed
+
+- The plugin saves its usage figures, so the app's HUD shows them. Update the plugin to get them.
+- Each installer carries only its own platform's terminal module.
+
+### Removed
+
+- The Ghostty and Terminal.app setups (`ghostty/`, `terminal/`). The plugin still works in any terminal.
+
 ## 1.8.0 - 2026-11-08
 
 ### Added
