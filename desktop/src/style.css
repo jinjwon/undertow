@@ -3,7 +3,7 @@
 @font-face { font-family: Barlow; src: url(../../plugins/evoke/tools/fonts/Barlow-BlackItalic.ttf); }
 
 :root, [data-theme='tide'] {
-  --ground: #0B1648 url(./background.png) center / cover no-repeat;
+  --ground: #050B24 url(./bg-tide.webp) center / cover no-repeat;
   --plate: #050A24CC; --panel: #050A2499; --page: #0B164866; --deep: #01030CAA; --ink: #01030C;
   --line: #13257A; --mid: #13257A; --sel: #1546E0; --hi: #5FE3FF; --text: #D6F4FF; --gray: #8A96B8;
   --chip: #E8101E; --chip-ink: #FFFFFF; --edge: #FF2E88; --hot: #E8101E; --sel-ink: #FFFFFF;
@@ -12,17 +12,13 @@
 [data-theme='rebel'] {
   --blood: #B8001F; /* the one red */
   /* Red slashes over black, with a halftone fade in the corner, as on a calling card. */
-  --ground: linear-gradient(158deg, var(--blood) 0 14%, #000000 14% 78%, var(--blood) 78%) fixed;
-  --plate: #000000F0; --panel: #000000D9; --page: #000000E6; --deep: #000000E6; --ink: #000000;
+  --ground: #080808 url(./bg-rebel.webp) center / cover no-repeat;
+  --plate: #000000F0; --panel: #000000C7; --page: #00000080; --deep: #000000A6; --ink: #000000;
   --line: #2A2A2A; --mid: #000000; --sel: var(--blood); --hi: #FFFFFF; --text: #FFFFFF; --gray: rgba(255, 255, 255, 0.55);
   --chip: var(--blood); --chip-ink: #FFFFFF; --edge: #FFFFFF; --hot: #FFFFFF; --sel-ink: #000000;
   --shimmer: transparent; --big: var(--blood);
 }
-[data-theme='rebel'] body::before {
-  inset: 0; animation: none;
-  background: radial-gradient(circle, var(--blood) 0 36%, transparent 40%) 0 0 / 16px 16px;
-  -webkit-mask-image: linear-gradient(140deg, transparent 58%, #000 100%);
-}
+[data-theme='rebel'] body::before { display: none; } /* the background art carries its own halftone */
 /* Ransom-note chips: each letter cut from a different page. */
 [data-theme='rebel'] .cut { background: none !important; clip-path: none; padding: 0 4px 0 0; letter-spacing: 0; }
 [data-theme='rebel'] .cut > span { display: inline-block; padding: 0 3px; margin-right: 1px; background: #FFFFFF; color: #000000; font: 900 15px Barlow, sans-serif; transform: rotate(-4deg); }
@@ -32,7 +28,8 @@
 
 [data-theme='rebel'] .top { border-bottom: 0; box-shadow: 0 3px 0 var(--blood), 0 7px 0 #000000, 0 9px 0 #FFFFFF; }
 [data-theme='rebel'] .logo { color: #FFFFFF; text-shadow: 3px 3px 0 var(--blood); }
-[data-theme='rebel'] .logo img { border: 2px solid #FFFFFF; transform: rotate(-8deg); }
+/* REBEL's art is black at its edges: a white outline keeps its shape on the black page. */
+[data-theme='rebel'] .logo img { transform: rotate(-8deg); filter: drop-shadow(1px 0 0 #FFF) drop-shadow(-1px 0 0 #FFF) drop-shadow(0 1px 0 #FFF) drop-shadow(0 -1px 0 #FFF); }
 [data-theme='rebel'] .head { background: linear-gradient(100deg, #FFFFFF 0 64%, transparent 64%); color: #000000; border-bottom: 3px solid var(--blood); }
 [data-theme='rebel'] .clock { background: #FFFFFF; color: #000000; padding: 0 14px; transform: rotate(-3deg) skewX(-10deg); box-shadow: 5px 5px 0 var(--blood); }
 [data-theme='rebel'] .clock b { color: var(--blood); }
@@ -44,7 +41,7 @@
 [data-theme='rebel'] .tab { clip-path: none; }
 [data-theme='rebel'] .tab.on { background: #FFFFFF; color: #000000; box-shadow: 4px 4px 0 var(--blood); transform: rotate(-2deg); }
 
-[data-theme='rebel'] .empty .mark { width: 220px; border: 6px solid #FFFFFF; box-shadow: 14px 14px 0 var(--blood); transform: rotate(-7deg); }
+[data-theme='rebel'] .empty .mark { width: 220px; filter: drop-shadow(3px 0 0 #FFF) drop-shadow(-3px 0 0 #FFF) drop-shadow(0 3px 0 #FFF) drop-shadow(0 -3px 0 #FFF) drop-shadow(10px 10px 0 var(--blood)); transform: rotate(-7deg); }
 [data-theme='rebel'] .empty .big { color: transparent; -webkit-text-stroke: 3px var(--big); transform: rotate(-8deg) skewX(-6deg); }
 [data-theme='rebel'] .empty p { background: #000000; color: #FFFFFF; padding: 4px 12px; transform: rotate(-2deg); }
 [data-theme='rebel'] .sheet { border: 3px solid #FFFFFF; box-shadow: 12px 12px 0 var(--blood); transform: rotate(-1.5deg) skewX(-4deg); }
@@ -52,8 +49,8 @@
 [data-theme='rebel'] .hud { border-top: 2px solid var(--blood); }
 
 /* TIDE's art is a square painting: round it into an app icon. */
-.logo img, .empty .mark { border-radius: 6px; }
-.empty .mark { border-radius: 24px; box-shadow: 0 0 40px #5FE3FF33; }
+/* The logos carry their own rounded shape, so effects follow it with drop-shadow, never a box. */
+.empty .mark { filter: drop-shadow(0 0 24px #5FE3FF44); }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
@@ -91,7 +88,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .top button { -webkit-app-region: no-drag; }
 .win32 .top { padding: 0 150px 0 12px; } /* room for Windows' own window buttons on the right */
 .logo { display: flex; align-items: center; gap: 6px; font: 900 italic 20px Barlow, sans-serif; color: var(--hi); }
-.logo img { width: 26px; height: 26px; }
+.logo img { width: 30px; height: 30px; }
 .project { display: flex; align-items: center; font-weight: 700; }
 .branch { color: var(--gray); }
 .theme { margin-left: auto; }
