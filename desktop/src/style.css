@@ -10,45 +10,46 @@
   --shimmer: #5FE3FF14; --big: #13257A;
 }
 [data-theme='rebel'] {
+  --blood: #B8001F; /* the one red */
   /* Red slashes over black, with a halftone fade in the corner, as on a calling card. */
-  --ground: linear-gradient(158deg, #D10014 0 14%, #0A0A0A 14% 78%, #D10014 78%) fixed;
-  --plate: #000000F0; --panel: #000000D9; --page: #0A0A0AE6; --deep: #000000E6; --ink: #000000;
-  --line: #2A2A2A; --mid: #000000; --sel: #FF1A2D; --hi: #FFFFFF; --text: #F5F5F5; --gray: #8C8C8C;
-  --chip: #FF1A2D; --chip-ink: #FFFFFF; --edge: #FFFFFF; --hot: #FFE500; --sel-ink: #000000;
-  --shimmer: transparent; --big: #FF1A2D;
+  --ground: linear-gradient(158deg, var(--blood) 0 14%, #000000 14% 78%, var(--blood) 78%) fixed;
+  --plate: #000000F0; --panel: #000000D9; --page: #000000E6; --deep: #000000E6; --ink: #000000;
+  --line: #2A2A2A; --mid: #000000; --sel: var(--blood); --hi: #FFFFFF; --text: #FFFFFF; --gray: rgba(255, 255, 255, 0.55);
+  --chip: var(--blood); --chip-ink: #FFFFFF; --edge: #FFFFFF; --hot: #FFFFFF; --sel-ink: #000000;
+  --shimmer: transparent; --big: var(--blood);
 }
 [data-theme='rebel'] body::before {
   inset: 0; animation: none;
-  background: radial-gradient(circle, #FF1A2D 0 36%, transparent 40%) 0 0 / 16px 16px;
+  background: radial-gradient(circle, var(--blood) 0 36%, transparent 40%) 0 0 / 16px 16px;
   -webkit-mask-image: linear-gradient(140deg, transparent 58%, #000 100%);
 }
 /* Ransom-note chips: each letter cut from a different page. */
 [data-theme='rebel'] .cut { background: none !important; clip-path: none; padding: 0 4px 0 0; letter-spacing: 0; }
 [data-theme='rebel'] .cut > span { display: inline-block; padding: 0 3px; margin-right: 1px; background: #FFFFFF; color: #000000; font: 900 15px Barlow, sans-serif; transform: rotate(-4deg); }
 [data-theme='rebel'] .cut > span:nth-child(2n) { background: #000000; color: #FFFFFF; outline: 1px solid #FFFFFF; font: 700 italic 14px Georgia, 'Times New Roman', serif; transform: rotate(5deg) translateY(1px); }
-[data-theme='rebel'] .cut > span:nth-child(3n) { background: #FF1A2D; color: #FFFFFF; font: 900 16px Impact, 'Arial Black', sans-serif; transform: rotate(-7deg) scale(1.08); }
-[data-theme='rebel'] .cut > span:nth-child(5n) { background: #FFFFFF; color: #FF1A2D; transform: rotate(3deg); }
+[data-theme='rebel'] .cut > span:nth-child(3n) { background: var(--blood); color: #FFFFFF; font: 900 16px Impact, 'Arial Black', sans-serif; transform: rotate(-7deg) scale(1.08); }
+[data-theme='rebel'] .cut > span:nth-child(5n) { background: #FFFFFF; color: var(--blood); transform: rotate(3deg); }
 
-[data-theme='rebel'] .top { border-bottom: 0; box-shadow: 0 3px 0 #FF1A2D, 0 7px 0 #000000, 0 9px 0 #FFFFFF; }
-[data-theme='rebel'] .logo { color: #FFFFFF; text-shadow: 3px 3px 0 #FF1A2D; }
+[data-theme='rebel'] .top { border-bottom: 0; box-shadow: 0 3px 0 var(--blood), 0 7px 0 #000000, 0 9px 0 #FFFFFF; }
+[data-theme='rebel'] .logo { color: #FFFFFF; text-shadow: 3px 3px 0 var(--blood); }
 [data-theme='rebel'] .logo img { border: 2px solid #FFFFFF; transform: rotate(-8deg); }
-[data-theme='rebel'] .head { background: linear-gradient(100deg, #FFFFFF 0 64%, transparent 64%); color: #000000; border-bottom: 3px solid #FF1A2D; }
-[data-theme='rebel'] .clock { background: #FFFFFF; color: #000000; padding: 0 14px; transform: rotate(-3deg) skewX(-10deg); box-shadow: 5px 5px 0 #FF1A2D; }
-[data-theme='rebel'] .clock b { color: #FF1A2D; }
+[data-theme='rebel'] .head { background: linear-gradient(100deg, #FFFFFF 0 64%, transparent 64%); color: #000000; border-bottom: 3px solid var(--blood); }
+[data-theme='rebel'] .clock { background: #FFFFFF; color: #000000; padding: 0 14px; transform: rotate(-3deg) skewX(-10deg); box-shadow: 5px 5px 0 var(--blood); }
+[data-theme='rebel'] .clock b { color: var(--blood); }
 
 /* Selection: a white slab with a red shadow, knocked off true. */
-[data-theme='rebel'] .entry:hover { background: #FF1A2D33; }
-[data-theme='rebel'] .entry.on, [data-theme='rebel'] .row:hover, [data-theme='rebel'] .row:focus { background: #FFFFFF; color: #000000; font-weight: 700; box-shadow: 5px 4px 0 #FF1A2D; transform: translateX(8px) rotate(-1.5deg); }
-[data-theme='rebel'] .row:hover b, [data-theme='rebel'] .row:focus b { color: #FF1A2D; }
+[data-theme='rebel'] .entry:hover { background: var(--blood)33; }
+[data-theme='rebel'] .entry.on, [data-theme='rebel'] .row:hover, [data-theme='rebel'] .row:focus { background: #FFFFFF; color: #000000; font-weight: 700; box-shadow: 5px 4px 0 var(--blood); transform: translateX(8px) rotate(-1.5deg); }
+[data-theme='rebel'] .row:hover b, [data-theme='rebel'] .row:focus b { color: var(--blood); }
 [data-theme='rebel'] .tab { clip-path: none; }
-[data-theme='rebel'] .tab.on { background: #FFFFFF; color: #000000; box-shadow: 4px 4px 0 #FF1A2D; transform: rotate(-2deg); }
+[data-theme='rebel'] .tab.on { background: #FFFFFF; color: #000000; box-shadow: 4px 4px 0 var(--blood); transform: rotate(-2deg); }
 
-[data-theme='rebel'] .empty .mark { width: 220px; border: 6px solid #FFFFFF; box-shadow: 14px 14px 0 #FF1A2D; transform: rotate(-7deg); }
+[data-theme='rebel'] .empty .mark { width: 220px; border: 6px solid #FFFFFF; box-shadow: 14px 14px 0 var(--blood); transform: rotate(-7deg); }
 [data-theme='rebel'] .empty .big { color: transparent; -webkit-text-stroke: 3px var(--big); transform: rotate(-8deg) skewX(-6deg); }
 [data-theme='rebel'] .empty p { background: #000000; color: #FFFFFF; padding: 4px 12px; transform: rotate(-2deg); }
-[data-theme='rebel'] .sheet { border: 3px solid #FFFFFF; box-shadow: 12px 12px 0 #FF1A2D; transform: rotate(-1.5deg) skewX(-4deg); }
-[data-theme='rebel'] .right { border-left: 3px solid #FF1A2D; }
-[data-theme='rebel'] .hud { border-top: 2px solid #FF1A2D; }
+[data-theme='rebel'] .sheet { border: 3px solid #FFFFFF; box-shadow: 12px 12px 0 var(--blood); transform: rotate(-1.5deg) skewX(-4deg); }
+[data-theme='rebel'] .right { border-left: 3px solid var(--blood); }
+[data-theme='rebel'] .hud { border-top: 2px solid var(--blood); }
 
 /* TIDE's art is a square painting: round it into an app icon. */
 .logo img, .empty .mark { border-radius: 6px; }
@@ -143,7 +144,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .hits { max-height: 56vh; overflow: auto; }
 .row.on { background: var(--sel); color: var(--sel-ink); }
 .row .preview { font-family: Iosevka, Menlo, Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-[data-theme='rebel'] .row.on { background: #FFFFFF; color: #000000; box-shadow: 5px 4px 0 #FF1A2D; }
+[data-theme='rebel'] .row.on { background: #FFFFFF; color: #000000; box-shadow: 5px 4px 0 var(--blood); }
 
 /* Sidebar tabs and the change list. */
 .sides { display: flex; gap: 2px; padding: 8px 8px; }
@@ -188,7 +189,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .band { font: 900 italic 14px Barlow, sans-serif; }
 .toast { position: fixed; right: 24px; bottom: 44px; z-index: 3; padding: 10px 16px; background: var(--plate); border-left: 4px solid var(--hot); font-weight: 700; animation: drop .2s ease-out; }
 [data-theme='rebel'] .pane .art img { filter: grayscale(1) contrast(1.4); mix-blend-mode: screen; }
-[data-theme='rebel'] .hot-menu:hover { background: linear-gradient(90deg, transparent, #FF1A2D55, transparent); }
+[data-theme='rebel'] .hot-menu:hover { background: linear-gradient(90deg, transparent, rgba(184, 0, 31, 0.4), transparent); }
 /* File badges: a slanted chip coloured by kind, instead of an icon theme. */
 .ext { display: inline-block; width: 8px; height: 10px; margin: 0 6px 0 2px; background: var(--gray); transform: skewX(-12deg); vertical-align: -1px; }
 .ext[data-ext='ts'], .ext[data-ext='tsx'] { background: #3B82F6; }
@@ -200,3 +201,75 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .ext[data-ext='py'] { background: #22C55E; }
 .ext[data-ext='png'], .ext[data-ext='jpg'], .ext[data-ext='svg'] { background: #A855F7; }
 .ext[data-ext='sh'], .ext[data-ext='zsh'] { background: #10B981; }
+
+/* ---- 2.1: icons, preview, welcome, settings, prompt variables ---- */
+
+/* File badges: the kind in letters, so files read apart at a glance. */
+.fi { display: inline-block; min-width: 26px; margin-right: 6px; padding: 0 3px; font: 900 9px/14px Barlow, sans-serif; font-style: normal; text-align: center; color: #fff; background: #5A6690; transform: skewX(-10deg); vertical-align: 1px; }
+.fi-ts { background: #3178C6; } .fi-js { background: #D9B300; color: #000; } .fi-json { background: #6F9E2C; } .fi-css { background: #D6306F; }
+.fi-html { background: #E3572A; } .fi-md { background: #E8EEF8; color: #000; } .fi-py { background: #2F7D4F; } .fi-sh { background: #11A37F; }
+.fi-yml { background: #8B5CF6; } .fi-img { background: #A855F7; } .fi-rs { background: #B7410E; } .fi-go { background: #00ADD8; } .fi-swift { background: #F05138; }
+.fi-dir { min-width: 14px; height: 10px; padding: 0; background: var(--hi); clip-path: polygon(0 0, 40% 0, 50% 25%, 100% 25%, 100% 100%, 0 100%); vertical-align: 0; }
+.tab .fi { margin-right: 6px; }
+
+.tab.preview { font-style: italic; }
+.image-view { display: grid; place-items: center; overflow: auto; background: repeating-conic-gradient(#ffffff0d 0 25%, transparent 0 50%) 0 0 / 20px 20px; }
+.image-view img { max-width: 92%; max-height: 92%; box-shadow: 0 0 0 1px var(--line); }
+
+.welcome { width: min(520px, 90%); margin: 8px auto 0; text-align: left; }
+.welcome .row { color: var(--text); }
+.welcome p { text-align: center; margin-top: 14px; }
+.gear { font-size: 18px; color: var(--hi); padding: 0 4px; }
+.gear:hover { transform: rotate(30deg); }
+.sheet.settings .row.on b { color: var(--sel-ink); }
+
+/* Prompt variables {{ }}: highlighted on any theme. */
+.pv { background: rgba(95, 227, 255, 0.18); color: #5FE3FF !important; border-bottom: 1px solid #5FE3FF; }
+
+.toast .mask { display: none; }
+
+/* ---- REBEL as a prompt-engineering theme: blood red, pitch black, stark white ---- */
+
+/* Ransom-note variables: each letter cut from a different page. Same font, so Monaco's cursor stays true. */
+[data-theme='rebel'] .pv { display: inline-block; border: 0; font-weight: 900; }
+[data-theme='rebel'] .pv0 { background: #FFFFFF; color: #000000 !important; transform: rotate(-4deg); }
+[data-theme='rebel'] .pv1 { background: #000000; color: #FFFFFF !important; outline: 1px solid #FFFFFF; transform: rotate(3deg); font-style: italic; }
+[data-theme='rebel'] .pv2 { background: var(--blood); color: #FFFFFF !important; transform: rotate(-2deg) scale(1.08); }
+[data-theme='rebel'] .pv3 { background: #FFFFFF; color: var(--blood) !important; transform: rotate(5deg); }
+[data-theme='rebel'] .pv4 { background: #000000; color: var(--blood) !important; outline: 1px solid var(--blood); transform: rotate(-6deg); }
+
+/* Cut-out corners on panels, the terminal and sheets: sliced, never square. */
+[data-theme='rebel'] .center { clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px)); }
+[data-theme='rebel'] .right { clip-path: polygon(22px 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%, 0 22px); }
+[data-theme='rebel'] .claude { clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px)); background: #000000; margin: 6px 8px 8px 16px; }
+[data-theme='rebel'] .pane-body { clip-path: polygon(0 14px, 14px 0, 100% 0, 100% 100%, 0 100%); }
+[data-theme='rebel'] .sheet, [data-theme='rebel'] .toast { clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px)); }
+[data-theme='rebel'] .fi { clip-path: polygon(0 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 4px 100%, 0 calc(100% - 4px)); transform: none; }
+
+/* Halftone seams: red and black dots along panel edges. */
+[data-theme='rebel'] .right, [data-theme='rebel'] .center { position: relative; }
+[data-theme='rebel'] .right::before, [data-theme='rebel'] .center::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 14px; pointer-events: none; z-index: 2;
+  background: radial-gradient(circle, var(--blood) 0 42%, transparent 46%) 0 0 / 7px 7px, #000000;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 70%);
+}
+[data-theme='rebel'] .right::before { left: 0; }
+[data-theme='rebel'] .center::after { right: 0; -webkit-mask-image: linear-gradient(0deg, #000 0%, transparent 70%); }
+[data-theme='rebel'] .top::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 10px; pointer-events: none; z-index: 3;
+  background: radial-gradient(circle, var(--blood) 0 40%, transparent 44%) 0 0 / 6px 6px;
+}
+[data-theme='rebel'] .top { position: relative; }
+
+/* Icons: three colours only, folders wear the mask. */
+[data-theme='rebel'] .fi { background: #000000; color: #FFFFFF; outline: 1px solid #FFFFFF; }
+[data-theme='rebel'] .fi-ts, [data-theme='rebel'] .fi-js, [data-theme='rebel'] .fi-html { background: var(--blood); color: #FFFFFF; outline: 0; }
+[data-theme='rebel'] .fi-json, [data-theme='rebel'] .fi-md, [data-theme='rebel'] .fi-css { background: #FFFFFF; color: #000000; outline: 0; }
+[data-theme='rebel'] .fi-dir { min-width: 16px; height: 9px; outline: 0; background: #FFFFFF; clip-path: polygon(0 0, 30% 15%, 50% 45%, 70% 15%, 100% 0, 92% 75%, 64% 100%, 50% 70%, 36% 100%, 8% 75%); }
+[data-theme='rebel'] .entry.on .fi-dir { background: var(--blood); }
+
+/* Alerts carry the thief's mask. */
+[data-theme='rebel'] .toast { background: #000000; color: #FFFFFF; border-left: 0; outline: 3px solid #FFFFFF; box-shadow: 10px 10px 0 var(--blood); display: flex; align-items: center; gap: 10px; }
+[data-theme='rebel'] .toast .mask { display: block; width: 46px; height: 20px; fill: #FFFFFF; filter: drop-shadow(3px 3px 0 var(--blood)); transform: rotate(-8deg); }
+[data-theme='rebel'] .gear { color: #FFFFFF; text-shadow: 2px 2px 0 var(--blood); }
+[data-theme='rebel'] .image-view { background: repeating-conic-gradient(rgba(184, 0, 31, 0.15) 0 25%, transparent 0 50%) 0 0 / 20px 20px; }

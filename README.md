@@ -2,7 +2,7 @@
 
 <img src="assets/logo-tide.png" width="96" alt="Evoke logo">
 
-**English** | [한국어](README.ko.md)
+**English** | [한국어](README.ko.md) | [日本語](README.ja.md)
 
 A desktop code editor built around [Claude Code](https://claude.com/claude-code), dressed as a slanted game menu. Files, the editor, git, a shell and Claude Code sit in one window, and the things you would install VS Code or Cursor extensions for are built in.
 
@@ -41,7 +41,11 @@ Builds are unsigned. The first time, on macOS right-click Evoke and choose Open;
   The HUD on top shows the date, the moon, context and 5-hour/7-day usage with resets, and session cost. A toast warns at 85%.
 - **Editor (middle):** Monaco with completion, errors and formatting for TS/JS, JSON, CSS and HTML; bracket colors and guides; matching HTML tags rename together; diff view.
 - **CLAUDE / SHELL (right):** one live Claude Code session and one shell per project, kept while you switch projects.
-- **Two themes,** each with its own logo: **TIDE**, deep-sea blue, and **REBEL**, red and black with ransom-note headings.
+- **Two themes,** each with its own logo. **TIDE** is deep-sea blue. **REBEL** is a prompt-engineering theme in three colours only (blood red, pitch black, stark white): cut-out panel corners, halftone seams, a thief's mask on folders and alerts, and `{{variables}}` in prompts cut out letter by letter like a ransom note.
+- **Start like VS Code:** the window opens on Open Folder and your recent projects.
+- **Preview tabs:** a single click previews a file (italic tab, replaced by the next one); a double click or an edit keeps it. Images open as pictures. A minimap shows the whole file.
+- **File badges** (TS, JS, {}, MD, IMG…) in the tree, on tabs and in quick open.
+- **English, 한국어, 日本語:** pick in Settings (⚙ at the top right); the system language is the default.
 
 ### Shortcuts
 

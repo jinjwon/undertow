@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf } = require('./paths.cjs')
+const { inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 
 test('inside keeps paths within the project', () => {
   assert.ok(inside('/a/proj', '/a/proj'))
@@ -67,4 +67,16 @@ test('mcpOf merges global and project MCP servers', () => {
   const json = JSON.stringify({ mcpServers: { g: {} }, projects: { '/r': { mcpServers: { p: {}, g: {} } } } })
   assert.deepStrictEqual(mcpOf(json, '/r'), ['g', 'p'])
   assert.deepStrictEqual(mcpOf('{}', '/r'), [])
+})
+
+test('sendTo drops messages for a closed window instead of throwing', () => {
+  const sent = []
+  const live = { isDestroyed: () => false, webContents: { isDestroyed: () => false, send: (...a) => sent.push(a) } }
+  const closed = { isDestroyed: () => true, webContents: { send: () => { throw new TypeError('Object has been destroyed') } } }
+  const closing = { isDestroyed: () => false, webContents: { isDestroyed: () => true, send: () => { throw new TypeError('Object has been destroyed') } } }
+  sendTo(live, 'pty:data:x', 'hi')
+  assert.doesNotThrow(() => sendTo(closed, 'pty:data:x', 'late output'))
+  assert.doesNotThrow(() => sendTo(closing, 'pty:exit:x', 0))
+  assert.doesNotThrow(() => sendTo(undefined, 'pty:exit:x', 0))
+  assert.deepStrictEqual(sent, [['pty:data:x', 'hi']])
 })

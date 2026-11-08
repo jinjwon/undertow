@@ -5,6 +5,8 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
 import { Pane } from './Pane'
+import { LANGS as UI_LANGS, langFrom, tr, type Lang } from './i18n'
+import { iconOf, isImage, promptVars } from './text'
 import { baseName, lastUsedOf, projectsOf, rank, rankProjects } from '../../plugins/evoke/hooks/data'
 
 declare global {
@@ -14,25 +16,14 @@ const api = window.evoke
 
 type Project = { name: string; path: string }
 type Entry = { name: string; path: string; dir: boolean }
-type Tab = { path: string; text: string; saved: string; head?: string } // head: a diff tab against the last commit
+// head: a diff tab against the last commit; image: a picture shown instead of text; preview: replaced by the next single click, as in VS Code
+type Tab = { path: string; text: string; saved: string; head?: string; image?: string; preview?: boolean }
 type Change = { path: string; code: string }
 type Hit = { path: string; rel: string; line?: number; col?: number; preview?: string }
 type Finder = { mode: 'files' | 'search'; query: string; hits: Hit[]; at: number }
 type Usage = { context: number | null; limits: { kind: string; percent: number; resetsAt?: string }[]; usd: number | null }
 
 const LIMITS: Record<string, string> = { five_hour: '5H', seven_day: '7D', spend_limit: 'SPEND' } // same labels as the pane's HUD
-// The line under each menu, as the pane's action bar says what pressing does there.
-const HINTS: Record<string, string> = {
-  SKILL: '스킬을 누르면 Claude 입력칸에 들어간다',
-  ITEM: '파일을 고르면 열린다',
-  EQUIP: 'Claude Code가 이 프로젝트에 가져가는 장비',
-  AGENT: '지난 대화를 고르면 이어서 한다',
-  STATUS: '바뀐 파일을 고르면 마지막 커밋과 비교한다',
-  QUEST: '프로젝트에 남은 TODO',
-  LINK: '프로젝트를 고르면 연다',
-  CALENDAR: '날짜를 고르면 그날의 대화가 나온다',
-  SYSTEM: '테마와 단축키',
-}
 const LANGS: Record<string, string> = { ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript', cjs: 'javascript', mjs: 'javascript', json: 'json', md: 'markdown', css: 'css', html: 'html', py: 'python', sh: 'shell', yml: 'yaml', yaml: 'yaml', glsl: 'cpp', rs: 'rust', go: 'go', swift: 'swift' }
 const langOf = (path: string) => LANGS[path.split('.').pop()?.toLowerCase() ?? ''] ?? 'plaintext'
 const MOD = api.platform === 'darwin' ? '⌘' : 'Ctrl+'
@@ -40,6 +31,20 @@ const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const stored = (): ThemeName => {
   try { const t = localStorage.getItem('theme') as ThemeName; return THEMES[t] ? t : 'tide' } catch { return 'tide' }
 }
+const storedLang = (): Lang => {
+  try { return langFrom(localStorage.getItem('lang') ?? navigator.language) } catch { return langFrom(navigator.language) }
+}
+// The badge in front of a file name: its kind in two or three letters, coloured per theme.
+const FileIcon = ({ name, dir = false }: { name: string; dir?: boolean }) => {
+  const { label, kind } = iconOf(name, dir)
+  return <i className={`fi fi-${kind}`} aria-hidden="true">{label}</i>
+}
+// A thief's domino mask, drawn here (not taken from any game): REBEL's alert and folder mark.
+const Mask = () => (
+  <svg className="mask" viewBox="0 0 64 28" aria-hidden="true">
+    <path d="M2 4 Q16 0 32 9 Q48 0 62 4 Q60 20 46 24 Q36 26 32 17 Q28 26 18 24 Q4 20 2 4Z M12 10 Q18 7 25 12 Q19 16 12 10Z M39 12 Q46 7 52 10 Q45 16 39 12Z" fillRule="evenodd" />
+  </svg>
+)
 // Text typed into a terminal for you: no control characters, so a file or skill name can never press Enter or send keys.
 const typed = (text: string) => text.replace(/[\x00-\x1f\x7f]/g, '')
 const relative = (root: string, path: string) => path.slice(root.length).replace(/^[\\/]/, '')
@@ -60,6 +65,9 @@ export function App() {
   const [usage, setUsage] = useState<Usage | null>(null)
   const [now, setNow] = useState(Date.now())
   const [theme, setTheme] = useState<ThemeName>(stored)
+  const [lang, setLang] = useState<Lang>(storedLang)
+  const [settings, setSettings] = useState(false)
+  const T = (key: Parameters<typeof tr>[1], vars?: Record<string, string | number>) => tr(lang, key, vars)
   const [finder, setFinder] = useState<Finder | null>(null)
   const [menu, setMenu] = useState('ITEM')
   const [skills, setSkills] = useState<{ name: string; description: string; plugin: string; uses: number }[]>([])
@@ -106,7 +114,7 @@ export function App() {
       if (percent < 85) warned.current.delete(kind)
       else if (!warned.current.has(kind)) {
         warned.current.add(kind)
-        setToast(kind === 'CTX' ? `컨텍스트 ${Math.round(percent)}%: /compact 추천` : `${kind} 한도 ${Math.round(percent)}%`)
+        setToast(kind === 'CTX' ? T('toast.context', { n: Math.round(percent) }) : T('toast.limit', { kind, n: Math.round(percent) }))
         setTimeout(() => setToast(''), 5000)
       }
     }
@@ -123,8 +131,13 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
+    api.setTheme(theme)
     try { localStorage.setItem('theme', theme) } catch {}
   }, [theme])
+  useEffect(() => {
+    document.documentElement.lang = lang
+    try { localStorage.setItem('lang', lang) } catch {}
+  }, [lang])
   const nextTheme = () => setTheme(t => THEME_NAMES[(THEME_NAMES.indexOf(t) + 1) % THEME_NAMES.length])
 
   const loadProjects = useCallback(async (cwd: string) => {
@@ -145,14 +158,14 @@ export function App() {
     setProjects(await loadProjects(at))
   }, [loadProjects])
 
-  // Start in the project you used last, as the pane's key 1 would.
+  // Start on the welcome page with recent projects, as VS Code does; nothing opens until you pick.
   useEffect(() => {
-    loadProjects('').then(list => {
-      setProjects(list)
-      if (list[0]) open(list[0].path)
-      else setPicker(true)
-    })
+    loadProjects('').then(setProjects)
   }, [])
+  const openFolder = async () => {
+    const p = await api.pickProject()
+    if (p) open(p)
+  }
 
   useEffect(() => {
     const tick = async () => {
@@ -164,12 +177,15 @@ export function App() {
     return () => clearInterval(id)
   }, [])
 
-  const openFile = async (path: string, line?: number, col = 1) => {
+  // A single click previews (the tab is replaced by the next preview); a double click, an edit or a jump keeps it.
+  const openFile = async (path: string, line?: number, col = 1, keep = Boolean(line)) => {
     if (line) jump.current = { path, line, col }
-    if (!tabs.some(t => t.path === path)) {
-      const text = await api.read(path)
-      setTabs(t => [...t, { path, text, saved: text }])
-    }
+    const had = tabs.find(t => t.path === path)
+    if (!had) {
+      const image = isImage(path) ? await api.image(path).catch(() => '') : undefined
+      const text = image === undefined ? await api.read(path).catch(() => '') : ''
+      setTabs(ts => [...ts.filter(t => keep || !(t.preview && t.text === t.saved)), { path, text, saved: text, image, preview: !keep }])
+    } else if (keep && had.preview) setTabs(ts => ts.map(t => (t.path === path ? { ...t, preview: false } : t)))
     setActive(path)
     if (path === active) reveal()
   }
@@ -186,7 +202,7 @@ export function App() {
   useEffect(() => { requestAnimationFrame(reveal) }, [active])
   const closeTab = (path: string) => {
     const tab = tabs.find(t => t.path === path)
-    if (tab && tab.text !== tab.saved && !confirm(`${baseName(path)}: 저장하지 않은 변경을 버릴까요?`)) return
+    if (tab && tab.text !== tab.saved && !confirm(T('discard', { name: baseName(path) }))) return
     const rest = tabs.filter(t => t.path !== path)
     setTabs(rest)
     if (active === path) setActive(rest.at(-1)?.path ?? '')
@@ -195,7 +211,7 @@ export function App() {
   // Claude Code edits files on disk: tabs without your own unsaved edits follow the disk when you come back to the window.
   useEffect(() => {
     const sync = async () => {
-      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved && t.head === undefined ? api.read(t.path).catch(() => t.saved) : t.saved)))
+      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved && t.head === undefined && t.image === undefined ? api.read(t.path).catch(() => t.saved) : t.saved)))
       setTabs(ts => ts.map((t, i) => (t.text === t.saved && fresh[i] !== undefined && fresh[i] !== t.saved ? { ...t, text: fresh[i], saved: fresh[i] } : t)))
     }
     window.addEventListener('focus', sync)
@@ -256,6 +272,24 @@ export function App() {
   const onMount: OnMount = (editor, monaco) => {
     editorRef.current = editor
     requestAnimationFrame(reveal)
+    // Prompt variables ({{name}}) get one decoration per letter, so REBEL can cut each from a different page.
+    const vars = editor.createDecorationsCollection()
+    const mark = () => {
+      const model = editor.getModel()
+      if (!model) return vars.clear()
+      const text = model.getValue()
+      const decos = []
+      for (const v of promptVars(text).slice(0, 2000)) {
+        for (let i = v.start; i < v.end; i++) {
+          const a = model.getPositionAt(i)
+          decos.push({ range: new monaco.Range(a.lineNumber, a.column, a.lineNumber, a.column + 1), options: { inlineClassName: `pv pv${(i - v.start) % 5}` } })
+        }
+      }
+      vars.set(decos)
+    }
+    mark()
+    editor.onDidChangeModelContent(mark)
+    editor.onDidChangeModel(mark)
     // ⌘S formats first when the language has a formatter (TS/JS, JSON, CSS, HTML), as format-on-save does.
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async () => {
       const { save, active } = live.current
@@ -279,20 +313,21 @@ export function App() {
       <header className="top">
         <span className="logo"><img src={THEMES[theme].logo} alt="" />EVOKE</span>
         <button className="project" onClick={() => setPicker(true)} title={`${MOD}O`}>
-          <Cut label="PROJECT" /> {root ? baseName(root) : '프로젝트를 고른다'}
+          <Cut label="PROJECT" /> {root ? baseName(root) : T('pickProject')}
         </button>
         <span className="branch">{branch && `⎇ ${branch}`}</span>
-        <button className="theme" onClick={nextTheme} title="테마 바꾸기"><Cut label={THEMES[theme].label} ground="var(--sel)" /></button>
+        <button className="theme" onClick={nextTheme} title={T('theme')}><Cut label={THEMES[theme].label} ground="var(--sel)" /></button>
+        <button className="gear" onClick={() => setSettings(true)} title={T('settings')} aria-label={T('settings')}>⚙</button>
         <Clock now={now} />
       </header>
 
-      <Pane menu={menu} onMenu={setMenu} usage={usage} now={now} hint={HINTS[menu]}>
+      <Pane menu={menu} onMenu={setMenu} usage={usage} now={now} hint={T(`hint.${menu}` as Parameters<typeof tr>[1])}>
         {menu === 'ITEM' && root && <Tree key={root} dir={root} depth={0} onOpen={openFile} active={active} />}
         {menu === 'STATUS' && (changes.length ? changes.map(c => (
           <div key={c.path} className={`entry change ${active === `diff:${c.path}` ? 'on' : ''}`} onClick={() => openDiff(c.path)} title={relative(root, c.path)}>
             <b className={`code c-${c.code.replace('??', 'U')[0]}`}>{c.code.replace('??', 'U')}</b> {baseName(c.path)} <span className="quiet">{relative(root, c.path).slice(0, -baseName(c.path).length)}</span>
           </div>
-        )) : <div className="entry quiet">{branch ? `${branch}: 변경 없음` : 'git 저장소가 아니다'}</div>)}
+        )) : <div className="entry quiet">{branch ? T('noChanges', { branch }) : T('noGit')}</div>)}
         {menu === 'SKILL' && skills.map(s => (
           <div key={s.name} className="entry skill" onClick={() => say(`/${s.name} `)} title={s.description}>
             <span>▸ {s.name}</span> {s.uses > 0 && <b className="rank">{rank(s.uses)}</b>}
@@ -302,7 +337,7 @@ export function App() {
         {menu === 'EQUIP' && (
           <>
             <div className="group">MCP <span>{equip.mcp.length}</span></div>
-            {equip.mcp.length ? equip.mcp.map(m => <div key={m} className="entry">◆ {m}</div>) : <div className="entry quiet">연결된 MCP 서버 없음</div>}
+            {equip.mcp.length ? equip.mcp.map(m => <div key={m} className="entry">◆ {m}</div>) : <div className="entry quiet">{T('noMcp')}</div>}
             <div className="group">PLUGINS <span>{equip.plugins.length}</span></div>
             {equip.plugins.map(m => <div key={m} className="entry">◆ {m}</div>)}
           </>
@@ -310,29 +345,31 @@ export function App() {
         {menu === 'AGENT' && (
           <>
             {sessions.slice(0, 10).map(s => (
-              <div key={s.id} className="entry" onClick={() => resume(s.id)}>▸ {s.title || '(제목 없음)'} <div className="desc">{new Date(s.mtime).toLocaleString()}</div></div>
+              <div key={s.id} className="entry" onClick={() => resume(s.id)}>▸ {s.title || T('untitled')} <div className="desc">{new Date(s.mtime).toLocaleString()}</div></div>
             ))}
-            {!sessions.length && <div className="entry quiet">이 프로젝트의 지난 세션이 없다</div>}
+            {!sessions.length && <div className="entry quiet">{T('noSessions')}</div>}
           </>
         )}
-        {menu === 'QUEST' && (quests === null ? <div className="entry quiet">찾는 중…</div> : quests.length ? quests.map(q => (
+        {menu === 'QUEST' && (quests === null ? <div className="entry quiet">{T('searching')}</div> : quests.length ? quests.map(q => (
           <div key={`${q.path}:${q.line}`} className="entry" onClick={() => openFile(q.path, q.line, q.col)}>▸ {q.preview} <div className="desc">{q.rel}:{q.line}</div></div>
-        )) : <div className="entry quiet">남은 TODO 없음</div>)}
+        )) : <div className="entry quiet">{T('noTodo')}</div>)}
         {menu === 'LINK' && (
           <>
             {projects.map((p, i) => (
               <div key={p.path} className={`entry ${p.path === root ? 'on' : ''}`} onClick={() => open(p.path)}><b className="rank">{i + 1}</b> {p.name} <div className="desc">{p.path}</div></div>
             ))}
-            <div className="entry" onClick={async () => { const p = await api.pickProject(); if (p) open(p) }}>+ 다른 폴더를 연다</div>
+            <div className="entry" onClick={openFolder}>{T('openOther')}</div>
           </>
         )}
-        {menu === 'CALENDAR' && <Calendar now={now} sessions={sessions} day={day} onDay={setDay} onPick={resume} />}
+        {menu === 'CALENDAR' && <Calendar now={now} sessions={sessions} day={day} onDay={setDay} onPick={resume} talks={n => T('talks', { n })} />}
         {menu === 'SYSTEM' && (
           <>
-            <div className="group">THEME</div>
+            <div className="group">{T('theme')}</div>
             {THEME_NAMES.map(t => <div key={t} className={`entry ${t === theme ? 'on' : ''}`} onClick={() => setTheme(t)}>◆ {THEMES[t].label}</div>)}
-            <div className="group">KEYS</div>
-            {[['P', '파일 열기'], ['⇧F', '프로젝트 검색'], ['S', '정렬 후 저장'], ['L', '선택을 Claude에게'], ['O', '프로젝트']].map(([k, d]) => <div key={k} className="entry"><b className="rank">{MOD}{k}</b> {d}</div>)}
+            <div className="group">{T('language')}</div>
+            {UI_LANGS.map(l => <div key={l.id} className={`entry ${l.id === lang ? 'on' : ''}`} onClick={() => setLang(l.id)}>◆ {l.label}</div>)}
+            <div className="group">{T('keys')}</div>
+            {(['P', 'F', 'S', 'L', 'O'] as const).map(k => <div key={k} className="entry"><b className="rank">{MOD}{k === 'F' ? '⇧F' : k}</b> {T(`key.${k}`)}</div>)}
           </>
         )}
       </Pane>
@@ -340,8 +377,8 @@ export function App() {
       <main className="center">
         <nav className="tabs">
           {tabs.map(t => (
-            <div key={t.path} className={`tab ${t.path === active ? 'on' : ''}`} onClick={() => setActive(t.path)} title={t.path}>
-              {t.head !== undefined && 'Δ '}{baseName(t.path)}{t.text !== t.saved && ' ●'}
+            <div key={t.path} className={`tab ${t.path === active ? 'on' : ''} ${t.preview ? 'preview' : ''}`} onClick={() => setActive(t.path)} onDoubleClick={() => openFile(t.path, undefined, 1, true)} title={t.preview ? `${T('preview')}: ${t.path}` : t.path}>
+              <FileIcon name={t.path} />{t.head !== undefined && 'Δ '}{baseName(t.path)}{t.text !== t.saved && ' ●'}
               <span className="x" onClick={e => (e.stopPropagation(), closeTab(t.path))}>×</span>
             </div>
           ))}
@@ -355,6 +392,8 @@ export function App() {
             beforeMount={defineThemes}
             options={{ readOnly: true, renderSideBySide: true, fontFamily: 'Iosevka, Menlo, Consolas, monospace', fontSize: 13, minimap: { enabled: false } }}
           />
+        ) : tab?.image !== undefined ? (
+          <div className="image-view">{tab.image ? <img src={tab.image} alt={baseName(tab.path)} /> : <p className="quiet">{T('binary')}</p>}</div>
         ) : tab ? (
           <Editor
             path={tab.path}
@@ -363,9 +402,9 @@ export function App() {
             theme={`evoke-${theme}`}
             beforeMount={defineThemes}
             onMount={onMount}
-            onChange={text => setTabs(ts => ts.map(t => (t.path === tab.path ? { ...t, text: text ?? '' } : t)))}
+            onChange={text => setTabs(ts => ts.map(t => (t.path === tab.path ? { ...t, text: text ?? '', preview: false } : t)))}
             options={{
-              fontFamily: 'Iosevka, Menlo, Consolas, monospace', fontSize: 14, minimap: { enabled: false }, smoothScrolling: true, padding: { top: 12 },
+              fontFamily: 'Iosevka, Menlo, Consolas, monospace', fontSize: 14, minimap: { enabled: true, renderCharacters: false, scale: 1 }, smoothScrolling: true, padding: { top: 12 },
               bracketPairColorization: { enabled: true }, guides: { bracketPairs: true, indentation: true }, linkedEditing: true, formatOnPaste: true,
             }}
           />
@@ -373,7 +412,19 @@ export function App() {
           <div className="empty">
             <img className="mark" src={THEMES[theme].logo} alt="Evoke" />
             <div className="big">EVOKE</div>
-            <p>{MOD}P 파일 열기 · {MOD}⇧F 검색 · {MOD}S 저장 · {MOD}L 선택을 Claude에게 · {MOD}O 프로젝트</p>
+            {root ? (
+              <p>{T('emptyHint', { mod: MOD })}</p>
+            ) : (
+              <div className="welcome">
+                <div className="group">{T('welcome')}</div>
+                <button className="row" onClick={openFolder}><b>+</b> {T('openFolder')} <span className="quiet">{MOD}O</span></button>
+                <div className="group">{T('recent')}</div>
+                {projects.map((p, i) => (
+                  <button key={p.path} className="row" onClick={() => open(p.path)}><b>{i + 1}</b> {p.name} <span className="quiet">{p.path}</span></button>
+                ))}
+                <p className="quiet">{T('welcomeHint')}</p>
+              </div>
+            )}
           </div>
         )}
       </main>
@@ -383,18 +434,18 @@ export function App() {
           <button onClick={() => showPane('claude')} className={pane === 'claude' ? 'on' : ''}><Cut label="CLAUDE" ground={pane === 'claude' ? 'var(--edge)' : 'var(--mid)'} /></button>
           <button onClick={() => showPane('shell')} className={pane === 'shell' ? 'on' : ''}><Cut label="SHELL" ground={pane === 'shell' ? 'var(--edge)' : 'var(--mid)'} /></button>
         </div>
-        {opened.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} />)}
-        {shells.map(path => <Claude key={`shell:${path}`} kind="shell" cwd={path} on={pane === 'shell' && path === root} theme={theme} />)}
+        {opened.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} endedLabel={code => T('ended', { code })} />)}
+        {shells.map(path => <Claude key={`shell:${path}`} kind="shell" cwd={path} on={pane === 'shell' && path === root} theme={theme} endedLabel={code => T('ended', { code })} />)}
       </section>
 
       {/* The status band, as above the terminal's prompt. */}
       <footer className="hud">
         <Cut label={menu} ground="var(--chip)" />
         <b className="band">{root ? baseName(root) : '—'}</b>{branch && <i className="quiet"> / {branch}</i>}
-        <span className="quiet">변경 {changes.length}</span>
-        {!usage && <span className="quiet usd">사용량은 Evoke 플러그인이 켜진 Claude 세션에서 들어온다</span>}
+        <span className="quiet">{T('changes', { n: changes.length })}</span>
+        {!usage && <span className="quiet usd">{T('noUsage')}</span>}
       </footer>
-      {toast && <div className="toast"><Cut label="ALERT" /> {toast}</div>}
+      {toast && <div className="toast" role="alert"><Mask /><Cut label="ALERT" /> {toast}</div>}
 
       {finder && (
         <div className="picker" onClick={() => setFinder(null)}>
@@ -404,7 +455,7 @@ export function App() {
               <input
                 autoFocus
                 value={finder.query}
-                placeholder={finder.mode === 'files' ? '파일 이름' : '프로젝트에서 찾을 글자 (2자 이상)'}
+                placeholder={finder.mode === 'files' ? T('fileName') : T('searchText')}
                 onChange={e => setFinder({ ...finder, query: e.target.value })}
                 onKeyDown={e => {
                   const n = finder.hits.length
@@ -420,11 +471,23 @@ export function App() {
             <div className="hits">
               {finder.hits.map((h, i) => (
                 <button key={`${h.path}:${h.line}`} className={`row ${i === finder.at ? 'on' : ''}`} onClick={() => pickHit(h)}>
-                  {h.line ? <><b>{h.line}</b> <span className="preview">{h.preview}</span> <span className="quiet">{h.rel}</span></> : <><b>›</b> {baseName(h.rel)} <span className="quiet">{h.rel}</span></>}
+                  {h.line ? <><b>{h.line}</b> <span className="preview">{h.preview}</span> <span className="quiet">{h.rel}</span></> : <><FileIcon name={h.rel} /> {baseName(h.rel)} <span className="quiet">{h.rel}</span></>}
                 </button>
               ))}
-              {finder.query.length >= (finder.mode === 'files' ? 1 : 2) && !finder.hits.length && <div className="row quiet">결과 없음</div>}
+              {finder.query.length >= (finder.mode === 'files' ? 1 : 2) && !finder.hits.length && <div className="row quiet">{T('noResults')}</div>}
             </div>
+          </div>
+        </div>
+      )}
+
+      {settings && (
+        <div className="picker" onClick={() => setSettings(false)}>
+          <div className="sheet settings" onClick={e => e.stopPropagation()}>
+            <div className="head"><Cut label="SETTINGS" /> {T('settings')}</div>
+            <div className="group">{T('theme')}</div>
+            {THEME_NAMES.map(t => <button key={t} className={`row ${t === theme ? 'on' : ''}`} onClick={() => setTheme(t)}><b>◆</b> {THEMES[t].label}</button>)}
+            <div className="group">{T('language')}</div>
+            {UI_LANGS.map(l => <button key={l.id} className={`row ${l.id === lang ? 'on' : ''}`} onClick={() => setLang(l.id)}><b>◆</b> {l.label}</button>)}
           </div>
         </div>
       )}
@@ -432,14 +495,14 @@ export function App() {
       {picker && (
         <div className="picker" onClick={() => setPicker(false)}>
           <div className="sheet" onClick={e => e.stopPropagation()}>
-            <div className="head"><Cut label="PROJECTS" /> 1–9 또는 Enter</div>
+            <div className="head"><Cut label="PROJECTS" /> {T('pickerHint')}</div>
             {projects.map((p, i) => (
               <button key={p.path} className={`row ${p.path === root ? 'here' : ''}`} onClick={() => open(p.path)}>
                 <b>{i + 1}</b> {p.name} <span className="quiet">{p.path}</span>
               </button>
             ))}
-            <button className="row" onClick={async () => { const p = await api.pickProject(); if (p) open(p) }}>
-              <b>+</b> 다른 폴더를 연다
+            <button className="row" onClick={openFolder}>
+              <b>+</b> {T('openOther').replace(/^\+ /, '')}
             </button>
           </div>
         </div>
@@ -448,7 +511,7 @@ export function App() {
   )
 }
 
-function Tree({ dir, depth, onOpen, active }: { dir: string; depth: number; onOpen: (p: string) => void; active: string }) {
+function Tree({ dir, depth, onOpen, active }: { dir: string; depth: number; onOpen: (p: string, line?: number, col?: number, keep?: boolean) => void; active: string }) {
   const [items, setItems] = useState<Entry[] | null>(null)
   const [openDirs, setOpenDirs] = useState<Record<string, boolean>>({})
   useEffect(() => {
@@ -463,8 +526,9 @@ function Tree({ dir, depth, onOpen, active }: { dir: string; depth: number; onOp
             className={`entry ${e.path === active ? 'on' : ''}`}
             style={{ paddingLeft: 12 + depth * 12 }}
             onClick={() => (e.dir ? setOpenDirs(o => ({ ...o, [e.path]: !o[e.path] })) : onOpen(e.path))}
+            onDoubleClick={() => e.dir || onOpen(e.path, undefined, 1, true)}
           >
-            {e.dir ? (openDirs[e.path] ? '▾ ' : '▸ ') : <i className="ext" data-ext={e.name.split('.').pop()?.toLowerCase()} />}{e.name}
+            {e.dir ? (openDirs[e.path] ? '▾ ' : '▸ ') : '  '}<FileIcon name={e.name} dir={e.dir} />{e.name}
           </div>
           {e.dir && openDirs[e.path] && <Tree dir={e.path} depth={depth + 1} onOpen={onOpen} active={active} />}
         </div>
@@ -474,7 +538,7 @@ function Tree({ dir, depth, onOpen, active }: { dir: string; depth: number; onOp
 }
 
 // One terminal per project and kind, kept alive while hidden so switching never ends a session.
-function Claude({ kind, cwd, on, theme, resume }: { kind: 'claude' | 'shell'; cwd: string; on: boolean; theme: ThemeName; resume?: string }) {
+function Claude({ kind, cwd, on, theme, resume, endedLabel }: { kind: 'claude' | 'shell'; cwd: string; on: boolean; theme: ThemeName; resume?: string; endedLabel: (code: number) => string }) {
   const id = `${kind}:${cwd}`
   const box = useRef<HTMLDivElement>(null)
   const fit = useRef<FitAddon>()
@@ -524,14 +588,14 @@ function Claude({ kind, cwd, on, theme, resume }: { kind: 'claude' | 'shell'; cw
     <div className={`claude ${on ? 'on' : ''}`}>
       <div ref={box} className="term" />
       {ended !== null && (
-        <button className="restart" onClick={() => setRun(r => r + 1)}>세션 종료 ({ended}) · 다시 시작</button>
+        <button className="restart" onClick={() => setRun(r => r + 1)}>{endedLabel(ended)}</button>
       )}
     </div>
   )
 }
 
 // CALENDAR: this month, with a mark on each day you talked to Claude in this project.
-function Calendar({ now, sessions, day, onDay, onPick }: { now: number; sessions: { id: string; title: string; mtime: number }[]; day: string | null; onDay: (d: string) => void; onPick: (id: string) => void }) {
+function Calendar({ now, sessions, day, onDay, onPick, talks }: { now: number; sessions: { id: string; title: string; mtime: number }[]; day: string | null; onDay: (d: string) => void; onPick: (id: string) => void; talks: (n: number) => string }) {
   const d = new Date(now)
   const y = d.getFullYear()
   const m = d.getMonth()
@@ -551,7 +615,7 @@ function Calendar({ now, sessions, day, onDay, onPick }: { now: number; sessions
           const k = new Date(y, m, i + 1).toDateString()
           const n = count.get(k) ?? 0
           return (
-            <button key={k} className={`${n ? 'has' : ''} ${k === day ? 'on' : ''} ${k === d.toDateString() ? 'today' : ''}`} onClick={() => onDay(k)} title={n ? `${n}개 대화` : ''}>
+            <button key={k} className={`${n ? 'has' : ''} ${k === day ? 'on' : ''} ${k === d.toDateString() ? 'today' : ''}`} onClick={() => onDay(k)} title={n ? talks(n) : ''}>
               {i + 1}
             </button>
           )

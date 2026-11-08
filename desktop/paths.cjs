@@ -95,4 +95,10 @@ const mcpOf = (claudeJson, root) => {
   }
 }
 
-module.exports = { inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf }
+// Terminals keep talking while the window closes on quit; output for a destroyed window is dropped, not thrown.
+const sendTo = (win, channel, ...args) => {
+  if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return
+  win.webContents.send(channel, ...args)
+}
+
+module.exports = { inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }
