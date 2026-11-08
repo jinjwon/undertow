@@ -137,9 +137,13 @@ export function App() {
 
   // ⌘S saves; ⌘L hands the selection to Claude Code as an @file reference with its lines.
   const onMount: OnMount = (editor, monaco) => {
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+    // ⌘S formats first when the language has a formatter (TS/JS, JSON, CSS, HTML), as format-on-save does.
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async () => {
       const { save, active } = live.current
-      if (active) save(active, editor.getValue())
+      if (!active) return
+      const format = editor.getAction('editor.action.formatDocument')
+      if (format?.isSupported()) await format.run()
+      save(active, editor.getValue())
     })
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL, () => {
       const { root, active } = live.current
@@ -186,7 +190,10 @@ export function App() {
             beforeMount={defineThemes}
             onMount={onMount}
             onChange={text => setTabs(ts => ts.map(t => (t.path === tab.path ? { ...t, text: text ?? '' } : t)))}
-            options={{ fontFamily: 'Iosevka, Menlo, monospace', fontSize: 14, minimap: { enabled: false }, smoothScrolling: true, padding: { top: 12 } }}
+            options={{
+              fontFamily: 'Iosevka, Menlo, Consolas, monospace', fontSize: 14, minimap: { enabled: false }, smoothScrolling: true, padding: { top: 12 },
+              bracketPairColorization: { enabled: true }, guides: { bracketPairs: true, indentation: true }, linkedEditing: true, formatOnPaste: true,
+            }}
           />
         ) : (
           <div className="empty">
