@@ -3,7 +3,7 @@
 @font-face { font-family: Barlow; src: url(../../plugins/evoke/tools/fonts/Barlow-BlackItalic.ttf); }
 
 :root, [data-theme='tide'] {
-  --ground: #0B1648 url(../../ghostty/background.png) center / cover no-repeat;
+  --ground: #0B1648 url(./background.png) center / cover no-repeat;
   --plate: #050A24CC; --panel: #050A2499; --page: #0B164866; --deep: #01030CAA; --ink: #01030C;
   --line: #13257A; --mid: #13257A; --sel: #1546E0; --hi: #5FE3FF; --text: #D6F4FF; --gray: #8A96B8;
   --chip: #E8101E; --chip-ink: #FFFFFF; --edge: #FF2E88; --hot: #E8101E; --sel-ink: #FFFFFF;
@@ -78,8 +78,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   position: relative; z-index: 1;
   height: 100%;
   display: grid;
-  grid-template: 44px 1fr 30px / 240px 1fr minmax(420px, 38%);
-  grid-template-areas: 'top top top' 'side center right' 'hud hud hud';
+  grid-template: 44px 1fr 30px / 360px 1fr minmax(420px, 36%);
+  grid-template-areas: 'top top top' 'pane center right' 'hud hud hud';
 }
 
 /* The chip every heading wears: a parallelogram, as in the pane. */
@@ -156,3 +156,47 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 ::-webkit-scrollbar-corner { background: transparent; }
 .right .sides .sessions { margin-left: auto; color: var(--hi); font: 900 italic 13px Barlow, Pretendard, sans-serif; }
 .right .sides .sessions:hover { text-decoration: underline; }
+
+/* The MENU pane: the scene is the whole column, as in the terminal. Its height follows its width, so positions are in cqw. */
+.pane { grid-area: pane; position: relative; overflow: hidden; container-type: inline-size; background: var(--panel); border-right: 1px solid var(--line); }
+.pane .art { position: absolute; inset: 0 0 auto 0; aspect-ratio: 840 / 1538; }
+.pane .art img { width: 100%; height: 100%; display: block; user-select: none; }
+.pane-hud { position: absolute; inset: 0 0 auto 0; padding: 6px 10px; background: var(--ink); font: 12px Iosevka, Menlo, Consolas, monospace; }
+.pane-hud .day { display: flex; gap: 8px; align-items: baseline; font-style: italic; color: var(--text); }
+.pane-hud .day b { color: #fff; }
+.pane-hud .usd { margin-left: auto; color: var(--gray); }
+.gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 2px; }
+.gauge { display: flex; flex-direction: column; font-size: 11px; }
+.gauge i { color: var(--text); } .gauge b { color: #fff; font-style: italic; } .gauge .hot { color: var(--hot); }
+.g-bar span:first-child { color: var(--hi); letter-spacing: -1px; } .g-bar .quiet { letter-spacing: -1px; }
+.hot-menu { position: absolute; left: 37%; width: 42%; transform: rotate(-6deg); }
+.hot-menu:hover { background: linear-gradient(90deg, transparent, #5FE3FF33, transparent); }
+.pane-body { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; }
+.pane-content { flex: 1; overflow: auto; padding: 4px 0; }
+.pane-hint { padding: 6px 12px; border-top: 1px solid var(--line); color: var(--gray); font: italic 12px Pretendard, sans-serif; background: var(--ink); }
+.pane .entry { font-family: Iosevka, Menlo, Consolas, monospace; text-shadow: 0 1px 2px #000a; }
+.pane .entry .desc { padding-left: 14px; color: var(--gray); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+.entry.skill { white-space: normal; }
+.rank { color: var(--hi); font: 900 italic 11px Barlow, sans-serif; margin-left: 6px; }
+.group { display: flex; justify-content: space-between; margin: 8px 12px 2px; padding-bottom: 2px; border-bottom: 1px solid var(--line); color: var(--hi); font: 900 italic 13px Barlow, sans-serif; }
+.calendar .month { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 4px 10px; text-align: center; }
+.calendar .month i { color: var(--gray); font: italic 11px Barlow, sans-serif; }
+.calendar .month button { padding: 4px 0; font: 600 12px Iosevka, Menlo, monospace; color: var(--gray); }
+.calendar .month button.has { color: #fff; box-shadow: inset 0 -2px var(--hi); }
+.calendar .month button.today { outline: 1px solid var(--edge); }
+.calendar .month button.on { background: var(--sel); color: var(--sel-ink); }
+.band { font: 900 italic 14px Barlow, sans-serif; }
+.toast { position: fixed; right: 24px; bottom: 44px; z-index: 3; padding: 10px 16px; background: var(--plate); border-left: 4px solid var(--hot); font-weight: 700; animation: drop .2s ease-out; }
+[data-theme='rebel'] .pane .art img { filter: grayscale(1) contrast(1.4); mix-blend-mode: screen; }
+[data-theme='rebel'] .hot-menu:hover { background: linear-gradient(90deg, transparent, #FF1A2D55, transparent); }
+/* File badges: a slanted chip coloured by kind, instead of an icon theme. */
+.ext { display: inline-block; width: 8px; height: 10px; margin: 0 6px 0 2px; background: var(--gray); transform: skewX(-12deg); vertical-align: -1px; }
+.ext[data-ext='ts'], .ext[data-ext='tsx'] { background: #3B82F6; }
+.ext[data-ext='js'], .ext[data-ext='cjs'], .ext[data-ext='mjs'], .ext[data-ext='jsx'] { background: #FACC15; }
+.ext[data-ext='json'] { background: #A3E635; }
+.ext[data-ext='css'], .ext[data-ext='scss'] { background: #EC4899; }
+.ext[data-ext='html'] { background: #F97316; }
+.ext[data-ext='md'] { background: #E5E7EB; }
+.ext[data-ext='py'] { background: #22C55E; }
+.ext[data-ext='png'], .ext[data-ext='jpg'], .ext[data-ext='svg'] { background: #A855F7; }
+.ext[data-ext='sh'], .ext[data-ext='zsh'] { background: #10B981; }

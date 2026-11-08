@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('evoke', {
   head: (root, file) => ipcRenderer.invoke('git:head', root, file),
   usage: () => ipcRenderer.invoke('usage:get'),
   sessions: root => ipcRenderer.invoke('sessions:list', root),
+  skills: () => ipcRenderer.invoke('skills:list'),
+  equip: root => ipcRenderer.invoke('equip:list', root),
   pty: {
     spawn: (id, cwd, cols, rows, kind, resume) => ipcRenderer.invoke('pty:spawn', id, cwd, cols, rows, kind, resume),
     write: (id, data) => ipcRenderer.send('pty:write', id, data),

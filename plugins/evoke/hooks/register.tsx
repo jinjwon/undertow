@@ -126,6 +126,7 @@ export const register: Register = on => {
   on('session.measure', async ($, e, next) => {
     const seen = usageOf(e)
     await update($, usage, () => seen)
+    await $.store.set('usage', seen) // the Evoke desktop app reads the newest saved usage for its HUD
     const meters = [{ kind: 'context', percent: seen.context ?? 0 }, ...seen.limits]
     for (const { kind, percent } of meters) {
       if (percent < 85) warned.delete(kind)

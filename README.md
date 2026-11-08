@@ -1,138 +1,96 @@
 # Evoke
 
-<img src="assets/logo.png" width="96" alt="Evoke logo">
+<img src="assets/logo-tide.png" width="96" alt="Evoke logo">
 
 **English** | [한국어](README.ko.md)
 
-An underwater, slanted, game-menu interface for [Claude Code](https://claude.com/claude-code) in [Ghostty](https://ghostty.org). The water runs behind both the transcript and the menu, so the terminal reads as one surface.
+A desktop code editor built around [Claude Code](https://claude.com/claude-code), dressed as a slanted game menu. Files, the editor, git, a shell and Claude Code sit in one window, and the things you would install VS Code or Cursor extensions for are built in.
 
-<img src="assets/preview.png" width="720" alt="Evoke in Ghostty: the transcript on the left, the SKILL menu on the right">
+<img src="assets/preview.png" width="720" alt="Evoke: the MENU pane on the left, the editor in the middle, Claude Code on the right">
 
-## Features
+## Download
 
-- **Nine menus:** each has its own composition and kind of content. Tool calls light up their menu.
-- **AI usage HUD:** context, 5-hour and 7-day gauges with reset countdowns, plus session cost. A toast warns at 85%.
-- **Skills:** grouped and paged, most used first. `/skillbook` shows them all.
-- **Project switcher:** `p` or `/projects` lists your trusted Claude Code projects, most recently used first. Press `1` or Enter to open the top one in a new window.
-- **Status band:** session state, project, branch and tool count above the prompt.
+From [Releases](https://github.com/jinjwon/undertow/releases/latest):
 
-## Install
+| System | File | Install |
+| --- | --- | --- |
+| macOS (Apple silicon) | `Evoke-<version>-arm64.dmg` | Open it and drag Evoke to Applications |
+| Windows (x64) | `Evoke-Setup-<version>.exe` | Run it: it adds Start menu and desktop shortcuts |
 
-Requires Claude Code. The plugin runs on macOS and Windows; the full look needs macOS and Ghostty, which has no Windows build. For the full look, also install Ghostty, [Iosevka](https://github.com/be5invis/Iosevka) and [Pretendard](https://github.com/orioncactus/pretendard).
+You need [Claude Code](https://docs.claude.com/en/docs/claude-code) installed and signed in. Nothing else.
 
-### Ghostty (full look)
+Builds are unsigned. The first time, on macOS right-click Evoke and choose Open; on Windows choose More info → Run anyway.
 
-```sh
-git clone https://github.com/jinjwon/undertow.git
-undertow/ghostty/install.sh
-```
+## What is in the window
 
-Restart Ghostty. The clone's path may contain spaces, but not quotes, `$`, backticks or backslashes. The installer writes `~/.config/ghostty/evoke.conf` and adds one include line to `~/.config/ghostty/config`.
+- **MENU pane (left):** the nine menus from the terminal pane, with their art and cut-ins. Click a slanted name.
 
-**Every new Ghostty window then starts Claude Code with the menu.** See [Settings](#settings) to keep a plain shell instead.
+  | Menu | Shows |
+  | --- | --- |
+  | SKILL | Your skills, most used first. Click one to put it in Claude's prompt |
+  | ITEM | The project's files |
+  | EQUIP | MCP servers and plugins Claude Code carries here |
+  | AGENT | Past Claude Code sessions of this project. Click one to resume it |
+  | STATUS | Changed files. Click one to diff it against the last commit |
+  | QUEST | `TODO`s left in the project |
+  | LINK | Your trusted projects, most recently used first |
+  | CALENDAR | This month, with the days you talked to Claude |
+  | SYSTEM | Theme and shortcuts |
 
-### Plugin only
+  The HUD on top shows the date, the moon, context and 5-hour/7-day usage with resets, and session cost. A toast warns at 85%.
+- **Editor (middle):** Monaco with completion, errors and formatting for TS/JS, JSON, CSS and HTML; bracket colors and guides; matching HTML tags rename together; diff view.
+- **CLAUDE / SHELL (right):** one live Claude Code session and one shell per project, kept while you switch projects.
+- **Two themes,** each with its own logo: **TIDE**, deep-sea blue, and **REBEL**, red and black with ransom-note headings.
 
-Run this at the Claude Code prompt, then `/menu`. Terminals that cannot draw images get plain rows instead of the art.
+### Shortcuts
+
+`Ctrl` on Windows instead of `⌘`.
+
+| Key | Does |
+| --- | --- |
+| `⌘P` | Open a file by name |
+| `⌘⇧F` | Search the project |
+| `⌘S` | Format, then save |
+| `⌘L` | Send the selection to Claude as `@file#Lx-y` |
+| `⌘O` | Projects (`1`–`9` or Enter) |
+
+Open tabs reload from disk when Claude edits them, unless you have unsaved changes.
+
+## The usage HUD
+
+Claude Code reports usage to plugins, so the numbers come from the Evoke plugin running inside the CLAUDE pane. Install it once at the Claude Code prompt:
 
 ```
 /plugin install evoke --marketplace jinjwon/undertow
 ```
 
-### Windows
+The plugin also works on its own in any terminal: `/menu` opens the pane, `/projects` picks a project, `/skillbook` browses skills. Terminals that cannot draw images get plain rows.
 
-Use the plugin install above. The menu, HUD, skills and commands appear as plain rows, without the water or art. `/projects` opens projects in Windows Terminal (`wt`).
-
-Windows support is checked by automated tests that simulate Windows. It has not yet been run on a Windows machine, so please report anything that breaks.
-
-### macOS Terminal
+## Build it yourself
 
 ```sh
-undertow/terminal/install.sh            # add --default to make it the default profile
-```
-
-Terminal has no animated water or art, so the menu uses plain rows. This profile also starts Claude Code.
-
-### Desktop app (macOS and Windows)
-
-An editor window in the Evoke look: file tree, Monaco editor, and Claude Code on the right, one live session per project. Needs [Claude Code](https://docs.claude.com/en/docs/claude-code) installed, nothing else.
-
-**Download** from [Releases](https://github.com/jinjwon/undertow/releases/latest): `Evoke-<version>-arm64.dmg` for Apple silicon Macs, `Evoke-<version>-win-x64.zip` for Windows (unzip, run `Evoke.exe`).
-
-Two themes, switched with the chip at the top right, each with its own logo: **TIDE**, deep-sea blue (default), and **REBEL**, red and black with ransom-note headings. A theme is one entry in `desktop/src/themes.ts` plus one block in `desktop/src/style.css`.
-
-To build it yourself:
-
-```sh
+git clone https://github.com/jinjwon/undertow.git
 cd undertow/desktop && npm install && npm start
 npm run dist:mac        # release/Evoke-<version>-arm64.dmg
-npm run dist:win        # Windows installer (run on Windows, or on a Mac with Rosetta)
-npm run dist:win:zip    # portable Windows zip, builds anywhere
+npm run dist:win        # Windows installer, on Windows
 ```
 
-Builds are unsigned: on macOS, right-click Evoke.app and choose Open the first time; on Windows, choose More info → Run anyway.
+Pushing a `v*` tag builds both installers on GitHub Actions and attaches them to the release.
 
-`⌘O` projects (1–9 or Enter) · `⌘S` save · `⌘L` send (Ctrl on Windows) the selection to Claude as `@file#Lx-y`. Open tabs reload from disk when Claude edits them, unless you have unsaved changes.
+A theme is one entry in `desktop/src/themes.ts` plus one block in `desktop/src/style.css`.
 
-## Settings
+## Uninstall
 
-| To change | Do this |
-| --- | --- |
-| Keep a plain shell in Ghostty | Delete the `command` line from `~/.config/ghostty/evoke.conf` |
-| Window size | `window-width` and `window-height` in `evoke.conf`. The docked menu needs at least 110 columns |
-| Font | `font-family` and `font-size` in `evoke.conf`. The art lines up with Iosevka at size 14 |
-| Add your own image | Put a transparent PNG you have the rights to at `plugins/evoke/hero.png`, then run `plugins/evoke/tools/render.sh` (needs Google Chrome). `hero.png` is git-ignored |
-
-## Commands and shortcuts
-
-| Command | Does |
-| --- | --- |
-| `/menu` | Open the menu pane |
-| `/projects` | Pick a project |
-| `/skillbook` | Browse skills by group and pick one |
-
-Give the pane the keyboard with a click or `ctrl+x tab`, then:
-
-| Key | Does |
-| --- | --- |
-| `1`-`9` | Choose a menu and fill the prompt with its command |
-| `j` / `k` | Next / previous menu |
-| `e` | Fill the prompt with the current menu's command |
-| `n` / `b` | Next / previous page of skills |
-| `p` | Open the project picker |
-| `s` | Fill the prompt with `/skillbook` |
-
-To click a menu, use its number at the right edge: the slanted names are part of the picture.
-
-## Uninstall and restore
-
-**Ghostty:** delete the `config-file = evoke.conf` line from `~/.config/ghostty/config`, delete `~/.config/ghostty/evoke.conf`, and restart Ghostty.
+**App:** delete Evoke from Applications, or uninstall it from Windows Settings → Apps.
 
 **Plugin:** run `/plugin uninstall evoke`, or `claude plugin uninstall evoke` in a shell.
 
-**Terminal:** in Terminal > Settings > Profiles, delete the Evoke profile. If you used `--default`, choose another default first.
+## Credits and privacy
 
-Delete the cloned folder last: the Ghostty and Terminal setups read their files from it.
-
-## How credits are used
-
-Evoke makes no AI requests of its own. Its code has no model, agent or network calls: the HUD only draws the usage figures Claude Code already holds. Measured with Claude Code 2.1.319 on macOS:
-
-| Setup | AI requests | Result |
-| --- | --- | --- |
-| Ghostty with the Evoke look and a plain shell (no `command` line) | None | No Claude process and no TCP connections in a 12-second sample |
-| zsh | None | Evoke adds nothing to your shell. It loads only inside Claude Code |
-| Claude Code + Evoke, opened with `/menu`, no prompt sent | No model reply, session cost $0 | One `quota_check` request at start, the same as without Evoke |
-| Claude Code + Evoke, one prompt | Your prompt only | First request 29,175 context tokens with and without Evoke, in 3 of 3 pairs |
-
-The `quota_check` request belongs to Claude Code and happens on every start. We have not verified whether it counts against your plan.
-
-- **Using Claude Code still uses your plan.** Ghostty's `command` line starts Claude Code, but nothing is sent to a model until you send a prompt.
-- **Not measured:** the `/menu` confirmation line, which is short text in the transcript that Claude Code can include in later requests.
-- **Other skills are separate.** Installing a skill is not the same as running it. For example, invoking the Ponytail skill added 1,557 context tokens to that request.
+Evoke makes no AI or network requests of its own. Claude Code in the CLAUDE pane uses your plan as it does anywhere else; nothing is sent to a model until you send a prompt. See [SECURITY.md](SECURITY.md) for what the app reads and writes.
 
 ## License and notice
 
 [MIT](LICENSE). The art's typeface is [Barlow](https://github.com/jpt/barlow) ([OFL](plugins/evoke/tools/fonts/OFL.txt)).
 
-Evoke is an unofficial fan project inspired by the menu design of Persona 3 Reload. It is not affiliated with or endorsed by ATLUS or SEGA, and it contains no game assets. To report a vulnerability, see [SECURITY.md](SECURITY.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+Evoke is an unofficial fan project inspired by the menu design of Persona 3 Reload (TIDE) and Persona 5 (REBEL). It is not affiliated with or endorsed by ATLUS or SEGA, and it contains no game assets. To report a vulnerability, see [SECURITY.md](SECURITY.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).

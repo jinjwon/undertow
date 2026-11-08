@@ -51,4 +51,48 @@ const titleOf = jsonl => {
   return ''
 }
 
-module.exports = { inside, latestUsage, trusted, isSessionId, slugOf, titleOf }
+// A SKILL.md's name and description from its front matter; a folded (> or |) value joins its indented lines.
+const frontOf = md => {
+  const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(md)?.[1] ?? ''
+  const lines = block.split(/\r?\n/)
+  const field = key => {
+    const at = lines.findIndex(l => l.startsWith(`${key}:`))
+    if (at < 0) return ''
+    const value = lines[at].slice(key.length + 1).trim()
+    if (value === '>' || value === '|' || value === '>-' || value === '|-') {
+      const rest = []
+      for (const l of lines.slice(at + 1)) {
+        if (!/^\s/.test(l)) break
+        rest.push(l.trim())
+      }
+      return rest.join(' ')
+    }
+    return value.replace(/^(["'])(.*)\1$/, '$2')
+  }
+  return { name: field('name'), description: field('description') }
+}
+
+// Plugins switched on in ~/.claude/settings.json, with the folder their skills live in.
+const pluginsOf = (installedJson, settingsJson) => {
+  try {
+    const installed = JSON.parse(installedJson).plugins ?? {}
+    const enabled = JSON.parse(settingsJson).enabledPlugins ?? {}
+    return Object.keys(installed)
+      .filter(id => enabled[id] === true && installed[id]?.[0]?.installPath)
+      .map(id => ({ name: id.split('@')[0], path: installed[id][0].installPath }))
+  } catch {
+    return []
+  }
+}
+
+// MCP servers Claude Code starts in this project: the global ones plus the project's own.
+const mcpOf = (claudeJson, root) => {
+  try {
+    const json = JSON.parse(claudeJson)
+    return [...new Set([...Object.keys(json.mcpServers ?? {}), ...Object.keys(json.projects?.[root]?.mcpServers ?? {})])]
+  } catch {
+    return []
+  }
+}
+
+module.exports = { inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf }

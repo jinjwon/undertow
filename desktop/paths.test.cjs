@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { inside, latestUsage, trusted, isSessionId, slugOf, titleOf } = require('./paths.cjs')
+const { inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf } = require('./paths.cjs')
 
 test('inside keeps paths within the project', () => {
   assert.ok(inside('/a/proj', '/a/proj'))
@@ -48,4 +48,23 @@ test('titleOf takes the first typed prompt, skipping command and meta lines', ()
   ].map(l => JSON.stringify(l)).join('\n') + '\n{broken'
   assert.strictEqual(titleOf(lines), '로그인 버그 고쳐줘')
   assert.strictEqual(titleOf(''), '')
+})
+
+test('frontOf reads name and description, quoted or folded', () => {
+  assert.deepStrictEqual(frontOf('---\nname: caveman\ndescription: "Terse: voice"\n---\nbody'), { name: 'caveman', description: 'Terse: voice' })
+  assert.deepStrictEqual(frontOf('---\nname: x\ndescription: >\n  line one\n  line two\n---\n'), { name: 'x', description: 'line one line two' })
+  assert.deepStrictEqual(frontOf('no front matter'), { name: '', description: '' })
+})
+
+test('pluginsOf lists enabled plugins with their install folder', () => {
+  const installed = JSON.stringify({ plugins: { 'a@m': [{ installPath: '/p/a' }], 'b@m': [{ installPath: '/p/b' }] } })
+  const settings = JSON.stringify({ enabledPlugins: { 'a@m': true, 'b@m': false } })
+  assert.deepStrictEqual(pluginsOf(installed, settings), [{ name: 'a', path: '/p/a' }])
+  assert.deepStrictEqual(pluginsOf('bad', '{}'), [])
+})
+
+test('mcpOf merges global and project MCP servers', () => {
+  const json = JSON.stringify({ mcpServers: { g: {} }, projects: { '/r': { mcpServers: { p: {}, g: {} } } } })
+  assert.deepStrictEqual(mcpOf(json, '/r'), ['g', 'p'])
+  assert.deepStrictEqual(mcpOf('{}', '/r'), [])
 })

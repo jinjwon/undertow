@@ -5,7 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { execFile } = require('node:child_process')
 const pty = require('node-pty')
-const { inside, latestUsage, trusted, isSessionId, slugOf, titleOf } = require('./paths.cjs')
+const { inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf } = require('./paths.cjs')
 const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
 
 const home = os.homedir()
@@ -119,6 +119,31 @@ ipcMain.handle('git:head', async (_, root, file) => {
   return (await git(root, ['show', `HEAD:${rel}`])) ?? ''
 })
 
+// SKILL: your own skills and those of enabled plugins, with how often the Evoke plugin saw each used.
+const readFrom = file => fs.readFile(file, 'utf8').catch(() => '')
+const skillsIn = async (dir, plugin) => {
+  const names = await fs.readdir(dir).catch(() => [])
+  const found = await Promise.all(names.map(async n => ({ ...frontOf(await readFrom(path.join(dir, n, 'SKILL.md'))), folder: n })))
+  return found.filter(s => s.name || s.description).map(s => ({ name: plugin ? `${plugin}:${s.name || s.folder}` : s.name || s.folder, description: s.description, plugin }))
+}
+ipcMain.handle('skills:list', async () => {
+  const plugins = pluginsOf(await readFrom(path.join(home, '.claude', 'plugins', 'installed_plugins.json')), await readFrom(path.join(home, '.claude', 'settings.json')))
+  const lists = await Promise.all([skillsIn(path.join(home, '.claude', 'skills'), ''), ...plugins.map(p => skillsIn(path.join(p.path, 'skills'), p.name))])
+  const store = path.join(home, '.claude', 'plugins', 'store')
+  const uses = {}
+  for (const n of (await fs.readdir(store).catch(() => [])).filter(n => n.startsWith('evoke_'))) {
+    try {
+      for (const [k, v] of Object.entries(JSON.parse(await readFrom(path.join(store, n))).uses ?? {})) uses[k] = Math.max(uses[k] ?? 0, Number(v) || 0)
+    } catch {}
+  }
+  return lists.flat().map(s => ({ ...s, uses: uses[s.name] ?? 0 })).sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name))
+})
+// EQUIP: what Claude Code carries into this project.
+ipcMain.handle('equip:list', async (_, root) => ({
+  mcp: mcpOf(await claudeJson(), String(root)),
+  plugins: pluginsOf(await readFrom(path.join(home, '.claude', 'plugins', 'installed_plugins.json')), await readFrom(path.join(home, '.claude', 'settings.json'))).map(p => p.name),
+}))
+
 // The Evoke plugin saves its last usage in its store file; the newest one wins.
 ipcMain.handle('usage:get', async () => {
   const dir = path.join(home, '.claude', 'plugins', 'store')
@@ -139,8 +164,10 @@ ipcMain.handle('sessions:list', async (_, root) => {
   const dir = path.join(home, '.claude', 'projects', slugOf(path.resolve(root)))
   const names = (await fs.readdir(dir).catch(() => [])).filter(n => n.endsWith('.jsonl') && isSessionId(n.slice(0, -6)))
   const found = await Promise.all(names.map(async n => ({ id: n.slice(0, -6), file: path.join(dir, n), mtime: (await fs.stat(path.join(dir, n))).mtimeMs })))
-  const newest = found.sort((a, b) => b.mtime - a.mtime).slice(0, 10)
-  return Promise.all(newest.map(async s => {
+  // All of them for the calendar; only the newest ten are opened for a title.
+  const newest = found.sort((a, b) => b.mtime - a.mtime).slice(0, 200)
+  return Promise.all(newest.map(async (s, i) => {
+    if (i >= 10) return { id: s.id, mtime: s.mtime, title: '' }
     const handle = await fs.open(s.file)
     const { buffer, bytesRead } = await handle.read(Buffer.alloc(262144), 0, 262144, 0).finally(() => handle.close())
     return { id: s.id, mtime: s.mtime, title: titleOf(buffer.subarray(0, bytesRead).toString('utf8')) }

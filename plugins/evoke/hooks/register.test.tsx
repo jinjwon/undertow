@@ -291,3 +291,15 @@ test('projects rank by last prompt, with the open one last', async () => {
   expect(rankProjects(list, last, '/a/here').map(p => p.path)).toEqual(['/a/new', '/a/한글', '/a/old', '/a/never', '/a/here'])
   expect(lastUsedOf('').size).toBe(0)
 })
+
+test('a measured session saves its usage, so the Evoke app can show it', async ($, on) => {
+  const saved: Record<string, unknown> = {}
+  on('ui.toast', () => ({ value: undefined }) as never)
+  on('session.measure', () => ({ changed: [] }) as never)
+  on('store.set', (_$, e) => {
+    saved[e.key] = e.value
+    return { value: undefined } as never
+  })
+  await $.session.measure({ context: { percent: 40 }, rateLimits: [{ kind: 'five_hour', percentUsed: 12, resetsAt: '2026-11-08T20:00:00Z' }], cost: { usd: 1.5 } } as never)
+  expect(saved.usage).toEqual({ context: 40, limits: [{ kind: 'five_hour', percent: 12, resetsAt: '2026-11-08T20:00:00Z' }], usd: 1.5 })
+})

@@ -4,7 +4,8 @@ import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
-import { baseName, gauge, lastUsedOf, projectsOf, rankProjects, untilReset } from '../../plugins/evoke/hooks/data'
+import { Pane } from './Pane'
+import { baseName, lastUsedOf, projectsOf, rank, rankProjects } from '../../plugins/evoke/hooks/data'
 
 declare global {
   interface Window { evoke: any }
@@ -20,6 +21,18 @@ type Finder = { mode: 'files' | 'search'; query: string; hits: Hit[]; at: number
 type Usage = { context: number | null; limits: { kind: string; percent: number; resetsAt?: string }[]; usd: number | null }
 
 const LIMITS: Record<string, string> = { five_hour: '5H', seven_day: '7D', spend_limit: 'SPEND' } // same labels as the pane's HUD
+// The line under each menu, as the pane's action bar says what pressing does there.
+const HINTS: Record<string, string> = {
+  SKILL: '스킬을 누르면 Claude 입력칸에 들어간다',
+  ITEM: '파일을 고르면 열린다',
+  EQUIP: 'Claude Code가 이 프로젝트에 가져가는 장비',
+  AGENT: '지난 대화를 고르면 이어서 한다',
+  STATUS: '바뀐 파일을 고르면 마지막 커밋과 비교한다',
+  QUEST: '프로젝트에 남은 TODO',
+  LINK: '프로젝트를 고르면 연다',
+  CALENDAR: '날짜를 고르면 그날의 대화가 나온다',
+  SYSTEM: '테마와 단축키',
+}
 const LANGS: Record<string, string> = { ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript', cjs: 'javascript', mjs: 'javascript', json: 'json', md: 'markdown', css: 'css', html: 'html', py: 'python', sh: 'shell', yml: 'yaml', yaml: 'yaml', glsl: 'cpp', rs: 'rust', go: 'go', swift: 'swift' }
 const langOf = (path: string) => LANGS[path.split('.').pop()?.toLowerCase() ?? ''] ?? 'plaintext'
 const MOD = api.platform === 'darwin' ? '⌘' : 'Ctrl+'
@@ -46,11 +59,17 @@ export function App() {
   const [now, setNow] = useState(Date.now())
   const [theme, setTheme] = useState<ThemeName>(stored)
   const [finder, setFinder] = useState<Finder | null>(null)
-  const [side, setSide] = useState<'files' | 'git'>('files')
+  const [menu, setMenu] = useState('ITEM')
+  const [skills, setSkills] = useState<{ name: string; description: string; plugin: string; uses: number }[]>([])
+  const [equip, setEquip] = useState<{ mcp: string[]; plugins: string[] }>({ mcp: [], plugins: [] })
+  const [quests, setQuests] = useState<Hit[] | null>(null)
+  const [day, setDay] = useState<string | null>(null) // CALENDAR: the day whose sessions are listed
+  const [toast, setToast] = useState('')
+  const warned = useRef(new Set<string>())
   const [pane, setPane] = useState<'claude' | 'shell'>('claude')
   const [shells, setShells] = useState<string[]>([]) // projects with a shell open; started on first use
   const [resumes, setResumes] = useState<Record<string, string>>({}) // project -> the session its Claude pane resumed
-  const [sessions, setSessions] = useState<{ id: string; title: string; mtime: number }[] | null>(null)
+  const [sessions, setSessions] = useState<{ id: string; title: string; mtime: number }[]>([])
   const showPane = (p: 'claude' | 'shell') => {
     setPane(p)
     if (p === 'shell' && root) setShells(was => (was.includes(root) ? was : [...was, root]))
@@ -62,6 +81,35 @@ export function App() {
     window.addEventListener('focus', refreshGit)
     return () => window.removeEventListener('focus', refreshGit)
   }, [refreshGit])
+  // Each menu loads what it shows when you open it, as the pane's menus refresh on entry.
+  useEffect(() => {
+    if (!root) return
+    if (menu === 'SKILL') api.skills().then(setSkills)
+    if (menu === 'EQUIP') api.equip(root).then(setEquip)
+    if (menu === 'AGENT' || menu === 'CALENDAR') api.sessions(root).then(setSessions)
+    if (menu === 'STATUS') refreshGit()
+    if (menu === 'QUEST') (setQuests(null), api.search(root, 'TODO').then(setQuests))
+  }, [menu, root])
+  const say = (text: string) => {
+    api.pty.write(`claude:${root}`, text)
+    showPane('claude')
+    document.querySelector<HTMLElement>('.claude.on .xterm-helper-textarea')?.focus()
+  }
+  const resume = (id: string) => (setResumes(r => ({ ...r, [root]: id })), showPane('claude'))
+
+  // The pane's toast: once per limit when it passes 85%, again only after it falls back.
+  useEffect(() => {
+    const meters = [{ kind: 'CTX', percent: usage?.context ?? 0 }, ...(usage?.limits ?? []).map(l => ({ kind: LIMITS[l.kind] ?? l.kind, percent: l.percent }))]
+    for (const { kind, percent } of meters) {
+      if (percent < 85) warned.current.delete(kind)
+      else if (!warned.current.has(kind)) {
+        warned.current.add(kind)
+        setToast(kind === 'CTX' ? `컨텍스트 ${Math.round(percent)}%: /compact 추천` : `${kind} 한도 ${Math.round(percent)}%`)
+        setTimeout(() => setToast(''), 5000)
+      }
+    }
+  }, [usage])
+
   const openDiff = async (file: string) => {
     const id = `diff:${file}`
     const [head, now] = await Promise.all([api.head(root, file), api.read(file).catch(() => '')])
@@ -236,18 +284,56 @@ export function App() {
         <Clock now={now} />
       </header>
 
-      <aside className="side">
-        <div className="head sides">
-          <button onClick={() => setSide('files')} className={side === 'files' ? 'on' : ''}><Cut label="ITEM" ground={side === 'files' ? 'var(--sel)' : 'var(--mid)'} /></button>
-          <button onClick={() => (setSide('git'), refreshGit())} className={side === 'git' ? 'on' : ''}><Cut label={`GIT ${changes.length || ''}`.trim()} ground={side === 'git' ? 'var(--sel)' : 'var(--mid)'} /></button>
-        </div>
-        {root && side === 'files' && <Tree key={root} dir={root} depth={0} onOpen={openFile} active={active} />}
-        {side === 'git' && (changes.length ? changes.map(c => (
+      <Pane menu={menu} onMenu={setMenu} usage={usage} now={now} hint={HINTS[menu]}>
+        {menu === 'ITEM' && root && <Tree key={root} dir={root} depth={0} onOpen={openFile} active={active} />}
+        {menu === 'STATUS' && (changes.length ? changes.map(c => (
           <div key={c.path} className={`entry change ${active === `diff:${c.path}` ? 'on' : ''}`} onClick={() => openDiff(c.path)} title={relative(root, c.path)}>
             <b className={`code c-${c.code.replace('??', 'U')[0]}`}>{c.code.replace('??', 'U')}</b> {baseName(c.path)} <span className="quiet">{relative(root, c.path).slice(0, -baseName(c.path).length)}</span>
           </div>
-        )) : <div className="entry quiet">변경 없음</div>)}
-      </aside>
+        )) : <div className="entry quiet">{branch ? `${branch}: 변경 없음` : 'git 저장소가 아니다'}</div>)}
+        {menu === 'SKILL' && skills.map(s => (
+          <div key={s.name} className="entry skill" onClick={() => say(`/${s.name} `)} title={s.description}>
+            <span>▸ {s.name}</span> {s.uses > 0 && <b className="rank">{rank(s.uses)}</b>}
+            <div className="desc">{s.description}</div>
+          </div>
+        ))}
+        {menu === 'EQUIP' && (
+          <>
+            <div className="group">MCP <span>{equip.mcp.length}</span></div>
+            {equip.mcp.length ? equip.mcp.map(m => <div key={m} className="entry">◆ {m}</div>) : <div className="entry quiet">연결된 MCP 서버 없음</div>}
+            <div className="group">PLUGINS <span>{equip.plugins.length}</span></div>
+            {equip.plugins.map(m => <div key={m} className="entry">◆ {m}</div>)}
+          </>
+        )}
+        {menu === 'AGENT' && (
+          <>
+            {sessions.slice(0, 10).map(s => (
+              <div key={s.id} className="entry" onClick={() => resume(s.id)}>▸ {s.title || '(제목 없음)'} <div className="desc">{new Date(s.mtime).toLocaleString()}</div></div>
+            ))}
+            {!sessions.length && <div className="entry quiet">이 프로젝트의 지난 세션이 없다</div>}
+          </>
+        )}
+        {menu === 'QUEST' && (quests === null ? <div className="entry quiet">찾는 중…</div> : quests.length ? quests.map(q => (
+          <div key={`${q.path}:${q.line}`} className="entry" onClick={() => openFile(q.path, q.line, q.col)}>▸ {q.preview} <div className="desc">{q.rel}:{q.line}</div></div>
+        )) : <div className="entry quiet">남은 TODO 없음</div>)}
+        {menu === 'LINK' && (
+          <>
+            {projects.map((p, i) => (
+              <div key={p.path} className={`entry ${p.path === root ? 'on' : ''}`} onClick={() => open(p.path)}><b className="rank">{i + 1}</b> {p.name} <div className="desc">{p.path}</div></div>
+            ))}
+            <div className="entry" onClick={async () => { const p = await api.pickProject(); if (p) open(p) }}>+ 다른 폴더를 연다</div>
+          </>
+        )}
+        {menu === 'CALENDAR' && <Calendar now={now} sessions={sessions} day={day} onDay={setDay} onPick={resume} />}
+        {menu === 'SYSTEM' && (
+          <>
+            <div className="group">THEME</div>
+            {THEME_NAMES.map(t => <div key={t} className={`entry ${t === theme ? 'on' : ''}`} onClick={() => setTheme(t)}>◆ {THEMES[t].label}</div>)}
+            <div className="group">KEYS</div>
+            {[['P', '파일 열기'], ['⇧F', '프로젝트 검색'], ['S', '정렬 후 저장'], ['L', '선택을 Claude에게'], ['O', '프로젝트']].map(([k, d]) => <div key={k} className="entry"><b className="rank">{MOD}{k}</b> {d}</div>)}
+          </>
+        )}
+      </Pane>
 
       <main className="center">
         <nav className="tabs">
@@ -292,20 +378,21 @@ export function App() {
 
       <section className="right">
         <div className="head sides">
-          <button onClick={() => showPane('claude')} className={pane === 'claude' ? 'on' : ''}><Cut label="AGENT" ground={pane === 'claude' ? 'var(--edge)' : 'var(--mid)'} /></button>
+          <button onClick={() => showPane('claude')} className={pane === 'claude' ? 'on' : ''}><Cut label="CLAUDE" ground={pane === 'claude' ? 'var(--edge)' : 'var(--mid)'} /></button>
           <button onClick={() => showPane('shell')} className={pane === 'shell' ? 'on' : ''}><Cut label="SHELL" ground={pane === 'shell' ? 'var(--edge)' : 'var(--mid)'} /></button>
-          {pane === 'claude' && root && <button className="sessions" onClick={async () => setSessions(await api.sessions(root))}>지난 세션</button>}
         </div>
         {opened.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} />)}
         {shells.map(path => <Claude key={`shell:${path}`} kind="shell" cwd={path} on={pane === 'shell' && path === root} theme={theme} />)}
       </section>
 
+      {/* The status band, as above the terminal's prompt. */}
       <footer className="hud">
-        <Meter label="CTX" percent={usage?.context ?? null} />
-        {usage?.limits.map(l => <Meter key={l.kind} label={LIMITS[l.kind] ?? l.kind.slice(0, 4).toUpperCase()} percent={l.percent} reset={untilReset(l.resetsAt, now)} />)}
-        <span className="usd">{usage?.usd != null ? `$${usage.usd.toFixed(2)}` : ''}</span>
-        {!usage && <span className="quiet">사용량은 Evoke 플러그인이 켜진 세션에서 들어온다</span>}
+        <Cut label={menu} ground="var(--chip)" />
+        <b className="band">{root ? baseName(root) : '—'}</b>{branch && <i className="quiet"> / {branch}</i>}
+        <span className="quiet">변경 {changes.length}</span>
+        {!usage && <span className="quiet usd">사용량은 Evoke 플러그인이 켜진 Claude 세션에서 들어온다</span>}
       </footer>
+      {toast && <div className="toast"><Cut label="ALERT" /> {toast}</div>}
 
       {finder && (
         <div className="picker" onClick={() => setFinder(null)}>
@@ -336,20 +423,6 @@ export function App() {
               ))}
               {finder.query.length >= (finder.mode === 'files' ? 1 : 2) && !finder.hits.length && <div className="row quiet">결과 없음</div>}
             </div>
-          </div>
-        </div>
-      )}
-
-      {sessions && (
-        <div className="picker" onClick={() => setSessions(null)}>
-          <div className="sheet" onClick={e => e.stopPropagation()}>
-            <div className="head"><Cut label="SESSIONS" /> 이어서 할 대화를 고른다</div>
-            {sessions.map(s => (
-              <button key={s.id} className="row" onClick={() => (setResumes(r => ({ ...r, [root]: s.id })), setSessions(null), showPane('claude'))}>
-                <b>›</b> {s.title || '(제목 없음)'} <span className="quiet">{new Date(s.mtime).toLocaleString()}</span>
-              </button>
-            ))}
-            {!sessions.length && <div className="row quiet">이 프로젝트의 지난 세션이 없다</div>}
           </div>
         </div>
       )}
@@ -389,7 +462,7 @@ function Tree({ dir, depth, onOpen, active }: { dir: string; depth: number; onOp
             style={{ paddingLeft: 12 + depth * 12 }}
             onClick={() => (e.dir ? setOpenDirs(o => ({ ...o, [e.path]: !o[e.path] })) : onOpen(e.path))}
           >
-            {e.dir ? (openDirs[e.path] ? '▾ ' : '▸ ') : '  '}{e.name}
+            {e.dir ? (openDirs[e.path] ? '▾ ' : '▸ ') : <i className="ext" data-ext={e.name.split('.').pop()?.toLowerCase()} />}{e.name}
           </div>
           {e.dir && openDirs[e.path] && <Tree dir={e.path} depth={depth + 1} onOpen={onOpen} active={active} />}
         </div>
@@ -455,16 +528,35 @@ function Claude({ kind, cwd, on, theme, resume }: { kind: 'claude' | 'shell'; cw
   )
 }
 
-function Meter({ label, percent, reset }: { label: string; percent: number | null; reset?: string }) {
-  const cells = percent == null ? 0 : gauge(percent, 10)
-  const hot = (percent ?? 0) >= 85
+// CALENDAR: this month, with a mark on each day you talked to Claude in this project.
+function Calendar({ now, sessions, day, onDay, onPick }: { now: number; sessions: { id: string; title: string; mtime: number }[]; day: string | null; onDay: (d: string) => void; onPick: (id: string) => void }) {
+  const d = new Date(now)
+  const y = d.getFullYear()
+  const m = d.getMonth()
+  const keyOf = (t: number) => new Date(t).toDateString()
+  const count = new Map<string, number>()
+  for (const s of sessions) count.set(keyOf(s.mtime), (count.get(keyOf(s.mtime)) ?? 0) + 1)
+  const first = new Date(y, m, 1).getDay()
+  const days = new Date(y, m + 1, 0).getDate()
+  const picked = sessions.filter(s => keyOf(s.mtime) === day)
   return (
-    <span className="meter">
-      <Cut label={label} ground={hot ? 'var(--hot)' : 'var(--mid)'} />
-      <span className="bar" style={{ color: hot ? 'var(--hot)' : 'var(--hi)' }}>{'▰'.repeat(cells)}<span className="quiet">{'▱'.repeat(10 - cells)}</span></span>
-      {percent == null ? '—' : `${Math.round(percent)}%`}
-      {reset && <span className="quiet"> {reset}</span>}
-    </span>
+    <div className="calendar">
+      <div className="group">{y}.{String(m + 1).padStart(2, '0')}</div>
+      <div className="month">
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((w, i) => <i key={i}>{w}</i>)}
+        {Array.from({ length: first }, (_, i) => <span key={`x${i}`} />)}
+        {Array.from({ length: days }, (_, i) => {
+          const k = new Date(y, m, i + 1).toDateString()
+          const n = count.get(k) ?? 0
+          return (
+            <button key={k} className={`${n ? 'has' : ''} ${k === day ? 'on' : ''} ${k === d.toDateString() ? 'today' : ''}`} onClick={() => onDay(k)} title={n ? `${n}개 대화` : ''}>
+              {i + 1}
+            </button>
+          )
+        })}
+      </div>
+      {picked.map(s => <div key={s.id} className="entry" onClick={() => onPick(s.id)}>▸ {s.title || new Date(s.mtime).toLocaleTimeString()}</div>)}
+    </div>
   )
 }
 
