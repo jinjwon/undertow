@@ -53,6 +53,27 @@ undertow/terminal/install.sh            # add --default to make it the default p
 
 Terminal has no animated water or art, so the menu uses plain rows. This profile also starts Claude Code.
 
+### Desktop app (macOS and Windows)
+
+An editor window in the Evoke look: file tree, Monaco editor, and Claude Code on the right, one live session per project. Needs [Claude Code](https://docs.claude.com/en/docs/claude-code) installed, nothing else.
+
+**Download** from [Releases](https://github.com/jinjwon/undertow/releases/latest): `Evoke-<version>-arm64.dmg` for Apple silicon Macs, `Evoke-<version>-win-x64.zip` for Windows (unzip, run `Evoke.exe`).
+
+Two themes, switched with the chip at the top right: **TIDE**, deep-sea blue (default), and **REBEL**, red and black. A theme is one entry in `desktop/src/themes.ts` plus one block in `desktop/src/style.css`.
+
+To build it yourself:
+
+```sh
+cd undertow/desktop && npm install && npm start
+npm run dist:mac        # release/Evoke-<version>-arm64.dmg
+npm run dist:win        # Windows installer (run on Windows, or on a Mac with Rosetta)
+npm run dist:win:zip    # portable Windows zip, builds anywhere
+```
+
+Builds are unsigned: on macOS, right-click Evoke.app and choose Open the first time; on Windows, choose More info → Run anyway.
+
+`⌘O` projects (1–9 or Enter) · `⌘S` save · `⌘L` send (Ctrl on Windows) the selection to Claude as `@file#Lx-y`. Open tabs reload from disk when Claude edits them, unless you have unsaved changes.
+
 ## Settings
 
 | To change | Do this |

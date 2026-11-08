@@ -1,0 +1,72 @@
+{
+  "name": "evoke-desktop",
+  "productName": "Evoke",
+  "version": "1.7.0",
+  "private": true,
+  "description": "Evoke as a desktop editor: files, Monaco, and Claude Code side by side.",
+  "author": "jinjwon",
+  "main": "main.cjs",
+  "scripts": {
+    "postinstall": "node -e \"for (const a of ['arm64','x64']) try { require('fs').chmodSync('node_modules/node-pty/prebuilds/darwin-'+a+'/spawn-helper', 0o755) } catch {}\"",
+    "build": "vite build",
+    "start": "vite build && electron .",
+    "dist:mac": "vite build && electron-builder --mac",
+    "dist:win": "vite build && electron-builder --win",
+    "dist:win:zip": "vite build && electron-builder --win zip --x64",
+    "test": "node --test paths.test.cjs"
+  },
+  "build": {
+    "appId": "dev.evoke.desktop",
+    "productName": "Evoke",
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "paths.cjs",
+      "dist/**",
+      "!node_modules/node-pty/build/**",
+      "!node_modules/node-pty/**/*.pdb"
+    ],
+    "asarUnpack": [
+      "node_modules/node-pty/**"
+    ],
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "icon": "../assets/logo.png",
+      "target": "dmg",
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "icon": "../assets/logo.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.6.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "monaco-editor": "^0.52.0",
+    "node-pty": "^1.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.0",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.0.0",
+    "vite": "^5.4.0"
+  }
+}

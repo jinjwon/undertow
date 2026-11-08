@@ -1,0 +1,105 @@
+/* Evoke's water and slanted chips, as a window. TIDE's colours come from plugins/evoke/hooks/tokens.js; keep them in step.
+   Each theme is one block of vars; src/themes.ts carries the same theme's editor and terminal colours. */
+@font-face { font-family: Barlow; src: url(../../plugins/evoke/tools/fonts/Barlow-BlackItalic.ttf); }
+
+:root, [data-theme='tide'] {
+  --ground: #0B1648 url(../../ghostty/background.png) center / cover no-repeat;
+  --plate: #050A24CC; --panel: #050A2499; --page: #0B164866; --deep: #01030CAA; --ink: #01030C;
+  --line: #13257A; --mid: #13257A; --sel: #1546E0; --hi: #5FE3FF; --text: #D6F4FF; --gray: #8A96B8;
+  --chip: #E8101E; --chip-ink: #FFFFFF; --edge: #FF2E88; --hot: #E8101E; --sel-ink: #FFFFFF;
+  --shimmer: #5FE3FF14; --big: #13257A;
+}
+[data-theme='rebel'] {
+  --ground: #0A0A0A repeating-linear-gradient(-30deg, #0A0A0A 0 46px, #140405 46px 92px);
+  --plate: #000000E6; --panel: #000000B3; --page: #0D0D0D99; --deep: #000000CC; --ink: #000000;
+  --line: #2A2A2A; --mid: #2A2A2A; --sel: #FF1A2D; --hi: #FFFFFF; --text: #F5F5F5; --gray: #8C8C8C;
+  --chip: #FF1A2D; --chip-ink: #FFFFFF; --edge: #FFFFFF; --hot: #FFE500; --sel-ink: #000000;
+  --shimmer: #FF1A2D0F; --big: #FF1A2D;
+}
+[data-theme='rebel'] .cut[style*='--edge'] { color: #000 !important; } /* white chips need black ink */
+[data-theme='rebel'] .entry.on, [data-theme='rebel'] .row:hover, [data-theme='rebel'] .row:focus { background: #FFFFFF; color: #000; box-shadow: 6px 0 0 var(--sel); }
+[data-theme='rebel'] .empty .big { color: transparent; -webkit-text-stroke: 3px var(--big); transform: rotate(-8deg) skewX(-6deg); }
+[data-theme='rebel'] .sheet { border: 3px solid #FFFFFF; box-shadow: 10px 10px 0 var(--sel); transform: rotate(-1.5deg) skewX(-4deg); }
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--ground);
+  color: var(--text);
+  font: 13px Pretendard, -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+/* Light moving over the water: a slow sweep across the whole window. */
+body::before {
+  content: ''; position: fixed; inset: -50%; pointer-events: none; z-index: 0;
+  background: linear-gradient(115deg, transparent 40%, var(--shimmer) 50%, transparent 60%);
+  animation: sweep 14s linear infinite;
+}
+@keyframes sweep { from { transform: translateX(-30%); } to { transform: translateX(30%); } }
+@media (prefers-reduced-motion: reduce) { body::before { animation: none; } * { transition: none !important; } }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.quiet { color: var(--gray); }
+
+.app {
+  position: relative; z-index: 1;
+  height: 100%;
+  display: grid;
+  grid-template: 44px 1fr 30px / 240px 1fr minmax(420px, 38%);
+  grid-template-areas: 'top top top' 'side center right' 'hud hud hud';
+}
+
+/* The chip every heading wears: a parallelogram, as in the pane. */
+.cut { display: inline-block; padding: 1px 12px; margin-right: 8px; font: 900 italic 13px Barlow, sans-serif; letter-spacing: .5px; clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+.head { padding: 10px 12px; font: 900 italic 15px Barlow, Pretendard, sans-serif; letter-spacing: .3px; border-bottom: 1px solid var(--line); }
+
+.top { grid-area: top; display: flex; align-items: center; gap: 16px; padding: 0 16px 0 84px; background: var(--plate); border-bottom: 2px solid var(--sel); -webkit-app-region: drag; }
+.top button { -webkit-app-region: no-drag; }
+.win32 .top { padding: 0 150px 0 12px; } /* room for Windows' own window buttons on the right */
+.logo { display: flex; align-items: center; gap: 6px; font: 900 italic 20px Barlow, sans-serif; color: var(--hi); }
+.logo img { width: 26px; height: 26px; }
+.project { display: flex; align-items: center; font-weight: 700; }
+.branch { color: var(--gray); }
+.theme { margin-left: auto; }
+.clock { font: 900 italic 20px Barlow, sans-serif; color: var(--text); letter-spacing: .5px; transform: skewX(-6deg); }
+.clock b { color: var(--hi); font-size: 14px; }
+
+/* Selection as the game menus draw it: a slanted bar that slides in. */
+.side { grid-area: side; overflow: auto; background: var(--panel); border-right: 1px solid var(--line); }
+.entry { padding: 3px 12px; white-space: nowrap; cursor: pointer; font-family: Iosevka, Menlo, Consolas, monospace; transition: transform .12s, background .12s; }
+.entry:hover { background: #ffffff10; transform: translateX(3px); }
+.entry.on { background: linear-gradient(100deg, var(--sel) 70%, transparent); color: var(--sel-ink); box-shadow: inset 3px 0 var(--edge); transform: translateX(6px); }
+
+.center { grid-area: center; display: flex; flex-direction: column; min-width: 0; background: var(--page); }
+.tabs { display: flex; overflow-x: auto; background: var(--plate); flex: none; }
+.tab { padding: 8px 16px; white-space: nowrap; cursor: pointer; color: var(--gray); clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+.tab.on { color: var(--sel-ink); background: var(--sel); font-weight: 700; }
+.tab .x { margin-left: 10px; opacity: .5; }
+.tab .x:hover { opacity: 1; color: var(--hot); }
+.center > section, .center > div:last-child { flex: 1; min-height: 0; }
+.empty { display: grid; place-content: center; text-align: center; color: var(--gray); }
+.empty .big { font: 900 italic 120px Barlow, sans-serif; color: var(--big); transform: rotate(-6deg); }
+.empty .mark { width: 160px; margin: 0 auto 8px; opacity: .9; }
+
+.right { grid-area: right; display: flex; flex-direction: column; min-width: 0; background: var(--deep); border-left: 1px solid var(--line); }
+.claude { display: none; flex: 1; min-height: 0; position: relative; padding: 6px 0 0 8px; }
+.claude.on { display: flex; }
+.term { flex: 1; min-width: 0; }
+.restart { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 8px 16px; background: var(--chip); color: var(--chip-ink); font-weight: 700; clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+
+.hud { grid-area: hud; display: flex; align-items: center; gap: 22px; padding: 0 12px; background: var(--ink); font-family: Iosevka, Menlo, Consolas, monospace; }
+.meter { display: flex; align-items: center; gap: 6px; }
+.usd { color: var(--hi); margin-left: auto; }
+
+.picker { position: fixed; inset: 0; z-index: 2; background: #000000B0; display: grid; place-items: start center; padding-top: 12vh; }
+.sheet { width: min(640px, 90vw); background: var(--plate); border: 1px solid var(--line); border-left: 6px solid var(--sel); transform: skewX(-4deg); animation: drop .16s ease-out; }
+@keyframes drop { from { opacity: 0; translate: -24px 0; } }
+.sheet > * { transform: skewX(4deg); }
+.row { display: flex; gap: 12px; width: 100%; padding: 10px 16px; text-align: left; align-items: baseline; transition: transform .12s; }
+.row b { color: var(--hi); width: 14px; font: 900 italic 16px Barlow, sans-serif; }
+.row:hover, .row:focus { background: var(--sel); color: var(--sel-ink); outline: none; transform: translateX(8px); }
+.row.here { opacity: .6; }
+.row .quiet { margin-left: auto; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 55%; }
+.xterm-viewport { background: transparent !important; }
+.xterm-viewport::-webkit-scrollbar { width: 6px; }
+.xterm-viewport::-webkit-scrollbar-thumb { background: var(--line); }

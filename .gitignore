@@ -1,6 +1,9 @@
 .art/
 .DS_Store
+desktop/node_modules/
+desktop/dist/
 .claude-plugin/types/
 plugins/*/.claude-plugin/types/
 # Your own hero image stays on your machine.
 plugins/evoke/hero.png
+desktop/release/

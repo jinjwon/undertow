@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.7.0 - 2026-11-08
+
+### Added
+
+- Evoke desktop app for macOS and Windows: file tree, Monaco editor and Claude Code side by side, one live session per project, `⌘O` project picker, `⌘L` sends the selection to Claude as `@file#Lx-y`.
+- Two themes: TIDE (deep-sea blue, default) and REBEL (red and black), switched from the top bar and remembered.
+- A date and time plate in the top bar; selections slide in as slanted bars.
+
+### Notes
+
+- Builds are unsigned. Windows build is a portable zip, built on macOS and not yet run on a Windows machine.
+
 ## 1.6.0 - 2026-11-06
 
 ### Changed

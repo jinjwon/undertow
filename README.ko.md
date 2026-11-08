@@ -53,6 +53,27 @@ undertow/terminal/install.sh            # 기본 프로필로 쓰려면 --defaul
 
 터미널 앱에는 물결 애니메이션과 아트가 없어 메뉴가 일반 텍스트 행으로 나옵니다. 이 프로필도 Claude Code를 시작합니다.
 
+### 데스크톱 앱 (macOS · Windows)
+
+Evoke 디자인의 에디터 창입니다. 파일 트리, Monaco 에디터, 오른쪽 Claude Code 패널이 있고 프로젝트마다 세션이 하나씩 유지됩니다. [Claude Code](https://docs.claude.com/ko/docs/claude-code)만 설치되어 있으면 됩니다.
+
+**다운로드**: [Releases](https://github.com/jinjwon/undertow/releases/latest)에서 Apple 실리콘 Mac은 `Evoke-<버전>-arm64.dmg`, Windows는 `Evoke-<버전>-win-x64.zip`(압축을 풀고 `Evoke.exe` 실행)을 받습니다.
+
+테마는 두 가지이고 오른쪽 위 칩으로 바꿉니다. **TIDE**는 심해 파랑(기본), **REBEL**은 빨강과 검정입니다. 테마 하나는 `desktop/src/themes.ts`의 항목 하나와 `desktop/src/style.css`의 블록 하나입니다.
+
+직접 빌드하려면:
+
+```sh
+cd undertow/desktop && npm install && npm start
+npm run dist:mac        # release/Evoke-<버전>-arm64.dmg
+npm run dist:win        # Windows 설치 파일 (Windows, 또는 Rosetta가 있는 Mac에서)
+npm run dist:win:zip    # 설치 없이 쓰는 Windows zip, 어디서나 빌드됨
+```
+
+서명하지 않은 빌드입니다. macOS에서는 처음 한 번 Evoke.app을 우클릭해 열기를 고르고, Windows에서는 추가 정보 → 실행을 누릅니다.
+
+`⌘O` 프로젝트 (1–9 또는 Enter) · `⌘S` 저장 · `⌘L` 선택 (Windows는 Ctrl) 영역을 `@file#Lx-y`로 Claude에게 전달. 저장하지 않은 변경이 없으면, Claude가 고친 파일은 창으로 돌아올 때 다시 읽습니다.
+
 ## 설정
 
 | 바꿀 내용 | 방법 |
