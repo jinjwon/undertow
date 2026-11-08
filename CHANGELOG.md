@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.1.0 - 2026-11-08
+
+### Added
+
+- English, Korean and Japanese, picked in Settings; the system language is the default. A Japanese README.
+- Settings (⚙) in the top bar: theme and language.
+- The window starts on a welcome page, as VS Code does: Open Folder and recent projects.
+- Preview tabs: a single click previews, a double click or an edit keeps the tab. Images open as pictures. A minimap in the editor.
+- File badges in the tree, on tabs and in quick open.
+- Prompt variables (`{{name}}`) are highlighted in the editor.
+
+### Changed
+
+- REBEL is now a prompt-engineering theme in three colours only: blood red, pitch black, stark white. Cut-out corners on panels, the terminal and sheets; red and black halftone seams; a thief's mask on folders and alerts; `{{variables}}` cut out letter by letter like a ransom note. Its editor and terminal colours fold onto the same three.
+
 ## 2.0.0 - 2026-11-08
 
 Evoke is now the desktop app. The terminal setups are retired.

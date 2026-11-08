@@ -16,10 +16,15 @@ export const THEMES = {
   rebel: {
     label: 'REBEL',
     logo: rebelLogo,
-    xterm: { background: '#00000000', foreground: '#F5F5F5', cursor: '#FF1A2D', selectionBackground: '#8A0010', red: '#FF1A2D', cyan: '#F5F5F5', blue: '#FF1A2D', magenta: '#FFE500' },
+    // Blood red, pitch black, stark white: every ANSI colour folds onto one of the three.
+    xterm: {
+      background: '#00000000', foreground: '#FFFFFF', cursor: '#B8001F', cursorAccent: '#000000', selectionBackground: '#B8001F',
+      black: '#000000', red: '#B8001F', green: '#FFFFFF', yellow: '#FFFFFF', blue: '#B8001F', magenta: '#B8001F', cyan: '#FFFFFF', white: '#FFFFFF',
+      brightBlack: '#B8001F', brightRed: '#B8001F', brightGreen: '#FFFFFF', brightYellow: '#FFFFFF', brightBlue: '#B8001F', brightMagenta: '#B8001F', brightCyan: '#FFFFFF', brightWhite: '#FFFFFF',
+    },
     monaco: {
-      rules: { comment: '7A7A7A', keyword: 'FF1A2D', string: 'FFD6D6', number: 'FFE500', type: 'FFFFFF' },
-      colors: { fg: '#F5F5F5', line: '#FF1A2D1F', select: '#FF1A2D66', cursor: '#FF1A2D', num: '#4A4A4A', numOn: '#FF1A2D' },
+      rules: { comment: 'B8001F', keyword: 'B8001F', string: 'FFFFFF', number: 'B8001F', type: 'FFFFFF' },
+      colors: { fg: '#FFFFFF', line: '#B8001F26', select: '#B8001F80', cursor: '#B8001F', num: '#B8001F', numOn: '#FFFFFF' },
     },
   },
 } as const

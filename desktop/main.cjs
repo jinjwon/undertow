@@ -97,6 +97,15 @@ ipcMain.handle('fs:search', async (_, root, query) => {
   return hits
 })
 ipcMain.handle('fs:read', async (_, file) => fs.readFile(await guard(file), 'utf8'))
+// Images for the preview tab, as a data URL the page's CSP allows (img-src data:).
+const IMAGE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' }
+ipcMain.handle('fs:image', async (_, file) => {
+  const type = IMAGE_TYPES[path.extname(String(file)).slice(1).toLowerCase()]
+  if (!type) throw new Error(`Not an image: ${file}`)
+  const stat = await fs.stat(await guard(file))
+  if (stat.size > 20e6) throw new Error(`Image too large: ${file}`)
+  return `data:${type};base64,${(await fs.readFile(file)).toString('base64')}`
+})
 ipcMain.handle('fs:write', async (_, file, text) => fs.writeFile(await guard(file), String(text), 'utf8'))
 
 ipcMain.handle('git:branch', async (_, root) => {
