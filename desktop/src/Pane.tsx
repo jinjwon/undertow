@@ -1,6 +1,7 @@
 // The MENU pane from the terminal, as a column: the scene art is the whole pane, the HUD sits on its dark band,
 // the nine menu names drawn in the art are the buttons, and the menu's content lies on the open water below.
-import { useEffect, useState, type ReactNode } from 'react'
+// TIDE hides the art and shows the buttons' own text and .cutin instead (see style.css).
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { MENUS, ITEM_ROWS, ART, GRID } from '../../plugins/evoke/hooks/tokens.js'
 import { dayOf, gauge, untilReset } from '../../plugins/evoke/hooks/data'
 
@@ -21,7 +22,7 @@ function Gauge({ label, percent, reset }: { label: string; percent: number | nul
   )
 }
 
-export function Pane({ menu, onMenu, usage, now, hint, children }: { menu: string; onMenu: (m: string) => void; usage: Usage | null; now: number; hint: string; children: ReactNode }) {
+export function Pane({ menu, onMenu, usage, now, hint, style, wrapInfo, children }: { menu: string; onMenu: (m: string) => void; usage: Usage | null; now: number; hint: string; style?: CSSProperties; wrapInfo: (info: ReactNode) => ReactNode; children: ReactNode }) {
   const [frame, setFrame] = useState(100)
   useEffect(() => {
     for (const m of MENUS) for (const f of FRAMES) new Image().src = scene(m, f) // decoded ahead, so the cut-in never flashes
@@ -40,30 +41,33 @@ export function Pane({ menu, onMenu, usage, now, hint, children }: { menu: strin
   const { date, moon } = dayOf(now)
   const limit = (kind: string) => usage?.limits.find(l => l.kind === kind)
   return (
-    <aside className="pane">
+    <aside className="pane" style={style}>
       <div className="art">
         <img src={scene(menu, frame)} alt={menu} draggable={false} />
-        <div className="pane-hud">
-          <div className="day"><b>{date}</b> <i>{moon}</i><span className="usd"><i>AI USAGE</i> <b>{usage?.usd != null ? `$${usage.usd.toFixed(2)}` : '--'}</b></span></div>
-          <div className="gauges">
-            <Gauge label="CTX" percent={usage?.context} />
-            <Gauge label="5H" percent={limit('five_hour')?.percent} reset={untilReset(limit('five_hour')?.resetsAt, now)} />
-            <Gauge label="7D" percent={limit('seven_day')?.percent} reset={untilReset(limit('seven_day')?.resetsAt, now)} />
+        <div className="cutin" key={menu} aria-hidden="true"><b>{menu}</b></div>
+        {wrapInfo(
+          <div className="pane-hud">
+            <div className="day"><b>{date}</b> <i>{moon}</i><span className="usd"><i>AI USAGE</i> <b>{usage?.usd != null ? `$${usage.usd.toFixed(2)}` : '--'}</b></span></div>
+            <div className="gauges">
+              <Gauge label="CTX" percent={usage?.context} />
+              <Gauge label="5H" percent={limit('five_hour')?.percent} reset={untilReset(limit('five_hour')?.resetsAt, now)} />
+              <Gauge label="7D" percent={limit('seven_day')?.percent} reset={untilReset(limit('seven_day')?.resetsAt, now)} />
+            </div>
           </div>
-        </div>
+        )}
         {MENUS.map((m: string, i: number) => (
           <button
             key={m}
             className={`hot-menu ${m === menu ? 'on' : ''}`}
             title={`${m} (${i + 1})`}
             aria-label={m}
-            style={{ top: `${((ITEM_ROWS[i].y - 84) / ART.height) * 100}%`, height: `${(78 / ART.height) * 100}%` }}
+            style={{ top: `${((ITEM_ROWS[i].y - 84) / ART.height) * 100}%`, height: `${(78 / ART.height) * 100}%`, ['--x' as string]: `${((ITEM_ROWS[i].x - 430) / ART.width) * 100}cqw` }}
             onClick={() => onMenu(m)}
-          />
+          ><span>{m}</span></button>
         ))}
       </div>
       <div className="pane-body" style={{ top: `calc(100cqw * ${ART.height / ART.width} * ${GRID.content / GRID.rows})` }}>
-        <div className="pane-content">{children}</div>
+        <div className="pane-content" key={menu}>{children}</div>
         <div className="pane-hint">{hint}</div>
       </div>
     </aside>

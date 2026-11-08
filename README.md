@@ -41,7 +41,8 @@ Builds are unsigned. The first time, on macOS right-click Evoke and choose Open;
   The HUD on top shows the date, the moon, context and 5-hour/7-day usage with resets, and session cost. A toast warns at 85%.
 - **Editor (middle):** Monaco with completion, errors and formatting for TS/JS, JSON, CSS and HTML; bracket colors and guides; matching HTML tags rename together; diff view.
 - **CLAUDE / SHELL (right):** one live Claude Code session and one shell per project, kept while you switch projects.
-- **Two themes,** each with its own logo. **TIDE** is deep-sea blue. **REBEL** is a prompt-engineering theme in three colours only (blood red, pitch black, stark white): cut-out panel corners, halftone seams, a thief's mask on folders and alerts, and `{{variables}}` in prompts cut out letter by letter like a ransom note.
+- **Two themes,** each with its own logo. **TIDE** is a white and blue game menu with hard diagonals. **REBEL** is a prompt-engineering theme in three colours only (blood red, pitch black, stark white): cut-out panel corners, halftone seams, a thief's mask on folders and alerts, and `{{variables}}` in prompts cut out letter by letter like a ransom note.
+- **UI edit mode:** press `UI` in the top bar to drag, resize and swap the panels and widgets. Layouts and presets are kept across restarts.
 - **Start like VS Code:** the window opens on Open Folder and your recent projects.
 - **Preview tabs:** a single click previews a file (italic tab, replaced by the next one); a double click or an edit keeps it. Images open as pictures. A minimap shows the whole file.
 - **File badges** (TS, JS, {}, MD, IMG…) in the tree, on tabs and in quick open.
