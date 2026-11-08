@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.2.0 - 2026-11-08
+
+### Added
+
+- UI edit mode: drag, resize and swap the sidebar, main panel, terminal, calendar, info panel and clock. Snapping, guides, gap readouts, typed sizes, arrow-key nudges, preview, save and cancel. Layouts and named presets survive restarts and follow the window size.
+- Calendar: month, week and day views, with previous, next and today.
+- Settings: General, Appearance, Shortcuts and Terminal tabs. Terminal font size and cursor blink are kept.
+- Terminal toolbar: smaller text, larger text, clear.
+- Loading states, and an error screen with a way back instead of a blank window.
+
+### Changed
+
+- TIDE is now a white and blue game menu: hard diagonals, live menu text, large italic type and a white editor page. Its painted background is gone.
+
 ## 2.1.1 - 2026-11-08
 
 ### Added

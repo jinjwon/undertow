@@ -1,12 +1,15 @@
 // The window: projects on top, files on the left, the editor in the middle, Claude Code on the right, the HUD below.
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
 import { Pane } from './Pane'
 import { LANGS as UI_LANGS, langFrom, tr, type Lang } from './i18n'
-import { iconOf, isImage, promptVars } from './text'
+import { iconOf, isImage, promptVars, stepDate, weekOf } from './text'
+import { EMPTY, FLOAT_IDS, fitFloat, parseLayout, type FloatId, type Layout, type MainId, type Rect } from './layout'
+import { LayoutEdit } from './LayoutEdit'
 import { baseName, lastUsedOf, projectsOf, rank, rankProjects } from '../../plugins/evoke/hooks/data'
 
 declare global {
@@ -34,6 +37,24 @@ const stored = (): ThemeName => {
 const storedLang = (): Lang => {
   try { return langFrom(localStorage.getItem('lang') ?? navigator.language) } catch { return langFrom(navigator.language) }
 }
+const storedLayout = (): Layout => {
+  try { return parseLayout(JSON.parse(localStorage.getItem('layout') ?? 'null')) } catch { return EMPTY }
+}
+type TermPrefs = { size: number; blink: boolean }
+const storedTerm = (): TermPrefs => {
+  try { const v = JSON.parse(localStorage.getItem('terminal') ?? 'null'); return { size: Math.min(22, Math.max(10, Number(v?.size) || 13)), blink: v?.blink !== false } } catch { return { size: 13, blink: true } }
+}
+// The live terminals by id, so the toolbar can reach the one on screen.
+const TERMS = new Map<string, Terminal>()
+// A rect in workspace fractions as CSS: percent-based, so a saved layout follows the window without any code running.
+const rectStyle = (r: Rect): CSSProperties => ({
+  position: 'absolute',
+  gridArea: 'auto', // or the percentages would be of the grid cell, not the window
+  left: `${r.x * 100}%`,
+  width: `${r.w * 100}%`,
+  top: `calc(var(--t) + ${r.y} * (100% - var(--t) - var(--b)))`,
+  height: `calc(${r.h} * (100% - var(--t) - var(--b)))`,
+})
 // The badge in front of a file name: its kind in two or three letters, coloured per theme.
 const FileIcon = ({ name, dir = false }: { name: string; dir?: boolean }) => {
   const { label, kind } = iconOf(name, dir)
@@ -67,6 +88,18 @@ export function App() {
   const [theme, setTheme] = useState<ThemeName>(stored)
   const [lang, setLang] = useState<Lang>(storedLang)
   const [settings, setSettings] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<'general' | 'appearance' | 'keys' | 'terminal'>('general')
+  const [layout, setLayout] = useState<Layout>(storedLayout)
+  const [draft, setDraft] = useState<Layout | null>(null) // set while UI edit mode is open; only Save copies it to layout
+  const shown = draft ?? layout
+  const [ws, setWs] = useState({ w: window.innerWidth, h: window.innerHeight, top: 0 })
+  const [floatHost, setFloatHost] = useState<HTMLElement | null>(null)
+  const [termPrefs, setTermPrefs] = useState<TermPrefs>(storedTerm)
+  const setTerm = (p: Partial<TermPrefs>) => setTermPrefs(was => {
+    const next = { ...was, ...p, size: Math.min(22, Math.max(10, p.size ?? was.size)) }
+    try { localStorage.setItem('terminal', JSON.stringify(next)) } catch {}
+    return next
+  })
   const T = (key: Parameters<typeof tr>[1], vars?: Record<string, string | number>) => tr(lang, key, vars)
   const [finder, setFinder] = useState<Finder | null>(null)
   const [menu, setMenu] = useState('ITEM')
@@ -84,6 +117,7 @@ export function App() {
     setPane(p)
     if (p === 'shell' && root) setShells(was => (was.includes(root) ? was : [...was, root]))
   }
+  const calendarOut = Boolean(shown.floats.calendar)
   const [changes, setChanges] = useState<Change[]>([])
   const refreshGit = useCallback(async () => setChanges(root ? await api.status(root) : []), [root])
   useEffect(() => {
@@ -96,10 +130,10 @@ export function App() {
     if (!root) return
     if (menu === 'SKILL') api.skills().then(setSkills)
     if (menu === 'EQUIP') api.equip(root).then(setEquip)
-    if (menu === 'AGENT' || menu === 'CALENDAR') api.sessions(root).then(setSessions)
+    if (menu === 'AGENT' || menu === 'CALENDAR' || calendarOut) api.sessions(root).then(setSessions)
     if (menu === 'STATUS') refreshGit()
     if (menu === 'QUEST') (setQuests(null), api.search(root, 'TODO').then(setQuests))
-  }, [menu, root])
+  }, [menu, root, calendarOut])
   const say = (text: string) => {
     api.pty.write(`claude:${root}`, typed(text))
     showPane('claude')
@@ -221,6 +255,7 @@ export function App() {
   // Keys 1-9 and Enter pick a project while the picker is open, like the MENU pane's switcher.
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      if (draft) return // edit mode owns the keyboard
       const mod = e.metaKey || e.ctrlKey
       if (mod && !e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault()
@@ -241,7 +276,38 @@ export function App() {
     }
     window.addEventListener('keydown', key, true) // capture: before Monaco and xterm take the keys
     return () => window.removeEventListener('keydown', key, true)
-  }, [picker, projects, open])
+  }, [picker, projects, open, draft])
+
+  // The workspace in pixels: only edit mode and widget minimums need it; the panels themselves are percentages.
+  useLayoutEffect(() => {
+    const measure = () => {
+      const top = document.querySelector('.top')?.getBoundingClientRect().height ?? 0
+      const hud = document.querySelector('.hud')?.getBoundingClientRect().height ?? 0
+      setWs({ w: window.innerWidth, h: window.innerHeight - top - hud, top })
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [theme])
+
+  const startEdit = () => {
+    (document.activeElement as HTMLElement | null)?.blur() // or the arrow keys would also reach the terminal
+    setSettings(false)
+    setDraft(layout)
+  }
+  const saveEdit = () => {
+    if (!draft) return
+    setLayout(draft)
+    try { localStorage.setItem('layout', JSON.stringify(draft)) } catch {}
+    setDraft(null)
+  }
+  const mainStyle = (id: MainId) => (shown.main ? rectStyle(shown.main[id]) : undefined)
+  // A widget stays where the app puts it until it is given a rect; then it floats above the panels.
+  const widget = (id: FloatId, node: ReactNode) => {
+    const r = shown.floats[id]
+    if (!r) return <div data-edit={id} style={{ display: 'contents' }}>{node}</div>
+    return floatHost && createPortal(<div className={`float float-${id}`} style={rectStyle(fitFloat(r, id, ws))}>{node}</div>, floatHost)
+  }
 
   // Quick open ranks on every key; search waits for a pause, since it reads every file.
   useEffect(() => {
@@ -308,8 +374,9 @@ export function App() {
     })
   }
 
+  const calendar = <Calendar now={now} sessions={sessions} day={day} onDay={setDay} onPick={resume} T={T} />
   return (
-    <div className={`app ${api.platform}`}>
+    <div className={`app ${api.platform} ${shown.main ? 'custom' : ''}`}>
       <header className="top">
         <span className="logo"><img src={THEMES[theme].logo} alt="" />EVOKE</span>
         <button className="project" onClick={() => setPicker(true)} title={`${MOD}O`}>
@@ -317,11 +384,12 @@ export function App() {
         </button>
         <span className="branch">{branch && `⎇ ${branch}`}</span>
         <button className="theme" onClick={nextTheme} title={T('theme')}><Cut label={THEMES[theme].label} ground="var(--sel)" /></button>
+        <button className="edit-open" onClick={startEdit} title={T('edit.open')}><Cut label="UI" ground="var(--chip)" /></button>
         <button className="gear" onClick={() => setSettings(true)} title={T('settings')} aria-label={T('settings')}>⚙</button>
-        <Clock now={now} />
+        {widget('clock', <Clock now={now} />)}
       </header>
 
-      <Pane menu={menu} onMenu={setMenu} usage={usage} now={now} hint={T(`hint.${menu}` as Parameters<typeof tr>[1])}>
+      <Pane menu={menu} onMenu={setMenu} usage={usage} now={now} hint={T(`hint.${menu}` as Parameters<typeof tr>[1])} style={mainStyle('pane')} wrapInfo={info => widget('info', info)}>
         {menu === 'ITEM' && root && <Tree key={root} dir={root} depth={0} onOpen={openFile} active={active} />}
         {menu === 'STATUS' && (changes.length ? changes.map(c => (
           <div key={c.path} className={`entry change ${active === `diff:${c.path}` ? 'on' : ''}`} onClick={() => openDiff(c.path)} title={relative(root, c.path)}>
@@ -361,7 +429,7 @@ export function App() {
             <div className="entry" onClick={openFolder}>{T('openOther')}</div>
           </>
         )}
-        {menu === 'CALENDAR' && <Calendar now={now} sessions={sessions} day={day} onDay={setDay} onPick={resume} talks={n => T('talks', { n })} />}
+        {menu === 'CALENDAR' && (calendarOut ? <div className="entry quiet">{T('calendarFloating')}</div> : widget('calendar', calendar))}
         {menu === 'SYSTEM' && (
           <>
             <div className="group">{T('theme')}</div>
@@ -374,7 +442,7 @@ export function App() {
         )}
       </Pane>
 
-      <main className="center">
+      <main className="center" style={mainStyle('center')}>
         <nav className="tabs">
           {tabs.map(t => (
             <div key={t.path} className={`tab ${t.path === active ? 'on' : ''} ${t.preview ? 'preview' : ''}`} onClick={() => setActive(t.path)} onDoubleClick={() => openFile(t.path, undefined, 1, true)} title={t.preview ? `${T('preview')}: ${t.path}` : t.path}>
@@ -390,6 +458,7 @@ export function App() {
             language={langOf(tab.path)}
             theme={`evoke-${theme}`}
             beforeMount={defineThemes}
+            loading={<div className="state">{T('loading')}</div>}
             options={{ readOnly: true, renderSideBySide: true, fontFamily: 'Iosevka, Menlo, Consolas, monospace', fontSize: 13, minimap: { enabled: false } }}
           />
         ) : tab?.image !== undefined ? (
@@ -402,6 +471,7 @@ export function App() {
             theme={`evoke-${theme}`}
             beforeMount={defineThemes}
             onMount={onMount}
+            loading={<div className="state">{T('loading')}</div>}
             onChange={text => setTabs(ts => ts.map(t => (t.path === tab.path ? { ...t, text: text ?? '', preview: false } : t)))}
             options={{
               fontFamily: 'Iosevka, Menlo, Consolas, monospace', fontSize: 14, minimap: { enabled: true, renderCharacters: false, scale: 1 }, smoothScrolling: true, padding: { top: 12 },
@@ -429,13 +499,18 @@ export function App() {
         )}
       </main>
 
-      <section className="right">
+      <section className="right" style={mainStyle('right')}>
         <div className="head sides">
           <button onClick={() => showPane('claude')} className={pane === 'claude' ? 'on' : ''}><Cut label="CLAUDE" ground={pane === 'claude' ? 'var(--edge)' : 'var(--mid)'} /></button>
           <button onClick={() => showPane('shell')} className={pane === 'shell' ? 'on' : ''}><Cut label="SHELL" ground={pane === 'shell' ? 'var(--edge)' : 'var(--mid)'} /></button>
+          <span className="tools">
+            <button onClick={() => setTerm({ size: termPrefs.size - 1 })} title={T('term.smaller')} aria-label={T('term.smaller')}><Cut label="A-" ground="var(--mid)" /></button>
+            <button onClick={() => setTerm({ size: termPrefs.size + 1 })} title={T('term.larger')} aria-label={T('term.larger')}><Cut label="A+" ground="var(--mid)" /></button>
+            <button onClick={() => TERMS.get(`${pane}:${root}`)?.clear()} title={T('term.clear')} aria-label={T('term.clear')}><Cut label="CLEAR" ground="var(--mid)" /></button>
+          </span>
         </div>
-        {opened.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} endedLabel={code => T('ended', { code })} />)}
-        {shells.map(path => <Claude key={`shell:${path}`} kind="shell" cwd={path} on={pane === 'shell' && path === root} theme={theme} endedLabel={code => T('ended', { code })} />)}
+        {opened.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+        {shells.map(path => <Claude key={`shell:${path}`} kind="shell" cwd={path} on={pane === 'shell' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
       </section>
 
       {/* The status band, as above the terminal's prompt. */}
@@ -445,6 +520,8 @@ export function App() {
         <span className="quiet">{T('changes', { n: changes.length })}</span>
         {!usage && <span className="quiet usd">{T('noUsage')}</span>}
       </footer>
+      <div className="floats" ref={setFloatHost} />
+      {calendarOut && widget('calendar', calendar)}
       {toast && <div className="toast" role="alert"><Mask /><Cut label="ALERT" /> {toast}</div>}
 
       {finder && (
@@ -484,13 +561,43 @@ export function App() {
         <div className="picker" onClick={() => setSettings(false)}>
           <div className="sheet settings" onClick={e => e.stopPropagation()}>
             <div className="head"><Cut label="SETTINGS" /> {T('settings')}</div>
-            <div className="group">{T('theme')}</div>
-            {THEME_NAMES.map(t => <button key={t} className={`row ${t === theme ? 'on' : ''}`} onClick={() => setTheme(t)}><b>◆</b> {THEMES[t].label}</button>)}
-            <div className="group">{T('language')}</div>
-            {UI_LANGS.map(l => <button key={l.id} className={`row ${l.id === lang ? 'on' : ''}`} onClick={() => setLang(l.id)}><b>◆</b> {l.label}</button>)}
+            <nav className="set-tabs">
+              {(['general', 'appearance', 'keys', 'terminal'] as const).map(k => (
+                <button key={k} className={settingsTab === k ? 'on' : ''} onClick={() => setSettingsTab(k)}>{k === 'keys' ? T('keys') : T(`tab.${k}`)}</button>
+              ))}
+            </nav>
+            {settingsTab === 'general' && (
+              <>
+                <div className="group">{T('language')}</div>
+                {UI_LANGS.map(l => <button key={l.id} className={`row ${l.id === lang ? 'on' : ''}`} onClick={() => setLang(l.id)}><b>◆</b> {l.label}</button>)}
+              </>
+            )}
+            {settingsTab === 'appearance' && (
+              <>
+                <div className="group">{T('theme')}</div>
+                {THEME_NAMES.map(t => <button key={t} className={`row ${t === theme ? 'on' : ''}`} onClick={() => setTheme(t)}><b>◆</b> {THEMES[t].label}</button>)}
+                <div className="group">{T('edit.title')}</div>
+                <button className="row" onClick={startEdit}><b>▸</b> {T('edit.open')}</button>
+              </>
+            )}
+            {settingsTab === 'keys' && (['P', 'F', 'S', 'L', 'O'] as const).map(k => <div key={k} className="row"><b className="key">{MOD}{k === 'F' ? '⇧F' : k}</b> {T(`key.${k}`)}</div>)}
+            {settingsTab === 'terminal' && (
+              <>
+                <div className="row"><b>◆</b> {T('term.size')}
+                  <span className="stepper">
+                    <button onClick={() => setTerm({ size: termPrefs.size - 1 })} aria-label={T('term.smaller')}>−</button>
+                    <output>{termPrefs.size}</output>
+                    <button onClick={() => setTerm({ size: termPrefs.size + 1 })} aria-label={T('term.larger')}>+</button>
+                  </span>
+                </div>
+                <button className={`row ${termPrefs.blink ? 'on' : ''}`} aria-pressed={termPrefs.blink} onClick={() => setTerm({ blink: !termPrefs.blink })}><b>◆</b> {T('term.blink')}</button>
+              </>
+            )}
           </div>
         </div>
       )}
+
+      {draft && <LayoutEdit value={draft} onChange={setDraft} ws={ws} top={ws.top} onSave={saveEdit} onCancel={() => setDraft(null)} T={T} />}
 
       {picker && (
         <div className="picker" onClick={() => setPicker(false)}>
@@ -517,7 +624,7 @@ function Tree({ dir, depth, onOpen, active }: { dir: string; depth: number; onOp
   useEffect(() => {
     api.list(dir).then(setItems, () => setItems([]))
   }, [dir])
-  if (!items) return null
+  if (!items) return depth ? null : <div className="state">{tr(storedLang(), 'loading')}</div>
   return (
     <>
       {items.map(e => (
@@ -538,7 +645,7 @@ function Tree({ dir, depth, onOpen, active }: { dir: string; depth: number; onOp
 }
 
 // One terminal per project and kind, kept alive while hidden so switching never ends a session.
-function Claude({ kind, cwd, on, theme, resume, endedLabel }: { kind: 'claude' | 'shell'; cwd: string; on: boolean; theme: ThemeName; resume?: string; endedLabel: (code: number) => string }) {
+function Claude({ kind, cwd, on, theme, prefs, resume, endedLabel }: { kind: 'claude' | 'shell'; cwd: string; on: boolean; theme: ThemeName; prefs: TermPrefs; resume?: string; endedLabel: (code: number) => string }) {
   const id = `${kind}:${cwd}`
   const box = useRef<HTMLDivElement>(null)
   const fit = useRef<FitAddon>()
@@ -549,12 +656,13 @@ function Claude({ kind, cwd, on, theme, resume, endedLabel }: { kind: 'claude' |
   useEffect(() => {
     const term = new Terminal({
       fontFamily: 'Iosevka, Menlo, monospace',
-      fontSize: 13,
-      cursorBlink: true,
+      fontSize: prefs.size,
+      cursorBlink: prefs.blink,
       allowTransparency: true,
       theme: { ...THEMES[theme].xterm },
     })
     xterm.current = term
+    TERMS.set(id, term)
     const f = new FitAddon()
     fit.current = f
     term.loadAddon(f)
@@ -572,6 +680,7 @@ function Claude({ kind, cwd, on, theme, resume, endedLabel }: { kind: 'claude' |
       seen.disconnect()
       offData()
       offExit()
+      TERMS.delete(id)
       term.dispose()
     }
   }, [id, run])
@@ -584,6 +693,13 @@ function Claude({ kind, cwd, on, theme, resume, endedLabel }: { kind: 'claude' |
     if (on) requestAnimationFrame(() => fit.current?.fit())
   }, [on])
 
+  useEffect(() => {
+    if (!xterm.current) return
+    xterm.current.options.fontSize = prefs.size
+    xterm.current.options.cursorBlink = prefs.blink
+    if (box.current?.offsetParent) fit.current?.fit()
+  }, [prefs])
+
   return (
     <div className={`claude ${on ? 'on' : ''}`}>
       <div ref={box} className="term" />
@@ -594,34 +710,66 @@ function Claude({ kind, cwd, on, theme, resume, endedLabel }: { kind: 'claude' |
   )
 }
 
-// CALENDAR: this month, with a mark on each day you talked to Claude in this project.
-function Calendar({ now, sessions, day, onDay, onPick, talks }: { now: number; sessions: { id: string; title: string; mtime: number }[]; day: string | null; onDay: (d: string) => void; onPick: (id: string) => void; talks: (n: number) => string }) {
-  const d = new Date(now)
+// CALENDAR: month, week or day, with a mark on each day you talked to Claude in this project.
+function Calendar({ now, sessions, day, onDay, onPick, T }: { now: number; sessions: { id: string; title: string; mtime: number }[]; day: string | null; onDay: (d: string) => void; onPick: (id: string) => void; T: (key: any, vars?: any) => string }) {
+  const [view, setView] = useState<'month' | 'week' | 'day'>('month')
+  const [at, setAt] = useState(now)
+  const d = new Date(at)
   const y = d.getFullYear()
   const m = d.getMonth()
   const keyOf = (t: number) => new Date(t).toDateString()
+  const today = keyOf(now)
   const count = new Map<string, number>()
   for (const s of sessions) count.set(keyOf(s.mtime), (count.get(keyOf(s.mtime)) ?? 0) + 1)
   const first = new Date(y, m, 1).getDay()
   const days = new Date(y, m + 1, 0).getDate()
-  const picked = sessions.filter(s => keyOf(s.mtime) === day)
+  const pick = (k: string) => (onDay(k), setAt(new Date(k).getTime()))
+  const shown = view === 'day' ? keyOf(at) : day
+  const picked = sessions.filter(s => keyOf(s.mtime) === shown).sort((a, b) => a.mtime - b.mtime)
+  const week = weekOf(at)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const label = view === 'month' ? `${y}.${pad(m + 1)}` : view === 'week' ? `${pad(new Date(week[0]).getMonth() + 1)}.${pad(new Date(week[0]).getDate())} – ${pad(new Date(week[6]).getMonth() + 1)}.${pad(new Date(week[6]).getDate())}` : `${y}.${pad(m + 1)}.${pad(d.getDate())} ${DAYS[d.getDay()]}`
   return (
     <div className="calendar">
-      <div className="group">{y}.{String(m + 1).padStart(2, '0')}</div>
-      <div className="month">
-        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((w, i) => <i key={i}>{w}</i>)}
-        {Array.from({ length: first }, (_, i) => <span key={`x${i}`} />)}
-        {Array.from({ length: days }, (_, i) => {
-          const k = new Date(y, m, i + 1).toDateString()
-          const n = count.get(k) ?? 0
-          return (
-            <button key={k} className={`${n ? 'has' : ''} ${k === day ? 'on' : ''} ${k === d.toDateString() ? 'today' : ''}`} onClick={() => onDay(k)} title={n ? talks(n) : ''}>
-              {i + 1}
-            </button>
-          )
-        })}
+      <div className="cal-bar">
+        <button onClick={() => setAt(stepDate(at, view, -1))} aria-label="previous">‹</button>
+        <b>{label}</b>
+        <button onClick={() => setAt(stepDate(at, view, 1))} aria-label="next">›</button>
+        <button className="today-btn" onClick={() => (setAt(now), onDay(today))}>{T('today')}</button>
+        <span className="views">
+          {(['month', 'week', 'day'] as const).map(v => <button key={v} className={v === view ? 'on' : ''} onClick={() => setView(v)}>{v.toUpperCase()}</button>)}
+        </span>
       </div>
-      {picked.map(s => <div key={s.id} className="entry" onClick={() => onPick(s.id)}>▸ {s.title || new Date(s.mtime).toLocaleTimeString()}</div>)}
+      {view === 'month' && (
+        <div className="month">
+          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((w, i) => <i key={i}>{w}</i>)}
+          {Array.from({ length: first }, (_, i) => <span key={`x${i}`} />)}
+          {Array.from({ length: days }, (_, i) => {
+            const k = new Date(y, m, i + 1).toDateString()
+            const n = count.get(k) ?? 0
+            return (
+              <button key={k} className={`${n ? 'has' : ''} ${k === day ? 'on' : ''} ${k === today ? 'today' : ''}`} onClick={() => pick(k)} title={n ? T('talks', { n }) : ''}>
+                {i + 1}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      {view === 'week' && (
+        <div className="week">
+          {week.map(t => {
+            const k = keyOf(t)
+            const n = count.get(k) ?? 0
+            return (
+              <button key={k} className={`${n ? 'has' : ''} ${k === day ? 'on' : ''} ${k === today ? 'today' : ''}`} onClick={() => pick(k)}>
+                <b>{DAYS[new Date(t).getDay()]}</b> {new Date(t).getDate()} <span className="quiet">{n ? T('talks', { n }) : ''}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+      {picked.map(s => <div key={s.id} className="entry" onClick={() => onPick(s.id)}>▸ {new Date(s.mtime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {s.title || T('untitled')}</div>)}
+      {view === 'day' && !picked.length && <div className="entry quiet">{T('noSessions')}</div>}
     </div>
   )
 }

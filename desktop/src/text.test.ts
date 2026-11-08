@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert'
-import { promptVars, iconOf, isImage } from './text.ts'
+import { promptVars, iconOf, isImage, stepDate, weekOf } from './text.ts'
 import { STRINGS, langFrom, tr } from './i18n.ts'
 
 test('promptVars finds each {{ }} variable with its offsets', () => {
@@ -29,6 +29,20 @@ test('iconOf names a file by its kind, folders apart', () => {
 test('isImage knows the formats the preview can show', () => {
   assert.ok(isImage('a/b.png') && isImage('x.SVG') && isImage('y.webp'))
   assert.ok(!isImage('a.ts'))
+})
+
+test('weekOf is seven days from Sunday, across a month end', () => {
+  const w = weekOf(new Date(2026, 10, 30, 15).getTime()).map(t => new Date(t))
+  assert.strictEqual(w.length, 7)
+  assert.strictEqual(w[0].getDay(), 0)
+  assert.deepStrictEqual([w[0].getDate(), w[6].getMonth(), w[6].getDate()], [29, 11, 5])
+})
+
+test('stepDate moves by the view, and months do not skip from the 31st', () => {
+  const jan31 = new Date(2026, 0, 31).getTime()
+  assert.strictEqual(new Date(stepDate(jan31, 'month', 1)).getMonth(), 1)
+  assert.strictEqual(new Date(stepDate(jan31, 'week', 1)).getDate(), 7)
+  assert.strictEqual(new Date(stepDate(jan31, 'day', -1)).getDate(), 30)
 })
 
 test('every string exists in English, Korean and Japanese', () => {

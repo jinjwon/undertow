@@ -1,3 +1,4 @@
+import { Component, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
@@ -9,6 +10,7 @@ import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 import '@xterm/xterm/css/xterm.css'
 import './style.css'
 import { App } from './App'
+import { langFrom, tr } from './i18n'
 
 // Monaco from the bundle, not a CDN: the app runs offline and under a strict CSP.
 // Language workers give completion, errors and formatting for TS/JS, JSON, CSS and HTML without extensions.
@@ -22,4 +24,21 @@ for (const d of [ts.typescriptDefaults, ts.javascriptDefaults]) {
 }
 loader.config({ monaco })
 
-createRoot(document.getElementById('root')!).render(<App />)
+// A render error must leave a way back, not a blank window. Retry remounts rather than reloads: the window refuses navigation.
+class Boundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) { return { error } }
+  render() {
+    if (!this.state.error) return this.props.children
+    const lang = langFrom(navigator.language)
+    return (
+      <div className="state-error" role="alert">
+        <h1>{tr(lang, 'error.title')}</h1>
+        <pre>{this.state.error.message}</pre>
+        <button onClick={() => this.setState({ error: null })}>{tr(lang, 'error.retry')}</button>
+      </div>
+    )
+  }
+}
+
+createRoot(document.getElementById('root')!).render(<Boundary><App /></Boundary>)

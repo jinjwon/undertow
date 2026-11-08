@@ -24,3 +24,13 @@ export const iconOf = (name: string, dir: boolean) => {
 }
 
 export const isImage = (path: string) => /\.(png|jpe?g|gif|svg|webp)$/i.test(path)
+
+// The calendar's weeks start on Sunday, as its month grid does. Built from y/m/d so a daylight-saving day still lands on the right date.
+export const weekOf = (t: number) => {
+  const d = new Date(t)
+  return Array.from({ length: 7 }, (_, i) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay() + i).getTime())
+}
+export const stepDate = (t: number, view: 'month' | 'week' | 'day', n: number) => {
+  const d = new Date(t)
+  return view === 'month' ? new Date(d.getFullYear(), d.getMonth() + n, 1).getTime() : new Date(d.getFullYear(), d.getMonth(), d.getDate() + n * (view === 'week' ? 7 : 1)).getTime()
+}
