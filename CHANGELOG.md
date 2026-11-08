@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.1.1 - 2026-11-08
+
+### Added
+
+- New 16:9 backgrounds for both themes, drawn for this app: a blue-hour clock tower for TIDE, red slashes, halftone and a skyline for REBEL. The centre stays dark so code stays readable.
+
+### Changed
+
+- Logos cropped per theme with rounded corners. The Dock icon follows Apple's icon grid, so it sits level with its neighbours.
+- TIDE's app icon redrawn as a tilted terminal over white and blue menu panels. The vector source is `assets/icon-p3r.svg`, and the two PNGs are 71% smaller.
+- Smaller downloads: macOS 146 MB to 114 MB, Windows 175 MB to 146 MB. The app no longer ships packages already bundled into it, and carries only the English, Korean and Japanese language files.
+
+### Security
+
+- macOS builds are ad-hoc signed, so a downloaded copy is no longer reported as damaged.
+- Electron fuses: no running as plain Node, no `NODE_OPTIONS`, no Node inspector flags, app code loads only from the archive.
+- The window refuses permission requests (camera, microphone, location), and the content policy now blocks plugins, `<base>` rewriting and form posts.
+
 ## 2.1.0 - 2026-11-08
 
 ### Added

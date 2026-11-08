@@ -216,7 +216,8 @@ ipcMain.on('pty:kill', (_, id) => terms.get(id)?.kill())
 
 // The Dock (macOS) and taskbar (Windows) icon follow the theme, so the app looks like the window it opens.
 const THEME_ICONS = ['tide', 'rebel']
-const iconOf = theme => path.join(app.isPackaged ? process.resourcesPath : path.join(__dirname, '..', 'assets'), `logo-${theme}.png`)
+// The Dock wants Apple's icon grid (margins included); the Windows taskbar wants the tile edge to edge.
+const iconOf = theme => path.join(app.isPackaged ? process.resourcesPath : path.join(__dirname, '..', 'assets'), `${process.platform === 'darwin' ? 'icon' : 'logo'}-${theme}.png`)
 ipcMain.on('theme:set', (_, theme) => {
   if (!THEME_ICONS.includes(theme)) return
   if (process.platform === 'darwin') app.dock?.setIcon(iconOf(theme))
@@ -235,6 +236,7 @@ app.whenReady().then(() => {
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true },
   })
   // The page is local and never navigates: no new windows, no leaving index.html.
+  win.webContents.session.setPermissionRequestHandler((_wc, _permission, answer) => answer(false)) // no camera, mic, location
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('will-navigate', e => e.preventDefault())
   win.loadFile(path.join(__dirname, 'dist', 'index.html'))

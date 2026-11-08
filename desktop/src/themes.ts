@@ -47,6 +47,7 @@ export const defineThemes = (monaco: any) => {
       ],
       colors: {
         'editor.background': '#00000000',
+        'minimap.background': '#00000000',
         'editor.foreground': c.fg,
         'editor.lineHighlightBackground': c.line,
         'editor.selectionBackground': c.select,

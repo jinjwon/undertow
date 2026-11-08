@@ -1,7 +1,7 @@
 {
   "name": "evoke-desktop",
   "productName": "Evoke",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "private": true,
   "description": "Evoke as a desktop editor: files, Monaco, and Claude Code side by side.",
   "author": "jinjwon",
@@ -10,7 +10,7 @@
     "postinstall": "node -e \"for (const a of ['arm64','x64']) try { require('fs').chmodSync('node_modules/node-pty/prebuilds/darwin-'+a+'/spawn-helper', 0o755) } catch {}\"",
     "build": "vite build",
     "start": "vite build && electron .",
-    "dist:mac": "vite build && electron-builder --mac",
+    "dist:mac": "vite build && electron-builder --mac dir && sh sign-mac.sh",
     "dist:win": "vite build && electron-builder --win",
     "dist:win:zip": "vite build && electron-builder --win zip --x64",
     "test": "node --test paths.test.cjs match.test.cjs src/text.test.ts"
@@ -35,15 +35,25 @@
       "output": "release"
     },
     "mac": {
-      "icon": "../assets/icon.png",
+      "icon": "../assets/icon-tide.png",
       "target": "dmg",
       "category": "public.app-category.developer-tools",
       "files": [
         "!node_modules/node-pty/prebuilds/win32-*/**"
+      ],
+      "extraResources": [
+        {
+          "from": "../assets/icon-tide.png",
+          "to": "icon-tide.png"
+        },
+        {
+          "from": "../assets/icon-rebel.png",
+          "to": "icon-rebel.png"
+        }
       ]
     },
     "win": {
-      "icon": "../assets/icon.png",
+      "icon": "../assets/logo-tide.png",
       "target": [
         {
           "target": "nsis",
@@ -55,6 +65,16 @@
       "files": [
         "!node_modules/node-pty/prebuilds/darwin-*/**",
         "!node_modules/node-pty/prebuilds/win32-arm64/**"
+      ],
+      "extraResources": [
+        {
+          "from": "../assets/logo-tide.png",
+          "to": "logo-tide.png"
+        },
+        {
+          "from": "../assets/logo-rebel.png",
+          "to": "logo-rebel.png"
+        }
       ]
     },
     "nsis": {
@@ -65,30 +85,32 @@
       "shortcutName": "Evoke",
       "artifactName": "Evoke-Setup-${version}.${ext}"
     },
-    "extraResources": [
-      {
-        "from": "../assets/logo-tide.png",
-        "to": "logo-tide.png"
-      },
-      {
-        "from": "../assets/logo-rebel.png",
-        "to": "logo-rebel.png"
-      }
-    ]
+    "electronLanguages": [
+      "en",
+      "ko",
+      "ja"
+    ],
+    "compression": "maximum",
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "onlyLoadAppFromAsar": true
+    }
   },
   "dependencies": {
-    "@monaco-editor/react": "^4.6.0",
-    "@xterm/addon-fit": "^0.10.0",
-    "@xterm/xterm": "^5.5.0",
-    "monaco-editor": "^0.52.0",
-    "node-pty": "^1.1.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
+    "@monaco-editor/react": "^4.6.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
     "electron": "^45.2.3",
     "electron-builder": "^26.18.0",
+    "monaco-editor": "^0.52.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "vite": "^6.4.5"
   }
 }
