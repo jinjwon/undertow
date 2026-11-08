@@ -16,6 +16,7 @@ From [Releases](https://github.com/jinjwon/undertow/releases/latest):
 | --- | --- | --- |
 | macOS (Apple silicon) | `Evoke-<version>-arm64.dmg` | Open it and drag Evoke to Applications |
 | Windows (x64) | `Evoke-Setup-<version>.exe` | Run it: it adds Start menu and desktop shortcuts |
+| Windows, portable | `Evoke-<version>-win-x64.zip` | Unzip anywhere and run `Evoke.exe` |
 
 You need [Claude Code](https://docs.claude.com/en/docs/claude-code) installed and signed in. Nothing else.
 

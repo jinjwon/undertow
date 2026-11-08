@@ -16,6 +16,7 @@
 | --- | --- | --- |
 | macOS (Apple 실리콘) | `Evoke-<버전>-arm64.dmg` | 열어서 Evoke를 응용 프로그램 폴더로 끌어 놓습니다 |
 | Windows (x64) | `Evoke-Setup-<버전>.exe` | 실행하면 시작 메뉴와 바탕화면 바로가기가 생깁니다 |
+| Windows, 설치 없이 | `Evoke-<버전>-win-x64.zip` | 아무 곳에나 압축을 풀고 `Evoke.exe` 실행 |
 
 [Claude Code](https://docs.claude.com/ko/docs/claude-code)가 설치되어 로그인되어 있어야 합니다. 그 밖에는 필요 없습니다.
 
