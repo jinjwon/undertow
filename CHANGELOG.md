@@ -9,6 +9,7 @@
 ### Changed
 
 - Logos cropped per theme with rounded corners. The Dock icon follows Apple's icon grid, so it sits level with its neighbours.
+- TIDE's app icon redrawn as a tilted terminal over white and blue menu panels. The vector source is `assets/icon-p3r.svg`, and the two PNGs are 72% smaller.
 - Smaller downloads: macOS 146 MB to 114 MB, Windows 175 MB to 146 MB. The app no longer ships packages already bundled into it, and carries only the English, Korean and Japanese language files.
 
 ### Security
