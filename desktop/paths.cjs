@@ -19,4 +19,14 @@ const latestUsage = files =>
     })
     .find(Boolean) ?? null
 
-module.exports = { inside, latestUsage }
+// Projects Claude Code already trusts, from ~/.claude.json: the only folders the window may open without the folder dialog.
+const trusted = json => {
+  try {
+    const known = JSON.parse(json).projects ?? {}
+    return new Set(Object.keys(known).filter(p => known[p]?.hasTrustDialogAccepted).map(p => path.resolve(p).normalize('NFC')))
+  } catch {
+    return new Set()
+  }
+}
+
+module.exports = { inside, latestUsage, trusted }

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.8.0 - 2026-11-08
+
+### Added
+
+- A logo per theme: the blue clock tower for TIDE, the masked terminal for REBEL. TIDE's is the app icon.
+- REBEL has its own interface now: ransom-note headings, white slabs with red shadows for selection, a tilted date card, and a halftone corner.
+
+### Security
+
+- The window can only open folders Claude Code already trusts or that you chose in the folder dialog. Before, a bug in the page could have opened any folder.
+- File access follows symlinks to their real path, so a link inside a project cannot read or write a file outside it.
+- The page runs sandboxed and cannot open new windows or navigate away.
+
 ## 1.7.0 - 2026-11-08
 
 ### Added

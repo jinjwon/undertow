@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { inside, latestUsage } = require('./paths.cjs')
+const { inside, latestUsage, trusted } = require('./paths.cjs')
 
 test('inside keeps paths within the project', () => {
   assert.ok(inside('/a/proj', '/a/proj'))
@@ -19,4 +19,10 @@ test('latestUsage takes the newest file that has usage', () => {
   ]
   assert.deepStrictEqual(latestUsage(files), { context: 40 })
   assert.strictEqual(latestUsage([]), null)
+})
+
+test('trusted lists only projects whose trust dialog was accepted', () => {
+  const json = JSON.stringify({ projects: { '/a/ok': { hasTrustDialogAccepted: true }, '/a/no': {}, '/a/false': { hasTrustDialogAccepted: false } } })
+  assert.deepStrictEqual([...trusted(json)], ['/a/ok'])
+  assert.strictEqual(trusted('not json').size, 0)
 })

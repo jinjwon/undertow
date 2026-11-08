@@ -59,7 +59,7 @@ Evoke 디자인의 에디터 창입니다. 파일 트리, Monaco 에디터, 오�
 
 **다운로드**: [Releases](https://github.com/jinjwon/undertow/releases/latest)에서 Apple 실리콘 Mac은 `Evoke-<버전>-arm64.dmg`, Windows는 `Evoke-<버전>-win-x64.zip`(압축을 풀고 `Evoke.exe` 실행)을 받습니다.
 
-테마는 두 가지이고 오른쪽 위 칩으로 바꿉니다. **TIDE**는 심해 파랑(기본), **REBEL**은 빨강과 검정입니다. 테마 하나는 `desktop/src/themes.ts`의 항목 하나와 `desktop/src/style.css`의 블록 하나입니다.
+테마는 두 가지이고 오른쪽 위 칩으로 바꿉니다. 테마마다 로고가 다릅니다. **TIDE**는 심해 파랑(기본), **REBEL**은 빨강과 검정에 랜섬 노트 제목입니다. 테마 하나는 `desktop/src/themes.ts`의 항목 하나와 `desktop/src/style.css`의 블록 하나입니다.
 
 직접 빌드하려면:
 

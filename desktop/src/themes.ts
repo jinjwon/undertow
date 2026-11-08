@@ -1,8 +1,12 @@
 // The looks the window can wear. CSS reads the vars; Monaco and xterm get their own colours from the same entry.
 // A new theme is one more entry here plus its block in style.css (background, selection shape).
+import tideLogo from '../../assets/logo-tide.png'
+import rebelLogo from '../../assets/logo-rebel.png'
+
 export const THEMES = {
   tide: {
     label: 'TIDE',
+    logo: tideLogo,
     xterm: { background: '#00000000', foreground: '#D6F4FF', cursor: '#5FE3FF', selectionBackground: '#1546E0', red: '#E8101E', cyan: '#5FE3FF', blue: '#1546E0', magenta: '#FF2E88' },
     monaco: {
       rules: { comment: '8A96B8', keyword: '5FE3FF', string: 'FFB3D1', number: 'FF2E88', type: 'D6F4FF' },
@@ -11,6 +15,7 @@ export const THEMES = {
   },
   rebel: {
     label: 'REBEL',
+    logo: rebelLogo,
     xterm: { background: '#00000000', foreground: '#F5F5F5', cursor: '#FF1A2D', selectionBackground: '#8A0010', red: '#FF1A2D', cyan: '#F5F5F5', blue: '#FF1A2D', magenta: '#FFE500' },
     monaco: {
       rules: { comment: '7A7A7A', keyword: 'FF1A2D', string: 'FFD6D6', number: 'FFE500', type: 'FFFFFF' },

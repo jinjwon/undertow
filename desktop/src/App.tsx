@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import logo from '../../assets/logo.svg'
 import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
 import { baseName, gauge, lastUsedOf, projectsOf, rankProjects, untilReset } from '../../plugins/evoke/hooks/data'
 
@@ -28,7 +27,8 @@ const stored = (): ThemeName => {
 const relative = (root: string, path: string) => path.slice(root.length).replace(/^[\\/]/, '')
 
 const Cut = ({ label, ground = 'var(--chip)', ink = 'var(--chip-ink)' }: { label: string; ground?: string; ink?: string }) => (
-  <span className="cut" style={{ background: ground, color: ink }}>{label}</span>
+  // One span per letter: REBEL cuts the label up like a ransom note; TIDE ignores them.
+  <span className="cut" style={{ background: ground, color: ink }} aria-label={label}>{[...label].map((c, i) => <span key={i}>{c}</span>)}</span>
 )
 
 export function App() {
@@ -154,7 +154,7 @@ export function App() {
   return (
     <div className={`app ${api.platform}`}>
       <header className="top">
-        <span className="logo"><img src={logo} alt="" />EVOKE</span>
+        <span className="logo"><img src={THEMES[theme].logo} alt="" />EVOKE</span>
         <button className="project" onClick={() => setPicker(true)} title={`${MOD}O`}>
           <Cut label="PROJECT" /> {root ? baseName(root) : '프로젝트를 고른다'}
         </button>
@@ -190,7 +190,7 @@ export function App() {
           />
         ) : (
           <div className="empty">
-            <img className="mark" src={logo} alt="Evoke" />
+            <img className="mark" src={THEMES[theme].logo} alt="Evoke" />
             <div className="big">EVOKE</div>
             <p>파일을 고르면 열린다 · {MOD}S 저장 · {MOD}L 선택을 Claude에게 · {MOD}O 프로젝트</p>
           </div>

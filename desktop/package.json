@@ -1,7 +1,7 @@
 {
   "name": "evoke-desktop",
   "productName": "Evoke",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "private": true,
   "description": "Evoke as a desktop editor: files, Monaco, and Claude Code side by side.",
   "author": "jinjwon",
@@ -34,12 +34,12 @@
       "output": "release"
     },
     "mac": {
-      "icon": "../assets/logo.png",
+      "icon": "../assets/icon.png",
       "target": "dmg",
       "category": "public.app-category.developer-tools"
     },
     "win": {
-      "icon": "../assets/logo.png",
+      "icon": "../assets/icon.png",
       "target": [
         {
           "target": "nsis",

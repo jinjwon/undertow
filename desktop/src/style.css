@@ -10,16 +10,49 @@
   --shimmer: #5FE3FF14; --big: #13257A;
 }
 [data-theme='rebel'] {
-  --ground: #0A0A0A repeating-linear-gradient(-30deg, #0A0A0A 0 46px, #140405 46px 92px);
-  --plate: #000000E6; --panel: #000000B3; --page: #0D0D0D99; --deep: #000000CC; --ink: #000000;
-  --line: #2A2A2A; --mid: #2A2A2A; --sel: #FF1A2D; --hi: #FFFFFF; --text: #F5F5F5; --gray: #8C8C8C;
+  /* Red slashes over black, with a halftone fade in the corner, as on a calling card. */
+  --ground: linear-gradient(158deg, #D10014 0 14%, #0A0A0A 14% 78%, #D10014 78%) fixed;
+  --plate: #000000F0; --panel: #000000D9; --page: #0A0A0AE6; --deep: #000000E6; --ink: #000000;
+  --line: #2A2A2A; --mid: #000000; --sel: #FF1A2D; --hi: #FFFFFF; --text: #F5F5F5; --gray: #8C8C8C;
   --chip: #FF1A2D; --chip-ink: #FFFFFF; --edge: #FFFFFF; --hot: #FFE500; --sel-ink: #000000;
-  --shimmer: #FF1A2D0F; --big: #FF1A2D;
+  --shimmer: transparent; --big: #FF1A2D;
 }
-[data-theme='rebel'] .cut[style*='--edge'] { color: #000 !important; } /* white chips need black ink */
-[data-theme='rebel'] .entry.on, [data-theme='rebel'] .row:hover, [data-theme='rebel'] .row:focus { background: #FFFFFF; color: #000; box-shadow: 6px 0 0 var(--sel); }
+[data-theme='rebel'] body::before {
+  inset: 0; animation: none;
+  background: radial-gradient(circle, #FF1A2D 0 36%, transparent 40%) 0 0 / 16px 16px;
+  -webkit-mask-image: linear-gradient(140deg, transparent 58%, #000 100%);
+}
+/* Ransom-note chips: each letter cut from a different page. */
+[data-theme='rebel'] .cut { background: none !important; clip-path: none; padding: 0 4px 0 0; letter-spacing: 0; }
+[data-theme='rebel'] .cut > span { display: inline-block; padding: 0 3px; margin-right: 1px; background: #FFFFFF; color: #000000; font: 900 15px Barlow, sans-serif; transform: rotate(-4deg); }
+[data-theme='rebel'] .cut > span:nth-child(2n) { background: #000000; color: #FFFFFF; outline: 1px solid #FFFFFF; font: 700 italic 14px Georgia, 'Times New Roman', serif; transform: rotate(5deg) translateY(1px); }
+[data-theme='rebel'] .cut > span:nth-child(3n) { background: #FF1A2D; color: #FFFFFF; font: 900 16px Impact, 'Arial Black', sans-serif; transform: rotate(-7deg) scale(1.08); }
+[data-theme='rebel'] .cut > span:nth-child(5n) { background: #FFFFFF; color: #FF1A2D; transform: rotate(3deg); }
+
+[data-theme='rebel'] .top { border-bottom: 0; box-shadow: 0 3px 0 #FF1A2D, 0 7px 0 #000000, 0 9px 0 #FFFFFF; }
+[data-theme='rebel'] .logo { color: #FFFFFF; text-shadow: 3px 3px 0 #FF1A2D; }
+[data-theme='rebel'] .logo img { border: 2px solid #FFFFFF; transform: rotate(-8deg); }
+[data-theme='rebel'] .head { background: linear-gradient(100deg, #FFFFFF 0 64%, transparent 64%); color: #000000; border-bottom: 3px solid #FF1A2D; }
+[data-theme='rebel'] .clock { background: #FFFFFF; color: #000000; padding: 0 14px; transform: rotate(-3deg) skewX(-10deg); box-shadow: 5px 5px 0 #FF1A2D; }
+[data-theme='rebel'] .clock b { color: #FF1A2D; }
+
+/* Selection: a white slab with a red shadow, knocked off true. */
+[data-theme='rebel'] .entry:hover { background: #FF1A2D33; }
+[data-theme='rebel'] .entry.on, [data-theme='rebel'] .row:hover, [data-theme='rebel'] .row:focus { background: #FFFFFF; color: #000000; font-weight: 700; box-shadow: 5px 4px 0 #FF1A2D; transform: translateX(8px) rotate(-1.5deg); }
+[data-theme='rebel'] .row:hover b, [data-theme='rebel'] .row:focus b { color: #FF1A2D; }
+[data-theme='rebel'] .tab { clip-path: none; }
+[data-theme='rebel'] .tab.on { background: #FFFFFF; color: #000000; box-shadow: 4px 4px 0 #FF1A2D; transform: rotate(-2deg); }
+
+[data-theme='rebel'] .empty .mark { width: 220px; border: 6px solid #FFFFFF; box-shadow: 14px 14px 0 #FF1A2D; transform: rotate(-7deg); }
 [data-theme='rebel'] .empty .big { color: transparent; -webkit-text-stroke: 3px var(--big); transform: rotate(-8deg) skewX(-6deg); }
-[data-theme='rebel'] .sheet { border: 3px solid #FFFFFF; box-shadow: 10px 10px 0 var(--sel); transform: rotate(-1.5deg) skewX(-4deg); }
+[data-theme='rebel'] .empty p { background: #000000; color: #FFFFFF; padding: 4px 12px; transform: rotate(-2deg); }
+[data-theme='rebel'] .sheet { border: 3px solid #FFFFFF; box-shadow: 12px 12px 0 #FF1A2D; transform: rotate(-1.5deg) skewX(-4deg); }
+[data-theme='rebel'] .right { border-left: 3px solid #FF1A2D; }
+[data-theme='rebel'] .hud { border-top: 2px solid #FF1A2D; }
+
+/* TIDE's art is a square painting: round it into an app icon. */
+.logo img, .empty .mark { border-radius: 6px; }
+.empty .mark { border-radius: 24px; box-shadow: 0 0 40px #5FE3FF33; }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }

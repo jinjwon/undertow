@@ -59,7 +59,7 @@ An editor window in the Evoke look: file tree, Monaco editor, and Claude Code on
 
 **Download** from [Releases](https://github.com/jinjwon/undertow/releases/latest): `Evoke-<version>-arm64.dmg` for Apple silicon Macs, `Evoke-<version>-win-x64.zip` for Windows (unzip, run `Evoke.exe`).
 
-Two themes, switched with the chip at the top right: **TIDE**, deep-sea blue (default), and **REBEL**, red and black. A theme is one entry in `desktop/src/themes.ts` plus one block in `desktop/src/style.css`.
+Two themes, switched with the chip at the top right, each with its own logo: **TIDE**, deep-sea blue (default), and **REBEL**, red and black with ransom-note headings. A theme is one entry in `desktop/src/themes.ts` plus one block in `desktop/src/style.css`.
 
 To build it yourself:
 
