@@ -5,7 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { execFile } = require('node:child_process')
 const pty = require('node-pty')
-const { inside, latestUsage, trusted } = require('./paths.cjs')
+const { inside, latestUsage, trusted, isSessionId, slugOf, titleOf } = require('./paths.cjs')
 const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
 
 const home = os.homedir()
@@ -133,18 +133,43 @@ ipcMain.handle('usage:get', async () => {
   return latestUsage(files)
 })
 
-// Claude Code in a login shell, so it finds the same PATH as your terminal does when the app starts from Finder.
-ipcMain.handle('pty:spawn', async (_, id, cwd, cols, rows) => {
-  if (terms.has(id)) return
+// Past Claude Code sessions of a project, newest first, named by their first prompt.
+ipcMain.handle('sessions:list', async (_, root) => {
+  await guard(root)
+  const dir = path.join(home, '.claude', 'projects', slugOf(path.resolve(root)))
+  const names = (await fs.readdir(dir).catch(() => [])).filter(n => n.endsWith('.jsonl') && isSessionId(n.slice(0, -6)))
+  const found = await Promise.all(names.map(async n => ({ id: n.slice(0, -6), file: path.join(dir, n), mtime: (await fs.stat(path.join(dir, n))).mtimeMs })))
+  const newest = found.sort((a, b) => b.mtime - a.mtime).slice(0, 10)
+  return Promise.all(newest.map(async s => {
+    const handle = await fs.open(s.file)
+    const { buffer, bytesRead } = await handle.read(Buffer.alloc(262144), 0, 262144, 0).finally(() => handle.close())
+    return { id: s.id, mtime: s.mtime, title: titleOf(buffer.subarray(0, bytesRead).toString('utf8')) }
+  }))
+})
+
+// Claude Code, or a plain shell, in a login shell so it finds the same PATH as your terminal does when the app starts from Finder.
+ipcMain.handle('pty:spawn', async (_, id, cwd, cols, rows, kind, resume) => {
+  if (kind !== 'claude' && kind !== 'shell') throw new Error(`Unknown terminal: ${kind}`)
+  const again = kind === 'claude' && isSessionId(resume) // only a UUID reaches the command line
+  if (terms.has(id) && !again) return
   await guard(cwd)
+  if (again) {
+    terms.get(id)?.kill()
+    terms.delete(id)
+  }
   const windows = process.platform === 'win32'
-  const [file, args] = windows ? ['cmd.exe', ['/c', 'claude']] : [process.env.SHELL || '/bin/zsh', ['-ilc', 'claude']]
+  const claude = again ? `claude --resume ${resume}` : 'claude'
+  const [file, args] =
+    kind === 'shell'
+      ? windows ? ['powershell.exe', ['-NoLogo']] : [process.env.SHELL || '/bin/zsh', ['-il']]
+      : windows ? ['cmd.exe', ['/c', ...claude.split(' ')]] : [process.env.SHELL || '/bin/zsh', ['-ilc', claude]]
   const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }
   delete env.TERM_PROGRAM // xterm.js draws no images: the Evoke pane falls back to plain rows
   const term = pty.spawn(file, args, { name: 'xterm-256color', cwd, cols, rows, env })
   terms.set(id, term)
   term.onData(data => win?.webContents.send(`pty:data:${id}`, data))
   term.onExit(({ exitCode }) => {
+    if (terms.get(id) !== term) return // a resumed session replaced this one
     terms.delete(id)
     win?.webContents.send(`pty:exit:${id}`, exitCode)
   })

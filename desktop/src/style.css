@@ -154,3 +154,5 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 ::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--line); }
 ::-webkit-scrollbar-corner { background: transparent; }
+.right .sides .sessions { margin-left: auto; color: var(--hi); font: 900 italic 13px Barlow, Pretendard, sans-serif; }
+.right .sides .sessions:hover { text-decoration: underline; }

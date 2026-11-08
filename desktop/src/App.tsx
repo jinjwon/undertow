@@ -47,6 +47,14 @@ export function App() {
   const [theme, setTheme] = useState<ThemeName>(stored)
   const [finder, setFinder] = useState<Finder | null>(null)
   const [side, setSide] = useState<'files' | 'git'>('files')
+  const [pane, setPane] = useState<'claude' | 'shell'>('claude')
+  const [shells, setShells] = useState<string[]>([]) // projects with a shell open; started on first use
+  const [resumes, setResumes] = useState<Record<string, string>>({}) // project -> the session its Claude pane resumed
+  const [sessions, setSessions] = useState<{ id: string; title: string; mtime: number }[] | null>(null)
+  const showPane = (p: 'claude' | 'shell') => {
+    setPane(p)
+    if (p === 'shell' && root) setShells(was => (was.includes(root) ? was : [...was, root]))
+  }
   const [changes, setChanges] = useState<Change[]>([])
   const refreshGit = useCallback(async () => setChanges(root ? await api.status(root) : []), [root])
   useEffect(() => {
@@ -211,7 +219,7 @@ export function App() {
       const s = editor.getSelection()
       if (!active || !s) return
       const lines = s.isEmpty() ? '' : `#L${s.startLineNumber}${s.endLineNumber > s.startLineNumber ? `-${s.endLineNumber}` : ''}`
-      api.pty.write(root, `@${relative(root, active)}${lines} `)
+      api.pty.write(`claude:${root}`, `@${relative(root, active)}${lines} `)
       document.querySelector<HTMLElement>('.claude.on .xterm-helper-textarea')?.focus()
     })
   }
@@ -283,8 +291,13 @@ export function App() {
       </main>
 
       <section className="right">
-        <div className="head"><Cut label="AGENT" ground="var(--edge)" /> Claude Code</div>
-        {opened.map(path => <Claude key={path} cwd={path} on={path === root} theme={theme} />)}
+        <div className="head sides">
+          <button onClick={() => showPane('claude')} className={pane === 'claude' ? 'on' : ''}><Cut label="AGENT" ground={pane === 'claude' ? 'var(--edge)' : 'var(--mid)'} /></button>
+          <button onClick={() => showPane('shell')} className={pane === 'shell' ? 'on' : ''}><Cut label="SHELL" ground={pane === 'shell' ? 'var(--edge)' : 'var(--mid)'} /></button>
+          {pane === 'claude' && root && <button className="sessions" onClick={async () => setSessions(await api.sessions(root))}>지난 세션</button>}
+        </div>
+        {opened.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} />)}
+        {shells.map(path => <Claude key={`shell:${path}`} kind="shell" cwd={path} on={pane === 'shell' && path === root} theme={theme} />)}
       </section>
 
       <footer className="hud">
@@ -323,6 +336,20 @@ export function App() {
               ))}
               {finder.query.length >= (finder.mode === 'files' ? 1 : 2) && !finder.hits.length && <div className="row quiet">결과 없음</div>}
             </div>
+          </div>
+        </div>
+      )}
+
+      {sessions && (
+        <div className="picker" onClick={() => setSessions(null)}>
+          <div className="sheet" onClick={e => e.stopPropagation()}>
+            <div className="head"><Cut label="SESSIONS" /> 이어서 할 대화를 고른다</div>
+            {sessions.map(s => (
+              <button key={s.id} className="row" onClick={() => (setResumes(r => ({ ...r, [root]: s.id })), setSessions(null), showPane('claude'))}>
+                <b>›</b> {s.title || '(제목 없음)'} <span className="quiet">{new Date(s.mtime).toLocaleString()}</span>
+              </button>
+            ))}
+            {!sessions.length && <div className="row quiet">이 프로젝트의 지난 세션이 없다</div>}
           </div>
         </div>
       )}
@@ -371,8 +398,9 @@ function Tree({ dir, depth, onOpen, active }: { dir: string; depth: number; onOp
   )
 }
 
-// One terminal per project, kept alive while hidden so switching projects never ends a Claude Code session.
-function Claude({ cwd, on, theme }: { cwd: string; on: boolean; theme: ThemeName }) {
+// One terminal per project and kind, kept alive while hidden so switching never ends a session.
+function Claude({ kind, cwd, on, theme, resume }: { kind: 'claude' | 'shell'; cwd: string; on: boolean; theme: ThemeName; resume?: string }) {
+  const id = `${kind}:${cwd}`
   const box = useRef<HTMLDivElement>(null)
   const fit = useRef<FitAddon>()
   const xterm = useRef<Terminal>()
@@ -394,11 +422,11 @@ function Claude({ cwd, on, theme }: { cwd: string; on: boolean; theme: ThemeName
     term.open(box.current!)
     f.fit()
     setEnded(null)
-    const offData = api.pty.onData(cwd, (d: string) => term.write(d))
-    const offExit = api.pty.onExit(cwd, (code: number) => setEnded(code))
-    term.onData(d => api.pty.write(cwd, d))
-    term.onResize(({ cols, rows }) => api.pty.resize(cwd, cols, rows))
-    api.pty.spawn(cwd, cwd, term.cols, term.rows)
+    const offData = api.pty.onData(id, (d: string) => term.write(d))
+    const offExit = api.pty.onExit(id, (code: number) => setEnded(code))
+    term.onData(d => api.pty.write(id, d))
+    term.onResize(({ cols, rows }) => api.pty.resize(id, cols, rows))
+    api.pty.spawn(id, cwd, term.cols, term.rows, kind, run ? undefined : resume)
     const seen = new ResizeObserver(() => box.current?.offsetParent && f.fit())
     seen.observe(box.current!)
     return () => {
@@ -407,7 +435,7 @@ function Claude({ cwd, on, theme }: { cwd: string; on: boolean; theme: ThemeName
       offExit()
       term.dispose()
     }
-  }, [cwd, run])
+  }, [id, run])
 
   useEffect(() => {
     if (xterm.current) xterm.current.options.theme = { ...THEMES[theme].xterm }

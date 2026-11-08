@@ -29,4 +29,26 @@ const trusted = json => {
   }
 }
 
-module.exports = { inside, latestUsage, trusted }
+// Only a session UUID may become an argument to claude.
+const isSessionId = s => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s)
+// Claude Code keeps a project's sessions in ~/.claude/projects/<slug>, every other character turned into '-'.
+const slugOf = p => p.replace(/[^A-Za-z0-9]/g, '-')
+
+// A session's name in the list: the first prompt you typed, not slash commands or system lines.
+const titleOf = jsonl => {
+  for (const line of jsonl.split('\n')) {
+    let entry
+    try {
+      entry = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (entry?.type !== 'user') continue
+    const content = entry.message?.content
+    const text = typeof content === 'string' ? content : Array.isArray(content) ? content.find(c => c?.type === 'text')?.text ?? '' : ''
+    if (text.trim() && !text.trim().startsWith('<')) return text.trim().replace(/\s+/g, ' ').slice(0, 60)
+  }
+  return ''
+}
+
+module.exports = { inside, latestUsage, trusted, isSessionId, slugOf, titleOf }

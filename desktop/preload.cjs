@@ -22,8 +22,9 @@ contextBridge.exposeInMainWorld('evoke', {
   status: root => ipcRenderer.invoke('git:status', root),
   head: (root, file) => ipcRenderer.invoke('git:head', root, file),
   usage: () => ipcRenderer.invoke('usage:get'),
+  sessions: root => ipcRenderer.invoke('sessions:list', root),
   pty: {
-    spawn: (id, cwd, cols, rows) => ipcRenderer.invoke('pty:spawn', id, cwd, cols, rows),
+    spawn: (id, cwd, cols, rows, kind, resume) => ipcRenderer.invoke('pty:spawn', id, cwd, cols, rows, kind, resume),
     write: (id, data) => ipcRenderer.send('pty:write', id, data),
     resize: (id, cols, rows) => ipcRenderer.send('pty:resize', id, cols, rows),
     kill: id => ipcRenderer.send('pty:kill', id),
