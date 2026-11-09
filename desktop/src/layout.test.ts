@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert'
-import { clampRect, fitFloat, gapsOf, mainDefaults, moveRect, overlaps, parseLayout, placeRect, resetMain, resizeRect, swapMain, toFrac, toPx, type Ctx } from './layout.ts'
+import { clampRect, fitCols, fitFloat, gapsOf, mainDefaults, moveRect, overlaps, parseLayout, placeRect, resetMain, resizeRect, swapMain, toFrac, toPx, type Ctx } from './layout.ts'
 
 const ws = { w: 1440, h: 800 }
 const ctx = (over: Partial<Ctx> = {}): Ctx => ({ id: 'center', ws, lines: [], solid: [], snap: false, ...over })
@@ -11,6 +11,15 @@ test('the defaults tile the workspace without overlapping', () => {
   assert.ok(!overlaps(d.pane, d.center) && !overlaps(d.center, d.right))
   assert.strictEqual(d.right.x + d.right.w, ws.w)
   assert.strictEqual(d.center.x, 360)
+})
+
+test('dragged dividers stay inside the limits and leave the editor its minimum', () => {
+  assert.deepStrictEqual(fitCols({}, 1440), { pane: 360, right: 1440 * 0.36 })
+  assert.deepStrictEqual(fitCols({ pane: 9999, right: 500 }, 1440), { pane: 640, right: 500 })
+  assert.deepStrictEqual(fitCols({ pane: 10, right: 10 }, 1440), { pane: 260, right: 320 })
+  assert.deepStrictEqual(fitCols({ pane: 500, right: 9999 }, 1440), { pane: 260, right: 900 }) // 1440 - 260 - 280
+  const d = mainDefaults(ws, { pane: 300, right: 500 })
+  assert.deepStrictEqual([d.center.x, d.center.w, d.right.x], [300, 640, 940])
 })
 
 test('fractions survive the round trip and scale with the window', () => {

@@ -1,7 +1,7 @@
 // UI edit mode: one overlay above the whole window, so while it is open nothing underneath can be clicked or typed into,
 // and when it is closed none of this exists. Changes go to the draft in App, which draws them live; only Save keeps them.
 import { useEffect, useRef, useState, type PointerEvent as PE } from 'react'
-import { EMPTY, FLOAT_IDS, MAIN_IDS, gapsOf, mainDefaults, moveRect, parseLayout, placeRect, resetMain, resizeRect, swapMain, toFrac, toPx, type Ctx, type FloatId, type Guides, type Handle, type Id, type Layout, type MainId, type Rect, type Size } from './layout'
+import { EMPTY, FLOAT_IDS, MAIN_IDS, gapsOf, mainDefaults, moveRect, parseLayout, placeRect, resetMain, resizeRect, swapMain, toFrac, toPx, type Cols, type Ctx, type FloatId, type Guides, type Handle, type Id, type Layout, type MainId, type Rect, type Size } from './layout'
 
 const HANDLES: Handle[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
 const isMain = (id: Id): id is MainId => (MAIN_IDS as string[]).includes(id)
@@ -14,7 +14,7 @@ const writePresets = (p: Record<string, unknown>) => {
 }
 type Drag = { id: Id; mode: 'move' | Handle; sx: number; sy: number; start: Rect; live: boolean }
 
-export function LayoutEdit({ value, onChange, ws, top, onSave, onCancel, T }: { value: Layout; onChange: (l: Layout) => void; ws: Size; top: number; onSave: () => void; onCancel: () => void; T: (key: any, vars?: any) => string }) {
+export function LayoutEdit({ value, onChange, ws, cols, top, onSave, onCancel, T }: { value: Layout; onChange: (l: Layout) => void; ws: Size; cols: Cols; top: number; onSave: () => void; onCancel: () => void; T: (key: any, vars?: any) => string }) {
   const [sel, setSel] = useState<Id | null>(null)
   const [guides, setGuides] = useState<Guides>({ v: [], h: [] })
   const [keep, setKeep] = useState(false)
@@ -33,7 +33,7 @@ export function LayoutEdit({ value, onChange, ws, top, onSave, onCancel, T }: { 
     }
     return out
   })
-  const defaults = mainDefaults(ws)
+  const defaults = mainDefaults(ws, cols) // where the dividers were dragged to, so the boxes start on the panels
   const mains = value.main ? (Object.fromEntries(MAIN_IDS.map(id => [id, toPx(value.main![id], ws)])) as Record<MainId, Rect>) : defaults
   const floatRect = (id: FloatId) => (value.floats[id] ? toPx(value.floats[id]!, ws) : docked[id] ?? { x: 20, y: ws.h - 290, w: 320, h: 270 })
   const rectOf = (id: Id) => (isMain(id) ? mains[id] : floatRect(id))

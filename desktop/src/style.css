@@ -507,3 +507,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     .pane { box-shadow: 0 0 0 3px #064DE8; }
   }
 }
+
+/* The dividers of the default split and the fold buttons: resize or collapse a panel without opening edit mode. */
+.split { position: absolute; z-index: 4; top: var(--t); bottom: var(--b); width: 8px; translate: -50% 0; cursor: col-resize; touch-action: none; -webkit-app-region: no-drag; transition: background .1s; }
+.split:hover, .split:active { background: #16D9F580; }
+.gear.fold:hover { transform: none; }
+.gear.fold[aria-pressed='false'] { opacity: .45; }

@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 
 test('inside keeps paths within the project', () => {
   assert.ok(inside('/a/proj', '/a/proj'))
@@ -19,6 +19,12 @@ test('latestUsage takes the newest file that has usage', () => {
   ]
   assert.deepStrictEqual(latestUsage(files), { context: 40 })
   assert.strictEqual(latestUsage([]), null)
+})
+
+test('sshHosts lists named hosts only, never a pattern or an option', () => {
+  const config = 'Host web db\n  HostName 10.0.0.1\nhost *.corp !bad\nHost -oProxyCommand=evil\n  Host   stage # old\nHost web\n'
+  assert.deepStrictEqual(sshHosts(config), ['web', 'db', 'stage'])
+  assert.deepStrictEqual(sshHosts(''), [])
 })
 
 test('trusted lists only projects whose trust dialog was accepted', () => {

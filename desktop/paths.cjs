@@ -101,4 +101,9 @@ const sendTo = (win, channel, ...args) => {
   win.webContents.send(channel, ...args)
 }
 
-module.exports = { inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }
+// Hosts named in ~/.ssh/config, patterns (*, ?, !) left out: the only names the window may hand to ssh, and none can start with '-'.
+// shortcut: Include files are not followed, add that when someone keeps their hosts there.
+const sshHosts = text =>
+  [...new Set(String(text).split(/\r?\n/).flatMap(l => /^\s*Host\s+(.+)$/i.exec(l.replace(/\s+#.*$/, ''))?.[1].trim().split(/\s+/) ?? []))].filter(h => /^\w[\w.-]*$/.test(h))
+
+module.exports = { sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }

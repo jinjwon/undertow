@@ -14,9 +14,9 @@ Only the latest release gets fixes.
 
 ### The desktop app
 
-- **Network and AI:** none of its own. The CLAUDE pane runs your installed `claude`, which talks to Anthropic as it does anywhere.
-- **Programs it starts:** `claude` and your shell (`$SHELL`, or PowerShell on Windows) in the project folder, and `git` with argument lists. A resumed session id must be a UUID before it reaches the command line.
-- **Files read:** files inside the projects you open; `~/.claude.json` (trusted projects, MCP servers), `~/.claude/history.jsonl`, `~/.claude/projects/<project>/*.jsonl` (session titles and dates), `~/.claude/skills`, `~/.claude/settings.json`, `~/.claude/plugins/installed_plugins.json`, and the Evoke plugin's store files.
+- **Network and AI:** none of its own. The CLAUDE pane runs your installed `claude`, which talks to Anthropic as it does anywhere; the CODEX tab runs your installed `codex`, which talks to OpenAI; a server tab runs `ssh` to the host you clicked.
+- **Programs it starts:** `claude`, `codex` and your shell (`$SHELL`, or PowerShell on Windows) in the project folder, `git` with argument lists, and `ssh <host>` only for a host named in `~/.ssh/config` (patterns and names starting with `-` are refused). A resumed session id must be a UUID before it reaches the command line.
+- **Files read:** files inside the projects you open; `~/.claude.json` (trusted projects, MCP servers), `~/.claude/history.jsonl`, `~/.claude/projects/<project>/*.jsonl` (session titles and dates), `~/.claude/skills`, `~/.claude/settings.json`, `~/.claude/plugins/installed_plugins.json`, the Evoke plugin's store files, and `~/.ssh/config` (host names only).
 - **Files written:** only files you save in the editor.
 - **Boundaries:** the window can open only folders Claude Code trusts or that you picked in the folder dialog. File access resolves symlinks first and must stay inside an open project. The page is sandboxed and cannot navigate away or open windows.
 
