@@ -34,13 +34,22 @@ export const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w - EPS && b.x < a.x
 const inside = (r: Rect, ws: Size) => r.x >= -EPS && r.y >= -EPS && r.x + r.w <= ws.w + EPS && r.y + r.h <= ws.h + EPS
 
 // The same split the CSS grid draws when nothing has been moved.
-export const mainDefaults = (ws: Size): Record<MainId, Rect> => {
-  const right = Math.max(420, ws.w * 0.36)
+export type Cols = { pane?: number; right?: number } // widths dragged at the dividers, in pixels
+export const mainDefaults = (ws: Size, cols: Cols = {}): Record<MainId, Rect> => {
+  const pane = cols.pane ?? 360
+  const right = cols.right ?? Math.max(420, ws.w * 0.36)
   return {
-    pane: { x: 0, y: 0, w: 360, h: ws.h },
-    center: { x: 360, y: 0, w: Math.max(0, ws.w - 360 - right), h: ws.h },
+    pane: { x: 0, y: 0, w: pane, h: ws.h },
+    center: { x: pane, y: 0, w: Math.max(0, ws.w - pane - right), h: ws.h },
     right: { x: ws.w - right, y: 0, w: right, h: ws.h },
   }
+}
+// Dragged widths, kept inside each panel's limits; the editor always keeps its minimum, so a smaller window squeezes the sides.
+export const fitCols = (cols: Cols, w: number): Required<Cols> => {
+  const d = mainDefaults({ w, h: 0 }, cols)
+  const right = clamp(d.right.w, LIMITS.right.min.w, w - LIMITS.pane.min.w - LIMITS.center.min.w)
+  const pane = clamp(d.pane.w, LIMITS.pane.min.w, Math.min(LIMITS.pane.max.w, w - right - LIMITS.center.min.w))
+  return { pane, right }
 }
 
 export const clampRect = (r: Rect, id: Id, ws: Size): Rect => {

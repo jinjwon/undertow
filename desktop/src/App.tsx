@@ -8,7 +8,7 @@ import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
 import { Pane } from './Pane'
 import { LANGS as UI_LANGS, langFrom, tr, type Lang } from './i18n'
 import { iconOf, isImage, promptVars, stepDate, weekOf } from './text'
-import { EMPTY, FLOAT_IDS, fitFloat, parseLayout, type FloatId, type Layout, type MainId, type Rect } from './layout'
+import { EMPTY, FLOAT_IDS, fitCols, fitFloat, parseLayout, type Cols, type FloatId, type Layout, type MainId, type Rect } from './layout'
 import { LayoutEdit } from './LayoutEdit'
 import { baseName, lastUsedOf, projectsOf, rank, rankProjects } from '../../plugins/evoke/hooks/data'
 
@@ -39,6 +39,15 @@ const storedLang = (): Lang => {
 }
 const storedLayout = (): Layout => {
   try { return parseLayout(JSON.parse(localStorage.getItem('layout') ?? 'null')) } catch { return EMPTY }
+}
+// The dividers and the collapsed panels of the default split; a saved custom layout draws its own rects instead.
+type Split = Cols & { hidePane?: boolean; hideRight?: boolean }
+const storedSplit = (): Split => {
+  try {
+    const v = JSON.parse(localStorage.getItem('split') ?? '{}') ?? {}
+    const px = (n: unknown) => (typeof n === 'number' && n > 0 && Number.isFinite(n) ? n : undefined)
+    return { pane: px(v.pane), right: px(v.right), hidePane: v.hidePane === true, hideRight: v.hideRight === true }
+  } catch { return {} }
 }
 type TermPrefs = { size: number; blink: boolean }
 const storedTerm = (): TermPrefs => {
@@ -92,6 +101,9 @@ export function App() {
   const [layout, setLayout] = useState<Layout>(storedLayout)
   const [draft, setDraft] = useState<Layout | null>(null) // set while UI edit mode is open; only Save copies it to layout
   const shown = draft ?? layout
+  const [split, setSplit] = useState<Split>(storedSplit)
+  useEffect(() => { try { localStorage.setItem('split', JSON.stringify(split)) } catch {} }, [split])
+  const splitDrag = useRef<{ which: 'pane' | 'right'; sx: number; start: Required<Cols> } | null>(null)
   const [ws, setWs] = useState({ w: window.innerWidth, h: window.innerHeight, top: 0 })
   const [floatHost, setFloatHost] = useState<HTMLElement | null>(null)
   const [termPrefs, setTermPrefs] = useState<TermPrefs>(storedTerm)
@@ -109,13 +121,24 @@ export function App() {
   const [day, setDay] = useState<string | null>(null) // CALENDAR: the day whose sessions are listed
   const [toast, setToast] = useState('')
   const warned = useRef(new Set<string>())
-  const [pane, setPane] = useState<'claude' | 'shell'>('claude')
+  const [pane, setPane] = useState<'claude' | 'codex' | 'shell' | 'ssh'>('claude')
+  const [hosts, setHosts] = useState<string[]>([]) // LINK: the hosts of ~/.ssh/config
+  const [remotes, setRemotes] = useState<string[]>([]) // hosts with an ssh terminal open
+  const [remote, setRemote] = useState('')
+  const connect = (host: string) => {
+    setRemotes(was => (was.includes(host) ? was : [...was, host]))
+    setRemote(host)
+    setPane('ssh')
+    setSplit(s => ({ ...s, hideRight: false }))
+  }
   const [shells, setShells] = useState<string[]>([]) // projects with a shell open; started on first use
   const [resumes, setResumes] = useState<Record<string, string>>({}) // project -> the session its Claude pane resumed
   const [sessions, setSessions] = useState<{ id: string; title: string; mtime: number }[]>([])
-  const showPane = (p: 'claude' | 'shell') => {
+  const [codexes, setCodexes] = useState<string[]>([]) // projects with Codex open; started on first use, like the shell
+  const showPane = (p: 'claude' | 'codex' | 'shell') => {
     setPane(p)
     if (p === 'shell' && root) setShells(was => (was.includes(root) ? was : [...was, root]))
+    if (p === 'codex' && root) setCodexes(was => (was.includes(root) ? was : [...was, root]))
   }
   const calendarOut = Boolean(shown.floats.calendar)
   const [changes, setChanges] = useState<Change[]>([])
@@ -127,6 +150,7 @@ export function App() {
   }, [refreshGit])
   // Each menu loads what it shows when you open it, as the pane's menus refresh on entry.
   useEffect(() => {
+    if (menu === 'LINK') api.sshHosts().then(setHosts, () => setHosts([]))
     if (!root) return
     if (menu === 'SKILL') api.skills().then(setSkills)
     if (menu === 'EQUIP') api.equip(root).then(setEquip)
@@ -265,6 +289,11 @@ export function App() {
         e.preventDefault()
         e.stopPropagation()
         setFinder({ mode: 'search', query: '', hits: [], at: 0 })
+      } else if ((api.platform === 'darwin' ? e.metaKey : e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === 'b' || e.key === 'j')) {
+        // Not Ctrl on macOS: Ctrl+B and Ctrl+J belong to the shell and tmux in the terminal.
+        e.preventDefault()
+        e.stopPropagation()
+        setSplit(s => (e.key === 'b' ? { ...s, hidePane: !s.hidePane } : { ...s, hideRight: !s.hideRight }))
       } else if (mod && e.key === 'o') {
         e.preventDefault()
         setPicker(p => !p)
@@ -301,7 +330,32 @@ export function App() {
     try { localStorage.setItem('layout', JSON.stringify(draft)) } catch {}
     setDraft(null)
   }
-  const mainStyle = (id: MainId) => (shown.main ? rectStyle(shown.main[id]) : undefined)
+  // Edit mode shows every panel, so a collapsed one can still be placed.
+  const hidePane = Boolean(split.hidePane) && !draft
+  const hideRight = Boolean(split.hideRight) && !draft
+  const cols = fitCols(split, ws.w)
+  const customCols = split.pane !== undefined || split.right !== undefined || hidePane || hideRight
+  const mainStyle = (id: MainId): CSSProperties => ({
+    ...(shown.main ? rectStyle(shown.main[id]) : undefined),
+    ...((id === 'pane' && hidePane) || (id === 'right' && hideRight) ? { display: 'none' } : undefined), // hidden, not unmounted: the terminals keep running
+  })
+  const divider = (which: 'pane' | 'right') => (
+    <div
+      className="split"
+      title={T('split.drag')}
+      style={{ left: which === 'pane' ? cols.pane : ws.w - cols.right }}
+      onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); splitDrag.current = { which, sx: e.clientX, start: cols } }}
+      onPointerMove={e => {
+        const d = splitDrag.current
+        if (!d) return
+        const by = (e.clientX - d.sx) * (d.which === 'pane' ? 1 : -1)
+        setSplit(s => ({ ...s, [d.which]: fitCols({ ...d.start, [d.which]: d.start[d.which] + by }, ws.w)[d.which] })) // only the dragged side becomes a fixed width
+      }}
+      onPointerUp={() => { splitDrag.current = null }}
+      onPointerCancel={() => { splitDrag.current = null }}
+      onDoubleClick={() => setSplit(s => ({ ...s, [which]: undefined }))}
+    />
+  )
   // A widget stays where the app puts it until it is given a rect; then it floats above the panels.
   const widget = (id: FloatId, node: ReactNode) => {
     const r = shown.floats[id]
@@ -331,8 +385,8 @@ export function App() {
     setTabs(ts => ts.map(t => (t.path === path ? { ...t, saved: text } : t)))
     refreshGit()
   }
-  const live = useRef({ save, root, active })
-  live.current = { save, root, active }
+  const live = useRef({ save, root, active, pane })
+  live.current = { save, root, active, pane }
 
   // ⌘S saves; ⌘L hands the selection to Claude Code as an @file reference with its lines.
   const onMount: OnMount = (editor, monaco) => {
@@ -365,18 +419,18 @@ export function App() {
       save(active, editor.getValue())
     })
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL, () => {
-      const { root, active } = live.current
+      const { root, active, pane } = live.current
       const s = editor.getSelection()
       if (!active || !s) return
       const lines = s.isEmpty() ? '' : `#L${s.startLineNumber}${s.endLineNumber > s.startLineNumber ? `-${s.endLineNumber}` : ''}`
-      api.pty.write(`claude:${root}`, typed(`@${relative(root, active)}${lines} `))
+      api.pty.write(`${pane === 'codex' ? 'codex' : 'claude'}:${root}`, typed(`@${relative(root, active)}${lines} `)) // to Codex when its tab is the one showing
       document.querySelector<HTMLElement>('.claude.on .xterm-helper-textarea')?.focus()
     })
   }
 
   const calendar = <Calendar now={now} sessions={sessions} day={day} onDay={setDay} onPick={resume} T={T} />
   return (
-    <div className={`app ${api.platform} ${shown.main ? 'custom' : ''}`}>
+    <div className={`app ${api.platform} ${shown.main ? 'custom' : ''}`} style={customCols ? { gridTemplateColumns: `${hidePane ? 0 : cols.pane}px 1fr ${hideRight ? 0 : cols.right}px` } : undefined}>
       <header className="top">
         <span className="logo"><img src={THEMES[theme].logo} alt="" />EVOKE</span>
         <button className="project" onClick={() => setPicker(true)} title={`${MOD}O`}>
@@ -385,6 +439,8 @@ export function App() {
         <span className="branch">{branch && `⎇ ${branch}`}</span>
         <button className="theme" onClick={nextTheme} title={T('theme')}><Cut label={THEMES[theme].label} ground="var(--sel)" /></button>
         <button className="edit-open" onClick={startEdit} title={T('edit.open')}><Cut label="UI" ground="var(--chip)" /></button>
+        <button className="gear fold" onClick={() => setSplit(s => ({ ...s, hidePane: !s.hidePane }))} aria-pressed={!hidePane} title={`${T('key.B')} (${MOD}B)`} aria-label={T('key.B')}>◧</button>
+        <button className="gear fold" onClick={() => setSplit(s => ({ ...s, hideRight: !s.hideRight }))} aria-pressed={!hideRight} title={`${T('key.J')} (${MOD}J)`} aria-label={T('key.J')}>◨</button>
         <button className="gear" onClick={() => setSettings(true)} title={T('settings')} aria-label={T('settings')}>⚙</button>
         {widget('clock', <Clock now={now} />)}
       </header>
@@ -427,6 +483,10 @@ export function App() {
               <div key={p.path} className={`entry ${p.path === root ? 'on' : ''}`} onClick={() => open(p.path)}><b className="rank">{i + 1}</b> {p.name} <div className="desc">{p.path}</div></div>
             ))}
             <div className="entry" onClick={openFolder}>{T('openOther')}</div>
+            <div className="group">{T('servers')} <span>{hosts.length}</span></div>
+            {hosts.length ? hosts.map(h => (
+              <div key={h} className={`entry ${pane === 'ssh' && h === remote ? 'on' : ''}`} onClick={() => connect(h)}>▸ {h} <div className="desc">ssh {h}</div></div>
+            )) : <div className="entry quiet">{T('noServers')}</div>}
           </>
         )}
         {menu === 'CALENDAR' && (calendarOut ? <div className="entry quiet">{T('calendarFloating')}</div> : widget('calendar', calendar))}
@@ -437,7 +497,7 @@ export function App() {
             <div className="group">{T('language')}</div>
             {UI_LANGS.map(l => <div key={l.id} className={`entry ${l.id === lang ? 'on' : ''}`} onClick={() => setLang(l.id)}>◆ {l.label}</div>)}
             <div className="group">{T('keys')}</div>
-            {(['P', 'F', 'S', 'L', 'O'] as const).map(k => <div key={k} className="entry"><b className="rank">{MOD}{k === 'F' ? '⇧F' : k}</b> {T(`key.${k}`)}</div>)}
+            {(['P', 'F', 'S', 'L', 'O', 'B', 'J'] as const).map(k => <div key={k} className="entry"><b className="rank">{MOD}{k === 'F' ? '⇧F' : k}</b> {T(`key.${k}`)}</div>)}
           </>
         )}
       </Pane>
@@ -502,14 +562,18 @@ export function App() {
       <section className="right" style={mainStyle('right')}>
         <div className="head sides">
           <button onClick={() => showPane('claude')} className={pane === 'claude' ? 'on' : ''}><Cut label="CLAUDE" ground={pane === 'claude' ? 'var(--edge)' : 'var(--mid)'} /></button>
+          <button onClick={() => showPane('codex')} className={pane === 'codex' ? 'on' : ''}><Cut label="CODEX" ground={pane === 'codex' ? 'var(--edge)' : 'var(--mid)'} /></button>
           <button onClick={() => showPane('shell')} className={pane === 'shell' ? 'on' : ''}><Cut label="SHELL" ground={pane === 'shell' ? 'var(--edge)' : 'var(--mid)'} /></button>
+          {remotes.length > 0 && <button onClick={() => setPane('ssh')} className={pane === 'ssh' ? 'on' : ''}><Cut label={`SSH ${remote}`} ground={pane === 'ssh' ? 'var(--edge)' : 'var(--mid)'} /></button>}
           <span className="tools">
             <button onClick={() => setTerm({ size: termPrefs.size - 1 })} title={T('term.smaller')} aria-label={T('term.smaller')}><Cut label="A-" ground="var(--mid)" /></button>
             <button onClick={() => setTerm({ size: termPrefs.size + 1 })} title={T('term.larger')} aria-label={T('term.larger')}><Cut label="A+" ground="var(--mid)" /></button>
-            <button onClick={() => TERMS.get(`${pane}:${root}`)?.clear()} title={T('term.clear')} aria-label={T('term.clear')}><Cut label="CLEAR" ground="var(--mid)" /></button>
+            <button onClick={() => TERMS.get(pane === 'ssh' ? `ssh:${remote}` : `${pane}:${root}`)?.clear()} title={T('term.clear')} aria-label={T('term.clear')}><Cut label="CLEAR" ground="var(--mid)" /></button>
           </span>
         </div>
         {opened.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+        {remotes.map(host => <Claude key={`ssh:${host}`} kind="ssh" cwd={host} on={pane === 'ssh' && host === remote} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+        {codexes.map(path => <Claude key={`codex:${path}`} kind="codex" cwd={path} on={pane === 'codex' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
         {shells.map(path => <Claude key={`shell:${path}`} kind="shell" cwd={path} on={pane === 'shell' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
       </section>
 
@@ -520,6 +584,8 @@ export function App() {
         <span className="quiet">{T('changes', { n: changes.length })}</span>
         {!usage && <span className="quiet usd">{T('noUsage')}</span>}
       </footer>
+      {!shown.main && !draft && !hidePane && divider('pane')}
+      {!shown.main && !draft && !hideRight && divider('right')}
       <div className="floats" ref={setFloatHost} />
       {calendarOut && widget('calendar', calendar)}
       {toast && <div className="toast" role="alert"><Mask /><Cut label="ALERT" /> {toast}</div>}
@@ -580,7 +646,7 @@ export function App() {
                 <button className="row" onClick={startEdit}><b>▸</b> {T('edit.open')}</button>
               </>
             )}
-            {settingsTab === 'keys' && (['P', 'F', 'S', 'L', 'O'] as const).map(k => <div key={k} className="row"><b className="key">{MOD}{k === 'F' ? '⇧F' : k}</b> {T(`key.${k}`)}</div>)}
+            {settingsTab === 'keys' && (['P', 'F', 'S', 'L', 'O', 'B', 'J'] as const).map(k => <div key={k} className="row"><b className="key">{MOD}{k === 'F' ? '⇧F' : k}</b> {T(`key.${k}`)}</div>)}
             {settingsTab === 'terminal' && (
               <>
                 <div className="row"><b>◆</b> {T('term.size')}
@@ -597,7 +663,7 @@ export function App() {
         </div>
       )}
 
-      {draft && <LayoutEdit value={draft} onChange={setDraft} ws={ws} top={ws.top} onSave={saveEdit} onCancel={() => setDraft(null)} T={T} />}
+      {draft && <LayoutEdit value={draft} onChange={setDraft} ws={ws} cols={split.pane !== undefined || split.right !== undefined ? cols : {}} top={ws.top} onSave={saveEdit} onCancel={() => setDraft(null)} T={T} />}
 
       {picker && (
         <div className="picker" onClick={() => setPicker(false)}>
@@ -644,8 +710,8 @@ function Tree({ dir, depth, onOpen, active }: { dir: string; depth: number; onOp
   )
 }
 
-// One terminal per project and kind, kept alive while hidden so switching never ends a session.
-function Claude({ kind, cwd, on, theme, prefs, resume, endedLabel }: { kind: 'claude' | 'shell'; cwd: string; on: boolean; theme: ThemeName; prefs: TermPrefs; resume?: string; endedLabel: (code: number) => string }) {
+// One terminal per project and kind, kept alive while hidden so switching never ends a session. For ssh, cwd is the host.
+function Claude({ kind, cwd, on, theme, prefs, resume, endedLabel }: { kind: 'claude' | 'codex' | 'shell' | 'ssh'; cwd: string; on: boolean; theme: ThemeName; prefs: TermPrefs; resume?: string; endedLabel: (code: number) => string }) {
   const id = `${kind}:${cwd}`
   const box = useRef<HTMLDivElement>(null)
   const fit = useRef<FitAddon>()

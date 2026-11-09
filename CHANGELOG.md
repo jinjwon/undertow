@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.3.0 - 2026-11-10
+
+### Added
+
+- Resize without edit mode: drag the line between the sidebar, the editor and the terminal; double-click it to reset. The widths are kept across restarts.
+- Fold a panel: `⌘B` hides the sidebar and `⌘J` the terminal (`Ctrl` on Windows), as do two buttons in the top bar. The editor takes the room, and a folded terminal keeps running.
+- CODEX tab: Codex runs beside Claude Code, one session per project, on macOS and Windows. `⌘L` sends the selection to Codex when its tab is showing.
+- Servers: LINK lists the hosts in `~/.ssh/config`; a click opens an `ssh` terminal in its own tab.
+
 ## 2.2.0 - 2026-11-08
 
 ### Added

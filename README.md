@@ -6,7 +6,7 @@
 
 A desktop code editor built around [Claude Code](https://claude.com/claude-code), dressed as a slanted game menu. Files, the editor, git, a shell and Claude Code sit in one window, and the things you would install VS Code or Cursor extensions for are built in.
 
-<img src="assets/preview.png" width="720" alt="Evoke: the MENU pane on the left, the editor in the middle, Claude Code on the right">
+<img src="assets/preview.png" width="720" alt="Evoke in the TIDE theme: the MENU pane on the left, the editor in the middle, Claude Code on the right">
 
 ## Download
 
@@ -18,7 +18,7 @@ From [Releases](https://github.com/jinjwon/undertow/releases/latest):
 | Windows (x64) | `Evoke-Setup-<version>.exe` | Run it: it adds Start menu and desktop shortcuts |
 | Windows, portable | `Evoke-<version>-win-x64.zip` | Unzip anywhere and run `Evoke.exe` |
 
-You need [Claude Code](https://docs.claude.com/en/docs/claude-code) installed and signed in. Nothing else.
+You need [Claude Code](https://docs.claude.com/en/docs/claude-code) installed and signed in. [Codex](https://developers.openai.com/codex/cli) is optional: the CODEX tab runs it when it is installed.
 
 Builds are unsigned. The first time, on macOS right-click Evoke and choose Open; on Windows choose More info → Run anyway.
 
@@ -34,13 +34,15 @@ Builds are unsigned. The first time, on macOS right-click Evoke and choose Open;
   | AGENT | Past Claude Code sessions of this project. Click one to resume it |
   | STATUS | Changed files. Click one to diff it against the last commit |
   | QUEST | `TODO`s left in the project |
-  | LINK | Your trusted projects, most recently used first |
+  | LINK | Your trusted projects, most recently used first, and the servers in `~/.ssh/config` |
   | CALENDAR | This month, with the days you talked to Claude |
   | SYSTEM | Theme and shortcuts |
 
   The HUD on top shows the date, the moon, context and 5-hour/7-day usage with resets, and session cost. A toast warns at 85%.
 - **Editor (middle):** Monaco with completion, errors and formatting for TS/JS, JSON, CSS and HTML; bracket colors and guides; matching HTML tags rename together; diff view.
-- **CLAUDE / SHELL (right):** one live Claude Code session and one shell per project, kept while you switch projects.
+- **CLAUDE / CODEX / SHELL (right):** one live Claude Code session, one Codex session and one shell per project, kept while you switch projects. Codex and the shell start the first time you open their tab.
+- **Servers:** LINK lists the hosts in `~/.ssh/config`. Click one and an `ssh` terminal opens in its own tab. It is a terminal on the server; files there do not open in the editor.
+- **Resize and fold:** drag the line between two panels to resize them, and double-click it to reset. `⌘B` folds the sidebar and `⌘J` the terminal, as do `◧` `◨` in the top bar; the editor takes the room, and a folded terminal keeps running.
 - **Two themes,** each with its own logo. **TIDE** is a white and blue game menu with hard diagonals. **REBEL** is a prompt-engineering theme in three colours only (blood red, pitch black, stark white): cut-out panel corners, halftone seams, a thief's mask on folders and alerts, and `{{variables}}` in prompts cut out letter by letter like a ransom note.
 - **UI edit mode:** press `UI` in the top bar to drag, resize and swap the panels and widgets. Layouts and presets are kept across restarts.
 - **Start like VS Code:** the window opens on Open Folder and your recent projects.
@@ -57,8 +59,10 @@ Builds are unsigned. The first time, on macOS right-click Evoke and choose Open;
 | `⌘P` | Open a file by name |
 | `⌘⇧F` | Search the project |
 | `⌘S` | Format, then save |
-| `⌘L` | Send the selection to Claude as `@file#Lx-y` |
+| `⌘L` | Send the selection to Claude as `@file#Lx-y`, or to Codex when its tab is showing |
 | `⌘O` | Projects (`1`–`9` or Enter) |
+| `⌘B` | Show or hide the sidebar |
+| `⌘J` | Show or hide the terminal |
 
 Open tabs reload from disk when Claude edits them, unless you have unsaved changes.
 

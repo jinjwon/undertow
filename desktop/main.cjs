@@ -5,7 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { execFile } = require('node:child_process')
 const pty = require('node-pty')
-const { inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
 
 const home = os.homedir()
@@ -183,25 +183,31 @@ ipcMain.handle('sessions:list', async (_, root) => {
   }))
 })
 
-// Claude Code, or a plain shell, in a login shell so it finds the same PATH as your terminal does when the app starts from Finder.
+// Claude Code, Codex, or a plain shell, in a login shell so it finds the same PATH as your terminal does when the app starts from Finder.
+const knownHosts = async () => sshHosts(await readFrom(path.join(home, '.ssh', 'config')))
+ipcMain.handle('ssh:hosts', knownHosts)
 ipcMain.handle('pty:spawn', async (_, id, cwd, cols, rows, kind, resume) => {
-  if (kind !== 'claude' && kind !== 'shell') throw new Error(`Unknown terminal: ${kind}`)
+  if (!['claude', 'codex', 'shell', 'ssh'].includes(kind)) throw new Error(`Unknown terminal: ${kind}`)
   const again = kind === 'claude' && isSessionId(resume) // only a UUID reaches the command line
   if (terms.has(id) && !again) return
-  await guard(cwd)
+  // An ssh terminal has no folder: cwd carries the host, and only one named in ~/.ssh/config reaches the command line.
+  const remote = kind === 'ssh'
+  if (!remote) await guard(cwd)
+  else if (!(await knownHosts()).includes(cwd)) throw new Error(`Not a host in ~/.ssh/config: ${cwd}`)
   if (again) {
     terms.get(id)?.kill()
     terms.delete(id)
   }
   const windows = process.platform === 'win32'
-  const claude = again ? `claude --resume ${resume}` : 'claude'
+  const claude = kind === 'codex' ? 'codex' : again ? `claude --resume ${resume}` : 'claude' // the agent's command line: Claude Code or Codex
   const [file, args] =
-    kind === 'shell'
+    remote ? [windows ? 'ssh.exe' : 'ssh', [cwd]]
+    : kind === 'shell'
       ? windows ? ['powershell.exe', ['-NoLogo']] : [process.env.SHELL || '/bin/zsh', ['-il']]
       : windows ? ['cmd.exe', ['/c', ...claude.split(' ')]] : [process.env.SHELL || '/bin/zsh', ['-ilc', claude]]
   const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }
   delete env.TERM_PROGRAM // xterm.js draws no images: the Evoke pane falls back to plain rows
-  const term = pty.spawn(file, args, { name: 'xterm-256color', cwd, cols, rows, env })
+  const term = pty.spawn(file, args, { name: 'xterm-256color', cwd: remote ? home : cwd, cols, rows, env })
   terms.set(id, term)
   term.onData(data => sendTo(win, `pty:data:${id}`, data))
   term.onExit(({ exitCode }) => {
