@@ -16,9 +16,10 @@ Only the latest release gets fixes.
 
 - **Network and AI:** none of its own. The CLAUDE pane runs your installed `claude`, which talks to Anthropic as it does anywhere; the CODEX tab runs your installed `codex`, which talks to OpenAI; a server tab runs `ssh` to the host you clicked.
 - **Programs it starts:** `claude`, `codex` and your shell (`$SHELL`, or PowerShell on Windows) in the project folder, `git` with argument lists, and `ssh <host>` only for a host named in `~/.ssh/config` (patterns and names starting with `-` are refused). A resumed session id must be a UUID before it reaches the command line.
-- **Files read:** files inside the projects you open; `~/.claude.json` (trusted projects, MCP servers), `~/.claude/history.jsonl`, `~/.claude/projects/<project>/*.jsonl` (session titles and dates), `~/.claude/skills`, `~/.claude/settings.json`, `~/.claude/plugins/installed_plugins.json`, the Evoke plugin's store files, and `~/.ssh/config` (host names only).
+- **Files read:** files inside the projects you open; `~/.claude.json` (trusted projects, MCP servers), `~/.claude/history.jsonl`, `~/.claude/projects/<project>/*.jsonl` (session titles and dates), `~/.claude/skills`, `~/.claude/settings.json`, `~/.claude/plugins/installed_plugins.json`, the Evoke plugin's store files, `~/.ssh/config` (host names only), and `~/.codex/config.toml` (the paths of the projects Codex trusts).
 - **Files written:** only files you save in the editor.
-- **Boundaries:** the window can open only folders Claude Code trusts or that you picked in the folder dialog. File access resolves symlinks first and must stay inside an open project. The page is sandboxed and cannot navigate away or open windows.
+- **Preview server:** previews are served by a web server inside the app, started with the first preview. It listens on `127.0.0.1` only, on a random port. Every address carries a secret made at start, the `Host` header must be the server's own, and only files inside the open projects are served, with symlinks resolved first. A previewed page runs its own scripts and may load what it asks for from the network; it runs in a frame of another origin and cannot reach the app or leave the preview server. Scripts inside a rendered Markdown file are blocked.
+- **Boundaries:** the window can open only folders Claude Code or Codex trusts, or that you picked in the folder dialog. File access resolves symlinks first and must stay inside an open project. The page is sandboxed and cannot navigate away or open windows.
 
 ### The plugin
 

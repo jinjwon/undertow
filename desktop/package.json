@@ -1,7 +1,7 @@
 {
   "name": "evoke-desktop",
   "productName": "Evoke",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "description": "Evoke as a desktop editor: files, Monaco, and Claude Code side by side.",
   "author": "jinjwon",
