@@ -7,6 +7,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
 import { Pane } from './Pane'
 import { LANGS as UI_LANGS, langFrom, tr, type Lang } from './i18n'
+import { agentsOf, parseAgents, targetOf, type Agent, type Agents } from './agents'
 import { iconOf, isImage, promptVars, stepDate, weekOf } from './text'
 import { EMPTY, FLOAT_IDS, fitCols, fitFloat, parseLayout, type Cols, type FloatId, type Layout, type MainId, type Rect } from './layout'
 import { LayoutEdit } from './LayoutEdit'
@@ -33,6 +34,9 @@ const MOD = api.platform === 'darwin' ? '⌘' : 'Ctrl+'
 const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const stored = (): ThemeName => {
   try { const t = localStorage.getItem('theme') as ThemeName; return THEMES[t] ? t : 'tide' } catch { return 'tide' }
+}
+const storedAgents = (): Agents => {
+  try { return parseAgents(localStorage.getItem('agents')) } catch { return 'both' }
 }
 const storedLang = (): Lang => {
   try { return langFrom(localStorage.getItem('lang') ?? navigator.language) } catch { return langFrom(navigator.language) }
@@ -121,7 +125,8 @@ export function App() {
   const [day, setDay] = useState<string | null>(null) // CALENDAR: the day whose sessions are listed
   const [toast, setToast] = useState('')
   const warned = useRef(new Set<string>())
-  const [pane, setPane] = useState<'claude' | 'codex' | 'shell' | 'ssh'>('claude')
+  const [agents, setAgents] = useState<Agents>(storedAgents)
+  const [pane, setPane] = useState<'claude' | 'codex' | 'shell' | 'ssh'>(() => agentsOf(storedAgents())[0])
   const [hosts, setHosts] = useState<string[]>([]) // LINK: the hosts of ~/.ssh/config
   const [remotes, setRemotes] = useState<string[]>([]) // hosts with an ssh terminal open
   const [remote, setRemote] = useState('')
@@ -158,12 +163,25 @@ export function App() {
     if (menu === 'STATUS') refreshGit()
     if (menu === 'QUEST') (setQuests(null), api.search(root, 'TODO').then(setQuests))
   }, [menu, root, calendarOut])
+  // Codex alone starts with each project, as Claude Code does; beside Claude Code it waits for its tab.
+  const claudeOn = agents === 'codex' ? [] : opened
+  const codexOn = agents === 'codex' ? opened : agents === 'both' ? codexes : []
+  // Turning an agent off ends its sessions, so nothing keeps running where it cannot be seen.
+  const pickAgents = (next: Agents) => {
+    const live: Record<Agent, string[]> = { claude: claudeOn, codex: codexOn }
+    for (const a of agentsOf(agents)) if (!agentsOf(next).includes(a)) for (const path of live[a]) api.pty.kill(`${a}:${path}`)
+    if (next !== 'both') setCodexes([])
+    if ((pane === 'claude' || pane === 'codex') && !agentsOf(next).includes(pane)) setPane(agentsOf(next)[0])
+    setAgents(next)
+    try { localStorage.setItem('agents', next) } catch {}
+  }
   const say = (text: string) => {
-    api.pty.write(`claude:${root}`, typed(text))
-    showPane('claude')
+    const to = targetOf(agents, pane)
+    api.pty.write(`${to}:${root}`, typed(text))
+    showPane(to)
     document.querySelector<HTMLElement>('.claude.on .xterm-helper-textarea')?.focus()
   }
-  const resume = (id: string) => (setResumes(r => ({ ...r, [root]: id })), showPane('claude'))
+  const resume = (id: string) => { if (agents !== 'codex') (setResumes(r => ({ ...r, [root]: id })), showPane('claude')) } // only Claude Code has sessions to resume here
 
   // The pane's toast: once per limit when it passes 85%, again only after it falls back.
   useEffect(() => {
@@ -200,7 +218,8 @@ export function App() {
 
   const loadProjects = useCallback(async (cwd: string) => {
     const raw = await api.projectsRaw()
-    const found: Project[] = projectsOf(raw.claudeJson, raw.home)
+    const fromClaude: Project[] = projectsOf(raw.claudeJson, raw.home)
+    const found = [...fromClaude, ...(raw.codexProjects as string[]).filter(p => !fromClaude.some(f => f.path === p)).map(p => ({ name: baseName(p), path: p }))]
     const real = await api.exists(found.map(p => p.path))
     return rankProjects(found.filter((_, i) => real[i]), lastUsedOf(raw.history), cwd).slice(0, 9)
   }, [])
@@ -385,8 +404,8 @@ export function App() {
     setTabs(ts => ts.map(t => (t.path === path ? { ...t, saved: text } : t)))
     refreshGit()
   }
-  const live = useRef({ save, root, active, pane })
-  live.current = { save, root, active, pane }
+  const live = useRef({ save, root, active, pane, agents })
+  live.current = { save, root, active, pane, agents }
 
   // ⌘S saves; ⌘L hands the selection to Claude Code as an @file reference with its lines.
   const onMount: OnMount = (editor, monaco) => {
@@ -419,11 +438,11 @@ export function App() {
       save(active, editor.getValue())
     })
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL, () => {
-      const { root, active, pane } = live.current
+      const { root, active, pane, agents } = live.current
       const s = editor.getSelection()
       if (!active || !s) return
       const lines = s.isEmpty() ? '' : `#L${s.startLineNumber}${s.endLineNumber > s.startLineNumber ? `-${s.endLineNumber}` : ''}`
-      api.pty.write(`${pane === 'codex' ? 'codex' : 'claude'}:${root}`, typed(`@${relative(root, active)}${lines} `)) // to Codex when its tab is the one showing
+      api.pty.write(`${targetOf(agents, pane)}:${root}`, typed(`@${relative(root, active)}${lines} `)) // to the agent on screen, else the first one enabled
       document.querySelector<HTMLElement>('.claude.on .xterm-helper-textarea')?.focus()
     })
   }
@@ -466,7 +485,8 @@ export function App() {
             {equip.plugins.map(m => <div key={m} className="entry">◆ {m}</div>)}
           </>
         )}
-        {menu === 'AGENT' && (
+        {agents === 'codex' && (menu === 'AGENT' || menu === 'CALENDAR') && <div className="entry quiet">{T('claudeOnly')}</div>}
+        {menu === 'AGENT' && agents !== 'codex' && (
           <>
             {sessions.slice(0, 10).map(s => (
               <div key={s.id} className="entry" onClick={() => resume(s.id)}>▸ {s.title || T('untitled')} <div className="desc">{new Date(s.mtime).toLocaleString()}</div></div>
@@ -489,7 +509,7 @@ export function App() {
             )) : <div className="entry quiet">{T('noServers')}</div>}
           </>
         )}
-        {menu === 'CALENDAR' && (calendarOut ? <div className="entry quiet">{T('calendarFloating')}</div> : widget('calendar', calendar))}
+        {menu === 'CALENDAR' && agents !== 'codex' && (calendarOut ? <div className="entry quiet">{T('calendarFloating')}</div> : widget('calendar', calendar))}
         {menu === 'SYSTEM' && (
           <>
             <div className="group">{T('theme')}</div>
@@ -561,8 +581,8 @@ export function App() {
 
       <section className="right" style={mainStyle('right')}>
         <div className="head sides">
-          <button onClick={() => showPane('claude')} className={pane === 'claude' ? 'on' : ''}><Cut label="CLAUDE" ground={pane === 'claude' ? 'var(--edge)' : 'var(--mid)'} /></button>
-          <button onClick={() => showPane('codex')} className={pane === 'codex' ? 'on' : ''}><Cut label="CODEX" ground={pane === 'codex' ? 'var(--edge)' : 'var(--mid)'} /></button>
+          {agents !== 'codex' && <button onClick={() => showPane('claude')} className={pane === 'claude' ? 'on' : ''}><Cut label="CLAUDE" ground={pane === 'claude' ? 'var(--edge)' : 'var(--mid)'} /></button>}
+          {agents !== 'claude' && <button onClick={() => showPane('codex')} className={pane === 'codex' ? 'on' : ''}><Cut label="CODEX" ground={pane === 'codex' ? 'var(--edge)' : 'var(--mid)'} /></button>}
           <button onClick={() => showPane('shell')} className={pane === 'shell' ? 'on' : ''}><Cut label="SHELL" ground={pane === 'shell' ? 'var(--edge)' : 'var(--mid)'} /></button>
           {remotes.length > 0 && <button onClick={() => setPane('ssh')} className={pane === 'ssh' ? 'on' : ''}><Cut label={`SSH ${remote}`} ground={pane === 'ssh' ? 'var(--edge)' : 'var(--mid)'} /></button>}
           <span className="tools">
@@ -571,9 +591,9 @@ export function App() {
             <button onClick={() => TERMS.get(pane === 'ssh' ? `ssh:${remote}` : `${pane}:${root}`)?.clear()} title={T('term.clear')} aria-label={T('term.clear')}><Cut label="CLEAR" ground="var(--mid)" /></button>
           </span>
         </div>
-        {opened.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+        {claudeOn.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
         {remotes.map(host => <Claude key={`ssh:${host}`} kind="ssh" cwd={host} on={pane === 'ssh' && host === remote} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
-        {codexes.map(path => <Claude key={`codex:${path}`} kind="codex" cwd={path} on={pane === 'codex' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+        {codexOn.map(path => <Claude key={`codex:${path}`} kind="codex" cwd={path} on={pane === 'codex' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
         {shells.map(path => <Claude key={`shell:${path}`} kind="shell" cwd={path} on={pane === 'shell' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
       </section>
 
@@ -636,6 +656,8 @@ export function App() {
               <>
                 <div className="group">{T('language')}</div>
                 {UI_LANGS.map(l => <button key={l.id} className={`row ${l.id === lang ? 'on' : ''}`} onClick={() => setLang(l.id)}><b>◆</b> {l.label}</button>)}
+                <div className="group">{T('agents')}</div>
+                {(['both', 'claude', 'codex'] as const).map(a => <button key={a} className={`row ${a === agents ? 'on' : ''}`} onClick={() => pickAgents(a)}><b>◆</b> {T(`agents.${a}`)}</button>)}
               </>
             )}
             {settingsTab === 'appearance' && (

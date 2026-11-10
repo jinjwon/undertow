@@ -5,13 +5,14 @@ const os = require('node:os')
 const path = require('node:path')
 const { execFile } = require('node:child_process')
 const pty = require('node-pty')
-const { sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
 
 const home = os.homedir()
 const roots = new Set() // real paths of the folders the window has opened; file access stays inside them
 const picked = new Set() // folders you chose in the open dialog
 const claudeJson = () => fs.readFile(path.join(home, '.claude.json'), 'utf8').catch(() => '{}')
+const codexToml = () => fs.readFile(path.join(home, '.codex', 'config.toml'), 'utf8').catch(() => '')
 const terms = new Map() // one Claude Code session per project, kept while you switch
 let win
 
@@ -26,6 +27,7 @@ ipcMain.handle('projects:raw', async () => ({
   home,
   claudeJson: await claudeJson(),
   history: await fs.readFile(path.join(home, '.claude', 'history.jsonl'), 'utf8').catch(() => ''),
+  codexProjects: [...codexTrusted(await codexToml())], // so someone who only uses Codex still gets a project list
 }))
 ipcMain.handle('projects:exists', (_, paths) =>
   Promise.all(paths.map(p => fs.stat(p).then(s => s.isDirectory(), () => false))),
@@ -36,10 +38,11 @@ ipcMain.handle('project:pick', async () => {
   picked.add(path.resolve(filePaths[0]))
   return filePaths[0]
 })
-// The window may only open what Claude Code trusts or what you picked, so a bug in the page cannot widen file access.
+// The window may only open what Claude Code or Codex trusts, or what you picked, so a bug in the page cannot widen file access.
 ipcMain.handle('project:open', async (_, root) => {
   const at = path.resolve(String(root))
-  if (!picked.has(at) && !trusted(await claudeJson()).has(at.normalize('NFC'))) throw new Error(`Not a known project: ${at}`)
+  const known = picked.has(at) || trusted(await claudeJson()).has(at.normalize('NFC')) || codexTrusted(await codexToml()).has(at.normalize('NFC'))
+  if (!known) throw new Error(`Not a known project: ${at}`)
   roots.add(await fs.realpath(at))
   return at
 })
