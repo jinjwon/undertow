@@ -495,18 +495,27 @@ export function App() {
       </header>
 
       <Pane menu={menu} onMenu={setMenu} usage={usage} now={now} hint={T(`hint.${menu}` as Parameters<typeof tr>[1])} style={mainStyle('pane')} wrapInfo={info => widget('info', info)}>
+        {/* Every menu's content starts under a section header, as the terminal pane's does. */}
+        {menu === 'ITEM' && root && <div className="group">FILES</div>}
         {menu === 'ITEM' && root && <Tree key={root} dir={root} depth={0} onOpen={openFile} active={active} />}
+        {menu === 'STATUS' && <div className="group">CHANGES <span>{changes.length}</span></div>}
         {menu === 'STATUS' && (changes.length ? changes.map(c => (
           <div key={c.path} className={`entry change ${active === `diff:${c.path}` ? 'on' : ''}`} onClick={() => openDiff(c.path)} title={relative(root, c.path)}>
             <b className={`code c-${c.code.replace('??', 'U')[0]}`}>{c.code.replace('??', 'U')}</b> {baseName(c.path)} <span className="quiet">{relative(root, c.path).slice(0, -baseName(c.path).length)}</span>
           </div>
         )) : <div className="entry quiet">{branch ? T('noChanges', { branch }) : T('noGit')}</div>)}
-        {menu === 'SKILL' && skills.map(s => (
-          <div key={s.name} className="entry skill" onClick={() => say(`/${s.name} `)} title={s.description}>
-            <span>▸ {s.name}</span> {s.uses > 0 && <b className="rank">{rank(s.uses)}</b>}
-            <div className="desc">{s.description}</div>
-          </div>
-        ))}
+        {menu === 'SKILL' && [...new Set(skills.map(s => s.plugin))].flatMap(group => {
+          const own = skills.filter(s => s.plugin === group)
+          return [
+            <div key={`group:${group}`} className="group">{group} <span>{own.length}</span></div>,
+            ...own.map(s => (
+              <div key={s.name} className="entry skill" onClick={() => say(`/${s.name} `)} title={s.description}>
+                <span>▸ {s.name}</span> {s.uses > 0 && <b className="rank">{rank(s.uses)}</b>}
+                <div className="desc">{s.description}</div>
+              </div>
+            )),
+          ]
+        })}
         {menu === 'EQUIP' && (
           <>
             <div className="group">MCP <span>{equip.mcp.length}</span></div>
@@ -518,17 +527,20 @@ export function App() {
         {agents === 'codex' && (menu === 'AGENT' || menu === 'CALENDAR') && <div className="entry quiet">{T('claudeOnly')}</div>}
         {menu === 'AGENT' && agents !== 'codex' && (
           <>
+            <div className="group">SESSIONS <span>{sessions.length}</span></div>
             {sessions.slice(0, 10).map(s => (
               <div key={s.id} className="entry" onClick={() => resume(s.id)}>▸ {s.title || T('untitled')} <div className="desc">{new Date(s.mtime).toLocaleString()}</div></div>
             ))}
             {!sessions.length && <div className="entry quiet">{T('noSessions')}</div>}
           </>
         )}
+        {menu === 'QUEST' && <div className="group">TODO <span>{quests?.length}</span></div>}
         {menu === 'QUEST' && (quests === null ? <div className="entry quiet">{T('searching')}</div> : quests.length ? quests.map(q => (
           <div key={`${q.path}:${q.line}`} className="entry" onClick={() => openFile(q.path, q.line, q.col)}>▸ {q.preview} <div className="desc">{q.rel}:{q.line}</div></div>
         )) : <div className="entry quiet">{T('noTodo')}</div>)}
         {menu === 'LINK' && (
           <>
+            <div className="group">PROJECTS <span>{projects.length}</span></div>
             {projects.map((p, i) => (
               <div key={p.path} className={`entry ${p.path === root ? 'on' : ''}`} onClick={() => open(p.path)}><b className="rank">{i + 1}</b> {p.name} <div className="desc">{p.path}</div></div>
             ))}

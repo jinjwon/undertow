@@ -172,6 +172,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .entry.skill { white-space: normal; }
 .rank { color: var(--hi); font: 900 italic 11px Barlow, sans-serif; margin-left: 6px; }
 .group { display: flex; justify-content: space-between; margin: 8px 12px 2px; padding-bottom: 2px; border-bottom: 1px solid var(--line); color: var(--hi); font: 900 italic 13px Barlow, sans-serif; }
+/* In the MENU pane a group is a section header, as an editor's side bar draws one: a band, an edge, its count at the right. */
+.pane .pane-content .group { margin: 8px 0 2px; padding: 3px 12px 3px 8px; border-bottom: 0; border-left: 4px solid var(--edge); background: var(--chip); color: var(--chip-ink); font-size: 13px; text-transform: uppercase; text-shadow: none; }
+.pane .pane-content .group:first-child { margin-top: 0; }
 .calendar .month { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 4px 10px; text-align: center; }
 .calendar .month i { color: var(--gray); font: italic 11px Barlow, sans-serif; }
 .calendar .month button { padding: 4px 0; font: 600 12px Iosevka, Menlo, monospace; color: var(--gray); }

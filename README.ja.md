@@ -60,6 +60,60 @@ Windows では `⌘` の代わりに `Ctrl`。
 /plugin install evoke --marketplace jinjwon/undertow
 ```
 
+## デザイン
+
+### 参考にしたもの
+
+| 出典 | 取り入れたもの | Evoke での使い方 |
+| --- | --- | --- |
+| Persona 5 | 赤・黒・白のコントラスト、大きく傾いた文字、切り貼りした紙のような板、選ぶと大きくなり位置が変わる名前 | 選択中のメニューひとつ: 白い板、黒い文字を切る赤い斜線、ピンクの影。隣の名前は上下によけます。赤は選択と警告だけに使います。REBEL テーマ全体 |
+| Persona 3 Reload | シアン・青・白、水とガラス、斜めに切ったパネル、カーソルから内容へ伸びる線、下部の操作ガイド | パネルの地(水のシェーダーが透ける透明な背景)、選択されていない名前のシアン三段階、斜めの HUD、カーソルから内容へ降りる線、下部の `Command` 行。TIDE テーマ全体 |
+| VS Code | アクティビティバー → サイドバー → エディター → パネル → ステータスバーの層、クイックオープン、プレビュータブ | 九つのメニューがアクティビティバー、その下の内容がサイドバー、HUD と入力欄の上の帯がステータスバーの役割です。アプリの `⌘P` `⌘⇧F` `⌘B` `⌘J` は VS Code と同じキーです |
+| Cursor | エディター横の AI パネル、選択範囲をチャットへ送る | 右の CLAUDE / CODEX パネル、`⌘L` |
+
+二つのゲームは混ぜず、役割を分けました。地と情報は Persona 3 Reload の冷たい色で、いま選んでいるものひとつだけを Persona 5 の赤と白い板で描きます。
+
+### メニューとパネルの原則
+
+- **上から下へ一方向:** HUD(状態)→ 九つのメニュー(選ぶ)→ 選んだメニューの内容 → 下部ガイド(できることとキー)。
+- **アイコン:** 名前の前にひとつずつあります。火花(SKILL)、ファイル(ITEM)、プラグ(EQUIP)、仲間(AGENT)、ゲージ(STATUS)、旗(QUEST)、輪(LINK)、月(CALENDAR)、歯車(SYSTEM)。名前と同じ色で、選ぶと赤になります。
+- **状態の色:** 赤は選択、80% 以上のゲージ、エラー。シアンは押せるものと補助情報。灰色は使っていないもの。ピンクはカーソルの縁と回数。
+- **セクション:** パネルは VS Code のサイドバーのように、帯の見出しが付いたセクションに分かれます。MENU、選んだメニューの内容(スキルはプラグインごとに一セクション)、COMMAND の順で、見出しの右に件数が付きます。
+- **絵を描けないターミナル:** Windows Terminal のように画像を描けない場所でも、同じ形を文字で描きます。名前はアートと同じずれた縦の列に並び、選んだ名前は白い板に黒い文字、ピンクの角です。
+- **実データだけ:** 記録のないメニューは、記録がないことだけを表示します。
+- **絵と操作を分ける:** ターミナルでは傾いた名前は一枚の絵で、クリックできません。押せるのは右端の `1`–`9` と下部のキー行です。
+- **動き:** メニューが変わるときだけ、四枚の絵を 24ms 間隔で切り替えます。それ以外でタイマーは動きません。
+
+### ターミナルパネルのキー
+
+修飾キーがないので macOS、Windows、Linux で同じです。パネルがキーボードを持っている間だけ動き、下部の行に `KEYS ON` と出ます。そうでなければ `ctrl+x tab` を押すかパネルをクリックします。
+
+| 分類 | キー | 動作 |
+| --- | --- | --- |
+| メニュー移動 | `j` / `k` | 次 / 前のメニュー |
+| メニュー選択 | `1`–`9` | そのメニューを選び、コマンドを入力欄に入れる |
+| 実行 | `e`、続けて Enter | 選んだメニューのコマンドを入力欄に入れて実行 |
+| ページ送り | `n` / `b` | SKILL の次 / 前のページ |
+| パネル切り替え | `p` / `s` | プロジェクト選択 / スキルブック |
+| 戻る | `Esc` | プロジェクト選択やスキルブックを閉じる |
+| コマンド | `/menu` `/projects` `/skillbook` | 入力欄からパネルを開く |
+
+### 既知の制限
+
+- ターミナルが 110 列より狭いと、Claude Code はパネルを入力欄の上に置きます。そのときは絵なしの行で描き、キー行を内容の上に置くので、切れても操作は残ります。
+- ウィンドウが低いと、絵は比率を保ったまま全体が小さくなり、右に水が残ります。
+- 絵の列数は Iosevka 14 のセル比(幅 ÷ 高さ = 0.4)で計算します。別のフォントでは `EVOKE_CELL=0.5` のように、その比率を環境変数で渡します。
+
+### 出典
+
+- Persona 5 Royal: <https://persona.atlus.com/p5r/>
+- Persona 3 Reload: <https://persona.atlus.com/p3r/>
+- VS Code, user interface: <https://code.visualstudio.com/docs/editing/getting-started/userinterface>
+- VS Code, personalize: <https://code.visualstudio.com/docs/getstarted/personalize-vscode>
+- VS Code, keyboard shortcuts: <https://code.visualstudio.com/docs/configure/keybindings>
+- VS Code, default keybindings: <https://code.visualstudio.com/docs/reference/default-keybindings>
+- Cursor, keyboard shortcuts: <https://docs.cursor.com/advanced/keyboard-shortcuts>
+
 ## 自分でビルドする
 
 ```sh

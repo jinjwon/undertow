@@ -58,6 +58,20 @@ svg.innerHTML = `<defs>
 
 <g id="cursorline"></g>`
 
+// One glyph per menu in a 60-unit box, so a function is told apart before its name is read. Solid shapes only: they must survive the smallest art.
+const ICONS = [
+  '<path d="M30 0L38 22L60 30L38 38L30 60L22 38L0 30L22 22Z"/>', // SKILL: a spark
+  '<path d="M10 2H38L52 16V58H10Z"/><path d="M38 2V16H52Z" fill="#000" opacity=".45"/>', // ITEM: a file
+  '<path d="M18 0H26V16H34V0H42V16H50V34C50 46 40 50 34 50V60H26V50C20 50 10 46 10 34V16H18Z"/>', // EQUIP: a plug
+  '<circle cx="21" cy="15" r="12"/><path d="M0 58C0 34 42 34 42 58Z"/><circle cx="47" cy="24" r="8"/><path d="M40 58C40 46 60 40 60 58Z"/>', // AGENT: a party
+  '<path d="M4 34H18V58H4ZM23 18H37V58H23ZM42 4H56V58H42Z"/>', // STATUS: gauges
+  '<path d="M8 2H16V6L56 18L16 32V58H8Z"/>', // QUEST: a flag
+  '<path fill-rule="evenodd" d="M20 12A18 18 0 1 0 20 48A18 18 0 1 0 20 12ZM20 22A8 8 0 1 1 20 38A8 8 0 1 1 20 22ZM40 12A18 18 0 1 0 40 48A18 18 0 1 0 40 12ZM40 22A8 8 0 1 1 40 38A8 8 0 1 1 40 22Z"/>', // LINK: two rings
+  '<path d="M38 2A29 29 0 1 0 58 44A24 24 0 1 1 38 2Z"/>', // CALENDAR: the moon
+  '<path fill-rule="evenodd" d="M24 0H36L38 9L46 4L55 13L50 21L60 24V36L50 38L55 46L46 55L38 50L36 60H24L22 50L13 55L4 46L9 38L0 36V24L9 21L4 13L13 4L22 9ZM30 19A11 11 0 1 0 30 41A11 11 0 1 0 30 19Z"/>', // SYSTEM: a gear
+]
+// Before the name and tilted with it; a dark edge keeps it readable where a white plane runs under.
+const icon = (i, size, fill) => `<g transform="translate(${-size * 1.25} ${-size * 0.95}) scale(${size / 60})" fill="${fill}" stroke="${K.ABYSS}" stroke-width="5" paint-order="stroke" stroke-linejoin="round">${ICONS[i]}</g>`
 const NS = 'http://www.w3.org/2000/svg'
 const ITEM_TONES = [K.CYAN, K.ICE, '#2FC6FA']
 await document.fonts.load('italic 900 80px Barlow')
@@ -73,14 +87,15 @@ MENUS.forEach((name, i) => {
   const a = ease(T * 1.5 - Math.abs(i - index) * 0.07)
   const x = row.x + (1 - a) * 240, y = row.y + shove
   if (!on) {
-    html += `<text transform="translate(${x} ${y}) rotate(${row.tilt})" font-size="78" letter-spacing="-1" fill="${ITEM_TONES[i % 3]}" opacity="${a}">${name}</text>`
+    html += `<g transform="translate(${x} ${y}) rotate(${row.tilt})" opacity="${a}">${icon(i, 52, ITEM_TONES[i % 3])}<text font-size="78" letter-spacing="-1" fill="${ITEM_TONES[i % 3]}">${name}</text></g>`
     return
   }
   const w = measure(name, 92), s = ease(T * 1.4)
-  const white = `-58,26 ${w + 22},10 ${w + 62},-104 ${w * 0.08},-58`
+  const white = `-132,30 ${w + 22},10 ${w + 62},-104 ${-92},-82` // The plate reaches left to carry the icon.
   const slash = `${w * 0.16},-72 ${w + 52},-102 ${w + 16},-30 ${w * 0.1},-34`
   html += `<g transform="translate(${x} ${y}) rotate(${row.tilt})">
     <g transform="scale(${s} 1)"><polygon points="${white}" transform="translate(9 10)" fill="${K.PINK}"/><polygon points="${white}" fill="${K.WHITE}"/></g>
+    ${icon(i, 64, K.RED)}
     <text font-size="92" letter-spacing="-2" fill="${K.BLACK}">${name}</text>
     <clipPath id="slash"><polygon points="${slash}"/></clipPath>
     <text font-size="92" letter-spacing="-2" fill="${K.RED}" clip-path="url(#slash)">${name}</text>

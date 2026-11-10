@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Terminal pane: an icon before each menu name, in the art. The selected menu's icon is red on its plate.
+- Terminal pane: the bottom row shows `KEYS ON` while the pane holds the keyboard, and `ctrl+x tab` when it does not.
+- Terminal pane: band headers cut it into sections (MENU, the content, a section per plugin in SKILL, COMMAND), as an editor's side bar.
+- Terminal pane with no pictures (Windows Terminal, Terminal.app): the menu names stand in the art's crooked column, the picked one on a white plate, when the pane has 28 rows or more.
+- Desktop MENU panel: the same section headers. Every menu's content starts under one (FILES, CHANGES, SESSIONS, TODO, PROJECTS), and SKILL has a section per plugin.
+- `EVOKE_CELL`: the cell's width over its height, for a terminal font other than Iosevka 14.
+- README: a design section with the references, the menu and panel rules, the terminal pane's keys and the known limits.
+
+### Fixed
+
+- Terminal pane in plain rows (under 110 columns, or a terminal with no pictures): the key row stands above the content, so a short pane cuts the log and not the controls.
+
 ## 2.4.0 - 2026-11-10
 
 ### Added
