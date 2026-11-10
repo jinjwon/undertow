@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert'
-import { promptVars, iconOf, isImage, stepDate, weekOf } from './text.ts'
+import { promptVars, iconOf, isImage, previewKind, stepDate, weekOf } from './text.ts'
 import { STRINGS, langFrom, tr } from './i18n.ts'
 
 test('promptVars finds each {{ }} variable with its offsets', () => {
@@ -59,4 +59,10 @@ test('langFrom picks the system language, English otherwise', () => {
 
 test('tr fills {n} placeholders', () => {
   assert.strictEqual(tr('en', 'changes', { n: 3 }), 'Changes 3')
+})
+
+test('previewKind sorts files into opened-as-preview, previewable, and neither', () => {
+  for (const p of ['a.pdf', 'A.PDF', 'm.mp4', 'm.webm', 'm.mov', 's.mp3', 's.wav', 's.ogg']) assert.strictEqual(previewKind(p), 'direct')
+  for (const p of ['i.html', 'i.htm', 'r.md', 'R.MARKDOWN']) assert.strictEqual(previewKind(p), 'live')
+  for (const p of ['a.ts', 'a.png', 'pdf', 'a.docx']) assert.strictEqual(previewKind(p), null)
 })

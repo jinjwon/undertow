@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.4.0 - 2026-11-10
+
+### Added
+
+- Coding agent setting: Claude Code and Codex, Claude Code only, or Codex only (Settings → General). An agent that is off has no tab and is never started; turning one off ends its sessions.
+- With Codex, the projects it trusts in `~/.codex/config.toml` join the project list and can be opened without the folder dialog.
+- Preview tabs: a PDF, a video or a sound file opens as a preview.
+- Live preview: `LIVE` on an HTML or Markdown file opens the page in a tab and reloads it whenever a file in the project changes. `↗` opens it in the browser.
+
+### Fixed
+
+- REBEL: the terminal's `A-`, `A+` and `CLEAR` sat half on and half off the white band once a third tab was added. They have a row of their own now, in both themes.
+- REBEL: the path on a selected row was unreadable.
+- REBEL: the background art showed through the editor at 50%. It is 4% now, so code keeps its contrast.
+- The open project could drop out of the LINK list once more than nine projects were known.
+
 ## 2.3.0 - 2026-11-10
 
 ### Added

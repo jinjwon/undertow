@@ -4,7 +4,7 @@
 
 [English](README.md) | **한국어** | [日本語](README.ja.md)
 
-[Claude Code](https://claude.com/claude-code)를 중심에 둔 데스크톱 코드 에디터입니다. 기울어진 게임 메뉴 디자인을 입혔습니다. 파일, 에디터, git, 셸, Claude Code가 한 창에 있고, VS Code나 Cursor에서 확장 프로그램을 깔아야 했던 기능이 기본으로 들어 있습니다.
+[Claude Code](https://claude.com/claude-code)와 [Codex](https://developers.openai.com/codex/cli)를 중심에 둔 데스크톱 코드 에디터입니다. 기울어진 게임 메뉴 디자인을 입혔습니다. 파일, 에디터, git, 셸, Claude Code가 한 창에 있고, VS Code나 Cursor에서 확장 프로그램을 깔아야 했던 기능이 기본으로 들어 있습니다.
 
 <img src="assets/preview.png" width="720" alt="TIDE 테마의 Evoke: 왼쪽은 MENU 패널, 가운데는 에디터, 오른쪽은 Claude Code">
 
@@ -18,7 +18,7 @@
 | Windows (x64) | `Evoke-Setup-<버전>.exe` | 실행하면 시작 메뉴와 바탕화면 바로가기가 생깁니다 |
 | Windows, 설치 없이 | `Evoke-<버전>-win-x64.zip` | 아무 곳에나 압축을 풀고 `Evoke.exe` 실행 |
 
-[Claude Code](https://docs.claude.com/ko/docs/claude-code)가 설치되어 로그인되어 있어야 합니다. [Codex](https://developers.openai.com/codex/cli)는 선택입니다. 설치되어 있으면 CODEX 탭에서 실행됩니다.
+[Claude Code](https://docs.claude.com/ko/docs/claude-code)나 [Codex](https://developers.openai.com/codex/cli)가 설치되어 로그인되어 있어야 합니다. 둘 중 하나면 됩니다. 앱이 어느 것을 쓸지는 설정에서 고릅니다.
 
 서명하지 않은 빌드입니다. 처음 한 번, macOS에서는 Evoke를 우클릭해 열기를 고르고, Windows에서는 추가 정보 → 실행을 누릅니다.
 
@@ -41,6 +41,8 @@
   위쪽 HUD는 날짜, 달, 컨텍스트, 5시간·7일 사용량과 초기화까지 남은 시간, 세션 비용을 보여 줍니다. 85%를 넘으면 알림이 뜹니다.
 - **에디터 (가운데):** Monaco. TS/JS, JSON, CSS, HTML 자동완성·오류 표시·정렬, 괄호 색과 가이드, HTML 태그 짝 이름 같이 바꾸기, diff 보기.
 - **CLAUDE / CODEX / SHELL (오른쪽):** 프로젝트마다 Claude Code 세션, Codex 세션, 셸이 하나씩. 프로젝트를 바꿔도 유지됩니다. Codex와 셸은 탭을 처음 열 때 시작합니다.
+- **코딩 에이전트:** 설정(⚙) → 일반에서 Claude Code와 Codex, Claude Code만, Codex만 중에 고릅니다. 끈 에이전트는 탭이 없고 실행되지도 않습니다. Codex만 쓰면 Codex가 신뢰한 프로젝트가 프로젝트 목록에 나옵니다. 지난 대화, 사용량 HUD, 스킬 목록은 Claude Code에서 옵니다.
+- **미리보기:** PDF, 영상, 소리 파일은 미리보기 탭으로 열립니다. HTML이나 Markdown 파일에서는 탭 줄 끝의 `LIVE`를 누르면 그 페이지가 옆 탭에 열리고, 프로젝트의 파일이 바뀔 때마다 새로 고쳐집니다. `↗`는 같은 페이지를 브라우저에서 엽니다. Word, Excel, PowerPoint 파일은 미리보기가 없습니다.
 - **서버:** LINK에 `~/.ssh/config`의 호스트가 나옵니다. 누르면 `ssh` 터미널이 별도 탭으로 열립니다. 서버의 터미널이며, 서버 파일이 에디터에 열리지는 않습니다.
 - **크기 조절과 접기:** 패널 사이 경계를 끌면 크기가 바뀌고, 더블클릭하면 원래대로 돌아갑니다. `⌘B`는 사이드바, `⌘J`는 터미널을 접습니다. 상단 바의 `◧` `◨`도 같습니다. 접으면 에디터가 그 자리를 쓰고, 접힌 터미널은 계속 실행됩니다.
 - **테마 두 가지,** 테마마다 로고가 다릅니다. **TIDE**는 굵은 사선의 흰색·파란색 게임 메뉴입니다. **REBEL**은 핏빛 레드, 칠흑 같은 블랙, 쨍한 화이트 세 가지 색만 쓰는 프롬프트 엔지니어링용 테마입니다. 패널 모서리는 사선으로 잘려 있고, 경계에는 하프톤 도트가 들어가며, 폴더와 알림에는 괴도 가면이 붙습니다. 프롬프트의 `{{변수}}`는 잡지를 오려 붙인 납치범 편지처럼 글자마다 다르게 강조됩니다.

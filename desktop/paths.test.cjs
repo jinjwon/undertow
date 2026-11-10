@@ -1,6 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const path = require('node:path')
+const { codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 
 test('inside keeps paths within the project', () => {
   assert.ok(inside('/a/proj', '/a/proj'))
@@ -25,6 +26,12 @@ test('sshHosts lists named hosts only, never a pattern or an option', () => {
   const config = 'Host web db\n  HostName 10.0.0.1\nhost *.corp !bad\nHost -oProxyCommand=evil\n  Host   stage # old\nHost web\n'
   assert.deepStrictEqual(sshHosts(config), ['web', 'db', 'stage'])
   assert.deepStrictEqual(sshHosts(''), [])
+})
+
+test('codexTrusted reads the trusted projects of ~/.codex/config.toml', () => {
+  const toml = 'model = "x"\n[projects."/a/ok"]\ntrust_level = "trusted"\n[projects."/a/no"]\ntrust_level = "untrusted"\n[projects."C:\\\\Users\\\\a\\\\p"]\ntrust_level = "trusted"\n[projects.\'D:\\lit\']\ntrust_level = "trusted"\n[other]\ntrust_level = "trusted"\n'
+  assert.deepStrictEqual([...codexTrusted(toml)].sort(), [path.resolve('/a/ok'), path.resolve('C:\\Users\\a\\p'), path.resolve('D:\\lit')].sort())
+  assert.strictEqual(codexTrusted('').size, 0)
 })
 
 test('trusted lists only projects whose trust dialog was accepted', () => {

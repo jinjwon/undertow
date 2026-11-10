@@ -4,7 +4,7 @@
 
 **English** | [한국어](README.ko.md) | [日本語](README.ja.md)
 
-A desktop code editor built around [Claude Code](https://claude.com/claude-code), dressed as a slanted game menu. Files, the editor, git, a shell and Claude Code sit in one window, and the things you would install VS Code or Cursor extensions for are built in.
+A desktop code editor built around [Claude Code](https://claude.com/claude-code) and [Codex](https://developers.openai.com/codex/cli), dressed as a slanted game menu. Files, the editor, git, a shell and Claude Code sit in one window, and the things you would install VS Code or Cursor extensions for are built in.
 
 <img src="assets/preview.png" width="720" alt="Evoke in the TIDE theme: the MENU pane on the left, the editor in the middle, Claude Code on the right">
 
@@ -18,7 +18,7 @@ From [Releases](https://github.com/jinjwon/undertow/releases/latest):
 | Windows (x64) | `Evoke-Setup-<version>.exe` | Run it: it adds Start menu and desktop shortcuts |
 | Windows, portable | `Evoke-<version>-win-x64.zip` | Unzip anywhere and run `Evoke.exe` |
 
-You need [Claude Code](https://docs.claude.com/en/docs/claude-code) installed and signed in. [Codex](https://developers.openai.com/codex/cli) is optional: the CODEX tab runs it when it is installed.
+You need [Claude Code](https://docs.claude.com/en/docs/claude-code) or [Codex](https://developers.openai.com/codex/cli) installed and signed in; one of them is enough. Pick which the app uses in Settings.
 
 Builds are unsigned. The first time, on macOS right-click Evoke and choose Open; on Windows choose More info → Run anyway.
 
@@ -41,6 +41,8 @@ Builds are unsigned. The first time, on macOS right-click Evoke and choose Open;
   The HUD on top shows the date, the moon, context and 5-hour/7-day usage with resets, and session cost. A toast warns at 85%.
 - **Editor (middle):** Monaco with completion, errors and formatting for TS/JS, JSON, CSS and HTML; bracket colors and guides; matching HTML tags rename together; diff view.
 - **CLAUDE / CODEX / SHELL (right):** one live Claude Code session, one Codex session and one shell per project, kept while you switch projects. Codex and the shell start the first time you open their tab.
+- **Coding agent:** Settings (⚙) → General picks Claude Code and Codex, Claude Code only, or Codex only. An agent you turn off gets no tab and is never started. With Codex only, the projects Codex trusts fill the project list. Past sessions, the usage HUD and the skill list come from Claude Code.
+- **Preview:** a PDF, a video or a sound file opens as a preview tab. On an HTML or Markdown file, `LIVE` at the end of the tab bar opens the page beside it and reloads it whenever a file in the project changes; `↗` opens the same page in your browser. Word, Excel and PowerPoint files are not previewed.
 - **Servers:** LINK lists the hosts in `~/.ssh/config`. Click one and an `ssh` terminal opens in its own tab. It is a terminal on the server; files there do not open in the editor.
 - **Resize and fold:** drag the line between two panels to resize them, and double-click it to reset. `⌘B` folds the sidebar and `⌘J` the terminal, as do `◧` `◨` in the top bar; the editor takes the room, and a folded terminal keeps running.
 - **Two themes,** each with its own logo. **TIDE** is a white and blue game menu with hard diagonals. **REBEL** is a prompt-engineering theme in three colours only (blood red, pitch black, stark white): cut-out panel corners, halftone seams, a thief's mask on folders and alerts, and `{{variables}}` in prompts cut out letter by letter like a ransom note.

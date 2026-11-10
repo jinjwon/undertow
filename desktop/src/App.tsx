@@ -7,10 +7,11 @@ import { FitAddon } from '@xterm/addon-fit'
 import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
 import { Pane } from './Pane'
 import { LANGS as UI_LANGS, langFrom, tr, type Lang } from './i18n'
-import { iconOf, isImage, promptVars, stepDate, weekOf } from './text'
+import { agentsOf, parseAgents, targetOf, type Agent, type Agents } from './agents'
+import { iconOf, isImage, previewKind, promptVars, stepDate, weekOf } from './text'
 import { EMPTY, FLOAT_IDS, fitCols, fitFloat, parseLayout, type Cols, type FloatId, type Layout, type MainId, type Rect } from './layout'
 import { LayoutEdit } from './LayoutEdit'
-import { baseName, lastUsedOf, projectsOf, rank, rankProjects } from '../../plugins/evoke/hooks/data'
+import { baseName, lastUsedOf, projectsOf, rank, rankProjects, samePath } from '../../plugins/evoke/hooks/data'
 
 declare global {
   interface Window { evoke: any }
@@ -19,8 +20,9 @@ const api = window.evoke
 
 type Project = { name: string; path: string }
 type Entry = { name: string; path: string; dir: boolean }
+// web: a preview page's address on the preview server (a PDF, a video, or the live view of an HTML or Markdown file, whose tab is named live:<path>);
 // head: a diff tab against the last commit; image: a picture shown instead of text; preview: replaced by the next single click, as in VS Code
-type Tab = { path: string; text: string; saved: string; head?: string; image?: string; preview?: boolean }
+type Tab = { path: string; text: string; saved: string; head?: string; image?: string; web?: string; preview?: boolean }
 type Change = { path: string; code: string }
 type Hit = { path: string; rel: string; line?: number; col?: number; preview?: string }
 type Finder = { mode: 'files' | 'search'; query: string; hits: Hit[]; at: number }
@@ -33,6 +35,9 @@ const MOD = api.platform === 'darwin' ? '⌘' : 'Ctrl+'
 const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const stored = (): ThemeName => {
   try { const t = localStorage.getItem('theme') as ThemeName; return THEMES[t] ? t : 'tide' } catch { return 'tide' }
+}
+const storedAgents = (): Agents => {
+  try { return parseAgents(localStorage.getItem('agents')) } catch { return 'both' }
 }
 const storedLang = (): Lang => {
   try { return langFrom(localStorage.getItem('lang') ?? navigator.language) } catch { return langFrom(navigator.language) }
@@ -121,7 +126,8 @@ export function App() {
   const [day, setDay] = useState<string | null>(null) // CALENDAR: the day whose sessions are listed
   const [toast, setToast] = useState('')
   const warned = useRef(new Set<string>())
-  const [pane, setPane] = useState<'claude' | 'codex' | 'shell' | 'ssh'>('claude')
+  const [agents, setAgents] = useState<Agents>(storedAgents)
+  const [pane, setPane] = useState<'claude' | 'codex' | 'shell' | 'ssh'>(() => agentsOf(storedAgents())[0])
   const [hosts, setHosts] = useState<string[]>([]) // LINK: the hosts of ~/.ssh/config
   const [remotes, setRemotes] = useState<string[]>([]) // hosts with an ssh terminal open
   const [remote, setRemote] = useState('')
@@ -158,12 +164,25 @@ export function App() {
     if (menu === 'STATUS') refreshGit()
     if (menu === 'QUEST') (setQuests(null), api.search(root, 'TODO').then(setQuests))
   }, [menu, root, calendarOut])
+  // Codex alone starts with each project, as Claude Code does; beside Claude Code it waits for its tab.
+  const claudeOn = agents === 'codex' ? [] : opened
+  const codexOn = agents === 'codex' ? opened : agents === 'both' ? codexes : []
+  // Turning an agent off ends its sessions, so nothing keeps running where it cannot be seen.
+  const pickAgents = (next: Agents) => {
+    const live: Record<Agent, string[]> = { claude: claudeOn, codex: codexOn }
+    for (const a of agentsOf(agents)) if (!agentsOf(next).includes(a)) for (const path of live[a]) api.pty.kill(`${a}:${path}`)
+    if (next !== 'both') setCodexes([])
+    if ((pane === 'claude' || pane === 'codex') && !agentsOf(next).includes(pane)) setPane(agentsOf(next)[0])
+    setAgents(next)
+    try { localStorage.setItem('agents', next) } catch {}
+  }
   const say = (text: string) => {
-    api.pty.write(`claude:${root}`, typed(text))
-    showPane('claude')
+    const to = targetOf(agents, pane)
+    api.pty.write(`${to}:${root}`, typed(text))
+    showPane(to)
     document.querySelector<HTMLElement>('.claude.on .xterm-helper-textarea')?.focus()
   }
-  const resume = (id: string) => (setResumes(r => ({ ...r, [root]: id })), showPane('claude'))
+  const resume = (id: string) => { if (agents !== 'codex') (setResumes(r => ({ ...r, [root]: id })), showPane('claude')) } // only Claude Code has sessions to resume here
 
   // The pane's toast: once per limit when it passes 85%, again only after it falls back.
   useEffect(() => {
@@ -200,9 +219,16 @@ export function App() {
 
   const loadProjects = useCallback(async (cwd: string) => {
     const raw = await api.projectsRaw()
-    const found: Project[] = projectsOf(raw.claudeJson, raw.home)
+    const fromClaude: Project[] = projectsOf(raw.claudeJson, raw.home)
+    // Codex's projects go through the same rules (no home folder, no Library, one entry per folder); its own scratch folders under ~/.codex are left out.
+    const codexJson = JSON.stringify({ projects: Object.fromEntries((raw.codexProjects as string[]).map(p => [p, { hasTrustDialogAccepted: true }])) })
+    const fromCodex: Project[] = projectsOf(codexJson, raw.home).filter((p: Project) => !/\/\.codex\//.test(p.path.replace(/\\/g, '/')) && !fromClaude.some(f => samePath(f.path, p.path)))
+    const found = [...fromClaude, ...fromCodex]
     const real = await api.exists(found.map(p => p.path))
-    return rankProjects(found.filter((_, i) => real[i]), lastUsedOf(raw.history), cwd).slice(0, 9)
+    const ranked = rankProjects(found.filter((_, i) => real[i]), lastUsedOf(raw.history), cwd)
+    // Nine rows, and the open project is always one of them (it ranks last, so a tenth project used to push it out).
+    const here = ranked.find(p => samePath(p.path, cwd))
+    return here ? [...ranked.filter(p => p !== here).slice(0, 8), here] : ranked.slice(0, 9)
   }, [])
 
   const open = useCallback(async (path: string) => {
@@ -241,11 +267,21 @@ export function App() {
     const had = tabs.find(t => t.path === path)
     if (!had) {
       const image = isImage(path) ? await api.image(path).catch(() => '') : undefined
-      const text = image === undefined ? await api.read(path).catch(() => '') : ''
-      setTabs(ts => [...ts.filter(t => keep || !(t.preview && t.text === t.saved)), { path, text, saved: text, image, preview: !keep }])
+      const web = previewKind(path) === 'direct' ? await api.previewUrl(path).catch(() => '') : undefined
+      const text = image === undefined && web === undefined ? await api.read(path).catch(() => '') : ''
+      setTabs(ts => [...ts.filter(t => keep || !(t.preview && t.text === t.saved)), { path, text, saved: text, image, web, preview: !keep }])
     } else if (keep && had.preview) setTabs(ts => ts.map(t => (t.path === path ? { ...t, preview: false } : t)))
     setActive(path)
     if (path === active) reveal()
+  }
+  // The live view of an HTML or Markdown file, in a tab of its own beside the file's editor tab.
+  const openLive = async (path: string) => {
+    const id = `live:${path}`
+    if (!tabs.some(t => t.path === id)) {
+      const web = await api.previewUrl(path).catch(() => '')
+      setTabs(ts => (ts.some(t => t.path === id) ? ts : [...ts, { path: id, text: '', saved: '', web }]))
+    }
+    setActive(id)
   }
   // Puts the cursor on the line a search result or quick open asked for, once that file is the editor's model.
   const reveal = () => {
@@ -269,7 +305,7 @@ export function App() {
   // Claude Code edits files on disk: tabs without your own unsaved edits follow the disk when you come back to the window.
   useEffect(() => {
     const sync = async () => {
-      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved && t.head === undefined && t.image === undefined ? api.read(t.path).catch(() => t.saved) : t.saved)))
+      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved && t.head === undefined && t.image === undefined && t.web === undefined ? api.read(t.path).catch(() => t.saved) : t.saved)))
       setTabs(ts => ts.map((t, i) => (t.text === t.saved && fresh[i] !== undefined && fresh[i] !== t.saved ? { ...t, text: fresh[i], saved: fresh[i] } : t)))
     }
     window.addEventListener('focus', sync)
@@ -385,8 +421,8 @@ export function App() {
     setTabs(ts => ts.map(t => (t.path === path ? { ...t, saved: text } : t)))
     refreshGit()
   }
-  const live = useRef({ save, root, active, pane })
-  live.current = { save, root, active, pane }
+  const live = useRef({ save, root, active, pane, agents })
+  live.current = { save, root, active, pane, agents }
 
   // ⌘S saves; ⌘L hands the selection to Claude Code as an @file reference with its lines.
   const onMount: OnMount = (editor, monaco) => {
@@ -419,11 +455,11 @@ export function App() {
       save(active, editor.getValue())
     })
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL, () => {
-      const { root, active, pane } = live.current
+      const { root, active, pane, agents } = live.current
       const s = editor.getSelection()
       if (!active || !s) return
       const lines = s.isEmpty() ? '' : `#L${s.startLineNumber}${s.endLineNumber > s.startLineNumber ? `-${s.endLineNumber}` : ''}`
-      api.pty.write(`${pane === 'codex' ? 'codex' : 'claude'}:${root}`, typed(`@${relative(root, active)}${lines} `)) // to Codex when its tab is the one showing
+      api.pty.write(`${targetOf(agents, pane)}:${root}`, typed(`@${relative(root, active)}${lines} `)) // to the agent on screen, else the first one enabled
       document.querySelector<HTMLElement>('.claude.on .xterm-helper-textarea')?.focus()
     })
   }
@@ -466,7 +502,8 @@ export function App() {
             {equip.plugins.map(m => <div key={m} className="entry">◆ {m}</div>)}
           </>
         )}
-        {menu === 'AGENT' && (
+        {agents === 'codex' && (menu === 'AGENT' || menu === 'CALENDAR') && <div className="entry quiet">{T('claudeOnly')}</div>}
+        {menu === 'AGENT' && agents !== 'codex' && (
           <>
             {sessions.slice(0, 10).map(s => (
               <div key={s.id} className="entry" onClick={() => resume(s.id)}>▸ {s.title || T('untitled')} <div className="desc">{new Date(s.mtime).toLocaleString()}</div></div>
@@ -489,7 +526,7 @@ export function App() {
             )) : <div className="entry quiet">{T('noServers')}</div>}
           </>
         )}
-        {menu === 'CALENDAR' && (calendarOut ? <div className="entry quiet">{T('calendarFloating')}</div> : widget('calendar', calendar))}
+        {menu === 'CALENDAR' && agents !== 'codex' && (calendarOut ? <div className="entry quiet">{T('calendarFloating')}</div> : widget('calendar', calendar))}
         {menu === 'SYSTEM' && (
           <>
             <div className="group">{T('theme')}</div>
@@ -506,12 +543,17 @@ export function App() {
         <nav className="tabs">
           {tabs.map(t => (
             <div key={t.path} className={`tab ${t.path === active ? 'on' : ''} ${t.preview ? 'preview' : ''}`} onClick={() => setActive(t.path)} onDoubleClick={() => openFile(t.path, undefined, 1, true)} title={t.preview ? `${T('preview')}: ${t.path}` : t.path}>
-              <FileIcon name={t.path} />{t.head !== undefined && 'Δ '}{baseName(t.path)}{t.text !== t.saved && ' ●'}
+              <FileIcon name={t.path} />{t.head !== undefined && 'Δ '}{t.path.startsWith('live:') && '◉ '}{baseName(t.path)}{t.text !== t.saved && ' ●'}
               <span className="x" onClick={e => (e.stopPropagation(), closeTab(t.path))}>×</span>
             </div>
           ))}
+          {tab && tab.head === undefined && tab.web === undefined && previewKind(tab.path) === 'live' && (
+            <button className="live" onClick={() => openLive(tab.path)} title={T('live.open')} aria-label={T('live.open')}><Cut label="LIVE" ground="var(--edge)" /></button>
+          )}
         </nav>
-        {tab?.head !== undefined ? (
+        {tab?.web !== undefined ? (
+          <WebView key={tab.path} url={tab.web} T={T} />
+        ) : tab?.head !== undefined ? (
           <DiffEditor
             original={tab.head}
             modified={tab.text}
@@ -561,8 +603,8 @@ export function App() {
 
       <section className="right" style={mainStyle('right')}>
         <div className="head sides">
-          <button onClick={() => showPane('claude')} className={pane === 'claude' ? 'on' : ''}><Cut label="CLAUDE" ground={pane === 'claude' ? 'var(--edge)' : 'var(--mid)'} /></button>
-          <button onClick={() => showPane('codex')} className={pane === 'codex' ? 'on' : ''}><Cut label="CODEX" ground={pane === 'codex' ? 'var(--edge)' : 'var(--mid)'} /></button>
+          {agents !== 'codex' && <button onClick={() => showPane('claude')} className={pane === 'claude' ? 'on' : ''}><Cut label="CLAUDE" ground={pane === 'claude' ? 'var(--edge)' : 'var(--mid)'} /></button>}
+          {agents !== 'claude' && <button onClick={() => showPane('codex')} className={pane === 'codex' ? 'on' : ''}><Cut label="CODEX" ground={pane === 'codex' ? 'var(--edge)' : 'var(--mid)'} /></button>}
           <button onClick={() => showPane('shell')} className={pane === 'shell' ? 'on' : ''}><Cut label="SHELL" ground={pane === 'shell' ? 'var(--edge)' : 'var(--mid)'} /></button>
           {remotes.length > 0 && <button onClick={() => setPane('ssh')} className={pane === 'ssh' ? 'on' : ''}><Cut label={`SSH ${remote}`} ground={pane === 'ssh' ? 'var(--edge)' : 'var(--mid)'} /></button>}
           <span className="tools">
@@ -571,9 +613,9 @@ export function App() {
             <button onClick={() => TERMS.get(pane === 'ssh' ? `ssh:${remote}` : `${pane}:${root}`)?.clear()} title={T('term.clear')} aria-label={T('term.clear')}><Cut label="CLEAR" ground="var(--mid)" /></button>
           </span>
         </div>
-        {opened.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+        {claudeOn.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
         {remotes.map(host => <Claude key={`ssh:${host}`} kind="ssh" cwd={host} on={pane === 'ssh' && host === remote} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
-        {codexes.map(path => <Claude key={`codex:${path}`} kind="codex" cwd={path} on={pane === 'codex' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+        {codexOn.map(path => <Claude key={`codex:${path}`} kind="codex" cwd={path} on={pane === 'codex' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
         {shells.map(path => <Claude key={`shell:${path}`} kind="shell" cwd={path} on={pane === 'shell' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
       </section>
 
@@ -636,6 +678,8 @@ export function App() {
               <>
                 <div className="group">{T('language')}</div>
                 {UI_LANGS.map(l => <button key={l.id} className={`row ${l.id === lang ? 'on' : ''}`} onClick={() => setLang(l.id)}><b>◆</b> {l.label}</button>)}
+                <div className="group">{T('agents')}</div>
+                {(['both', 'claude', 'codex'] as const).map(a => <button key={a} className={`row ${a === agents ? 'on' : ''}`} onClick={() => pickAgents(a)}><b>◆</b> {T(`agents.${a}`)}</button>)}
               </>
             )}
             {settingsTab === 'appearance' && (
@@ -707,6 +751,21 @@ function Tree({ dir, depth, onOpen, active }: { dir: string; depth: number; onOp
         </div>
       ))}
     </>
+  )
+}
+
+// A preview page in a frame. It is another origin with no preload, so it cannot reach the app; no sandbox attribute, because Chromium refuses its PDF viewer in a sandboxed frame.
+function WebView({ url, T }: { url: string; T: (key: any, vars?: any) => string }) {
+  const [run, setRun] = useState(0)
+  return (
+    <div className="web-view">
+      <div className="web-bar">
+        <span>{url}</span>
+        <button onClick={() => setRun(r => r + 1)} title={T('live.reload')} aria-label={T('live.reload')}>↻</button>
+        <button onClick={() => api.previewOpen(url)} title={T('live.browser')} aria-label={T('live.browser')}>↗</button>
+      </div>
+      {url ? <iframe key={run} src={url} title={T('live.open')} /> : <p className="quiet">{T('binary')}</p>}
+    </div>
   )
 }
 

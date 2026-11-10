@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('evoke', {
   sessions: root => ipcRenderer.invoke('sessions:list', root),
   skills: () => ipcRenderer.invoke('skills:list'),
   equip: root => ipcRenderer.invoke('equip:list', root),
+  previewUrl: file => ipcRenderer.invoke('preview:url', file),
+  previewOpen: url => ipcRenderer.send('preview:open', url),
   sshHosts: () => ipcRenderer.invoke('ssh:hosts'),
   pty: {
     spawn: (id, cwd, cols, rows, kind, resume) => ipcRenderer.invoke('pty:spawn', id, cwd, cols, rows, kind, resume),

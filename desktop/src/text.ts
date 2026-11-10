@@ -34,3 +34,8 @@ export const stepDate = (t: number, view: 'month' | 'week' | 'day', n: number) =
   const d = new Date(t)
   return view === 'month' ? new Date(d.getFullYear(), d.getMonth() + n, 1).getTime() : new Date(d.getFullYear(), d.getMonth(), d.getDate() + n * (view === 'week' ? 7 : 1)).getTime()
 }
+
+// How a file is previewed: 'direct' files (PDF, video, sound) cannot be edited, so a click opens the preview itself;
+// 'live' files (HTML, Markdown) open in the editor and can be shown beside it; null has no preview.
+export const previewKind = (path: string): 'direct' | 'live' | null =>
+  /\.(pdf|mp4|webm|mov|mp3|wav|ogg)$/i.test(path) ? 'direct' : /\.(html?|md|markdown)$/i.test(path) ? 'live' : null

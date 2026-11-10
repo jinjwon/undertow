@@ -1,17 +1,19 @@
 // The main process: one window, and the file, git, usage and terminal access the window asks for.
-const { app, BrowserWindow, dialog, ipcMain } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron')
 const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 const { execFile } = require('node:child_process')
 const pty = require('node-pty')
-const { sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { start: startPreview } = require('./serve.cjs')
 const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
 
 const home = os.homedir()
 const roots = new Set() // real paths of the folders the window has opened; file access stays inside them
 const picked = new Set() // folders you chose in the open dialog
 const claudeJson = () => fs.readFile(path.join(home, '.claude.json'), 'utf8').catch(() => '{}')
+const codexToml = () => fs.readFile(path.join(home, '.codex', 'config.toml'), 'utf8').catch(() => '')
 const terms = new Map() // one Claude Code session per project, kept while you switch
 let win
 
@@ -26,6 +28,7 @@ ipcMain.handle('projects:raw', async () => ({
   home,
   claudeJson: await claudeJson(),
   history: await fs.readFile(path.join(home, '.claude', 'history.jsonl'), 'utf8').catch(() => ''),
+  codexProjects: [...codexTrusted(await codexToml())], // so someone who only uses Codex still gets a project list
 }))
 ipcMain.handle('projects:exists', (_, paths) =>
   Promise.all(paths.map(p => fs.stat(p).then(s => s.isDirectory(), () => false))),
@@ -36,10 +39,11 @@ ipcMain.handle('project:pick', async () => {
   picked.add(path.resolve(filePaths[0]))
   return filePaths[0]
 })
-// The window may only open what Claude Code trusts or what you picked, so a bug in the page cannot widen file access.
+// The window may only open what Claude Code or Codex trusts, or what you picked, so a bug in the page cannot widen file access.
 ipcMain.handle('project:open', async (_, root) => {
   const at = path.resolve(String(root))
-  if (!picked.has(at) && !trusted(await claudeJson()).has(at.normalize('NFC'))) throw new Error(`Not a known project: ${at}`)
+  const known = picked.has(at) || trusted(await claudeJson()).has(at.normalize('NFC')) || codexTrusted(await codexToml()).has(at.normalize('NFC'))
+  if (!known) throw new Error(`Not a known project: ${at}`)
   roots.add(await fs.realpath(at))
   return at
 })
@@ -106,6 +110,34 @@ ipcMain.handle('fs:image', async (_, file) => {
   if (stat.size > 20e6) throw new Error(`Image too large: ${file}`)
   return `data:${type};base64,${(await fs.readFile(file)).toString('base64')}`
 })
+// Previews: one loopback server for every open project, started with the first preview (see serve.cjs).
+let preview // a promise, so two first previews share one server
+let previewBase = '' // http://127.0.0.1:<port>/t/<secret>/ once it runs
+const watchers = new Map() // root -> its watcher; a change reloads the open preview pages
+let reloadTimer
+const reloadSoon = () => {
+  clearTimeout(reloadTimer)
+  reloadTimer = setTimeout(() => preview?.then(p => p.changed()), 150)
+}
+ipcMain.handle('preview:url', async (_, file) => {
+  const real = await fs.realpath(await guard(file))
+  preview ??= startPreview({ roots: () => [...roots], guard, markdown: text => require('marked').marked.parse(text) })
+  const server = await preview
+  previewBase = `http://127.0.0.1:${server.port}/t/${server.token}/`
+  const url = server.urlOf(real)
+  if (!url) throw new Error(`Outside the open projects: ${file}`)
+  const root = [...roots].find(r => inside(r, real))
+  if (!watchers.has(root)) {
+    // Git's own files and installed packages change in bursts that no preview shows.
+    watchers.set(root, require('node:fs').watch(root, { recursive: true }, (_event, name) => /(^|[\\/])(\.git|node_modules)([\\/]|$)/.test(String(name)) || reloadSoon()))
+  }
+  return url
+})
+// The same page in the real browser. Only this server's own addresses are handed to the system.
+ipcMain.on('preview:open', (_, url) => {
+  if (previewBase && String(url).startsWith(previewBase)) shell.openExternal(String(url))
+})
+
 ipcMain.handle('fs:write', async (_, file, text) => fs.writeFile(await guard(file), String(text), 'utf8'))
 
 ipcMain.handle('git:branch', async (_, root) => {
@@ -245,9 +277,12 @@ app.whenReady().then(() => {
   win.webContents.session.setPermissionRequestHandler((_wc, _permission, answer) => answer(false)) // no camera, mic, location
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('will-navigate', e => e.preventDefault())
+  // A preview frame cannot leave the preview server: the page's own policy (frame-src in index.html) refuses any other address before a request is made.
   win.loadFile(path.join(__dirname, 'dist', 'index.html'))
 })
 app.on('before-quit', () => {
+  for (const w of watchers.values()) w.close()
+  preview?.then(p => p.close())
   for (const term of terms.values()) term.kill()
   terms.clear()
 })

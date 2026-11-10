@@ -106,4 +106,16 @@ const sendTo = (win, channel, ...args) => {
 const sshHosts = text =>
   [...new Set(String(text).split(/\r?\n/).flatMap(l => /^\s*Host\s+(.+)$/i.exec(l.replace(/\s+#.*$/, ''))?.[1].trim().split(/\s+/) ?? []))].filter(h => /^\w[\w.-]*$/.test(h))
 
-module.exports = { sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }
+// Projects Codex trusts, from ~/.codex/config.toml: [projects."<path>"] (or '<path>') tables whose trust_level is "trusted".
+const codexTrusted = toml => {
+  const out = new Set()
+  for (const table of String(toml).split(/^(?=\[)/m)) {
+    const head = /^\[projects\.(?:"((?:[^"\\]|\\.)*)"|'([^']*)')\]/.exec(table)
+    if (!head || !/^\s*trust_level\s*=\s*"trusted"/m.test(table)) continue
+    const at = head[2] ?? head[1].replace(/\\(.)/g, '$1')
+    out.add(path.resolve(at).normalize('NFC'))
+  }
+  return out
+}
+
+module.exports = { codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }
