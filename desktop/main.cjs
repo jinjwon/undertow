@@ -277,10 +277,7 @@ app.whenReady().then(() => {
   win.webContents.session.setPermissionRequestHandler((_wc, _permission, answer) => answer(false)) // no camera, mic, location
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('will-navigate', e => e.preventDefault())
-  // A preview frame stays on the preview server (and Chromium's own PDF viewer): a link in a previewed page cannot take the frame to the web.
-  win.webContents.on('will-frame-navigate', e => {
-    if (!e.isMainFrame && !(previewBase && e.url.startsWith(previewBase)) && !e.url.startsWith('chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/')) e.preventDefault()
-  })
+  // A preview frame cannot leave the preview server: the page's own policy (frame-src in index.html) refuses any other address before a request is made.
   win.loadFile(path.join(__dirname, 'dist', 'index.html'))
 })
 app.on('before-quit', () => {

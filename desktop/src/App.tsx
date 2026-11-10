@@ -11,7 +11,7 @@ import { agentsOf, parseAgents, targetOf, type Agent, type Agents } from './agen
 import { iconOf, isImage, previewKind, promptVars, stepDate, weekOf } from './text'
 import { EMPTY, FLOAT_IDS, fitCols, fitFloat, parseLayout, type Cols, type FloatId, type Layout, type MainId, type Rect } from './layout'
 import { LayoutEdit } from './LayoutEdit'
-import { baseName, lastUsedOf, projectsOf, rank, rankProjects } from '../../plugins/evoke/hooks/data'
+import { baseName, lastUsedOf, projectsOf, rank, rankProjects, samePath } from '../../plugins/evoke/hooks/data'
 
 declare global {
   interface Window { evoke: any }
@@ -220,9 +220,15 @@ export function App() {
   const loadProjects = useCallback(async (cwd: string) => {
     const raw = await api.projectsRaw()
     const fromClaude: Project[] = projectsOf(raw.claudeJson, raw.home)
-    const found = [...fromClaude, ...(raw.codexProjects as string[]).filter(p => !fromClaude.some(f => f.path === p)).map(p => ({ name: baseName(p), path: p }))]
+    // Codex's projects go through the same rules (no home folder, no Library, one entry per folder); its own scratch folders under ~/.codex are left out.
+    const codexJson = JSON.stringify({ projects: Object.fromEntries((raw.codexProjects as string[]).map(p => [p, { hasTrustDialogAccepted: true }])) })
+    const fromCodex: Project[] = projectsOf(codexJson, raw.home).filter((p: Project) => !/\/\.codex\//.test(p.path.replace(/\\/g, '/')) && !fromClaude.some(f => samePath(f.path, p.path)))
+    const found = [...fromClaude, ...fromCodex]
     const real = await api.exists(found.map(p => p.path))
-    return rankProjects(found.filter((_, i) => real[i]), lastUsedOf(raw.history), cwd).slice(0, 9)
+    const ranked = rankProjects(found.filter((_, i) => real[i]), lastUsedOf(raw.history), cwd)
+    // Nine rows, and the open project is always one of them (it ranks last, so a tenth project used to push it out).
+    const here = ranked.find(p => samePath(p.path, cwd))
+    return here ? [...ranked.filter(p => p !== here).slice(0, 8), here] : ranked.slice(0, 9)
   }, [])
 
   const open = useCallback(async (path: string) => {

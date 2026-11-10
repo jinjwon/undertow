@@ -13,7 +13,7 @@
   --blood: #B8001F; /* the one red */
   /* Red slashes over black, with a halftone fade in the corner, as on a calling card. */
   --ground: #080808 url(./bg-rebel.webp) center / cover no-repeat;
-  --plate: #000000F0; --panel: #000000C7; --page: #00000080; --deep: #000000A6; --ink: #000000;
+  --plate: #000000F0; --panel: #000000C7; --page: #000000F5; --deep: #000000A6; --ink: #000000;
   --line: #2A2A2A; --mid: #000000; --sel: var(--blood); --hi: #FFFFFF; --text: #FFFFFF; --gray: rgba(255, 255, 255, 0.55);
   --chip: var(--blood); --chip-ink: #FFFFFF; --edge: #FFFFFF; --hot: #FFFFFF; --sel-ink: #000000;
   --shimmer: transparent; --big: var(--blood);
@@ -524,3 +524,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .web-bar span { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .web-bar button { padding: 0 6px; font-size: 15px; color: var(--hi); }
 .web-bar button:hover { color: var(--text); }
+
+/* The terminal's tools take a row of their own, so a third or fourth tab never leaves them half on the next line. */
+.right .head.sides .tools { flex: 1 0 100%; justify-content: flex-end; }
+[data-theme='rebel'] .right .head.sides { background: #FFFFFF; } /* one ground under both rows, not a band that cuts through the tools */
+/* A selected row is a white bar in REBEL: the pane's dark text shadow smeared its second line there. */
+[data-theme='rebel'] .pane .entry.on, [data-theme='rebel'] .pane .entry.on .desc { text-shadow: none; }
+[data-theme='rebel'] .pane .entry.on .desc { color: #3A3A3A; }
