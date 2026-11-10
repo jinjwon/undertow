@@ -13,7 +13,7 @@
     "dist:mac": "vite build && electron-builder --mac dir && sh sign-mac.sh",
     "dist:win": "vite build && electron-builder --win",
     "dist:win:zip": "vite build && electron-builder --win zip --x64",
-    "test": "node --test paths.test.cjs match.test.cjs src/text.test.ts src/layout.test.ts src/agents.test.ts"
+    "test": "node --test paths.test.cjs match.test.cjs serve.test.cjs src/text.test.ts src/layout.test.ts src/agents.test.ts"
   },
   "build": {
     "appId": "dev.evoke.desktop",
@@ -23,6 +23,7 @@
       "preload.cjs",
       "paths.cjs",
       "match.cjs",
+      "serve.cjs",
       "dist/**",
       "!node_modules/node-pty/build/**",
       "!node_modules/node-pty/**/*.pdb"
@@ -99,6 +100,7 @@
     }
   },
   "dependencies": {
+    "marked": "^18.2.0",
     "node-pty": "^1.1.0"
   },
   "devDependencies": {
