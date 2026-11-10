@@ -27,9 +27,7 @@
 [data-theme='rebel'] .cut > span:nth-child(5n) { background: #FFFFFF; color: var(--blood); transform: rotate(3deg); }
 
 [data-theme='rebel'] .top { border-bottom: 0; box-shadow: 0 3px 0 var(--blood), 0 7px 0 #000000, 0 9px 0 #FFFFFF; }
-[data-theme='rebel'] .logo { color: #FFFFFF; text-shadow: 3px 3px 0 var(--blood); }
 /* REBEL's art is black at its edges: a white outline keeps its shape on the black page. */
-[data-theme='rebel'] .logo img { transform: rotate(-8deg); filter: drop-shadow(1px 0 0 #FFF) drop-shadow(-1px 0 0 #FFF) drop-shadow(0 1px 0 #FFF) drop-shadow(0 -1px 0 #FFF); }
 [data-theme='rebel'] .head { background: linear-gradient(100deg, #FFFFFF 0 64%, transparent 64%); color: #000000; border-bottom: 3px solid var(--blood); }
 [data-theme='rebel'] .clock { background: #FFFFFF; color: #000000; padding: 0 14px; transform: rotate(-3deg) skewX(-10deg); box-shadow: 5px 5px 0 var(--blood); }
 [data-theme='rebel'] .clock b { color: var(--blood); }
@@ -86,8 +84,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .top { grid-area: top; display: flex; align-items: center; gap: 16px; padding: 0 16px 0 84px; background: var(--plate); border-bottom: 2px solid var(--sel); -webkit-app-region: drag; }
 .top button { -webkit-app-region: no-drag; }
 .win32 .top { padding: 0 150px 0 12px; } /* room for Windows' own window buttons on the right */
-.logo { display: flex; align-items: center; gap: 6px; font: 900 italic 20px Barlow, sans-serif; color: var(--hi); }
-.logo img { width: 30px; height: 30px; }
 .project { display: flex; align-items: center; font-weight: 700; }
 .branch { color: var(--gray); }
 .theme { margin-left: auto; }
@@ -287,15 +283,13 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   button:hover > .cut { background: #16D9F5 !important; color: #06145B !important; transform: skewX(-8deg) translateX(3px); }
   button:active > .cut { background: #06145B !important; color: #FFFFFF !important; transform: scale(.94); }
 
-  /* Masthead: a blue wedge under the logo, a cyan slash, the date plate cropped by the window edge. */
+  /* Masthead: a blue wedge under the window buttons, a cyan slash, the date plate cropped by the window edge. */
   .top { position: relative; gap: 20px; overflow: hidden; background: #FFFFFF; border-bottom: 0; box-shadow: inset 0 -3px 0 #06145B; }
   .top > * { position: relative; }
-  .top::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 300px; background: #064DE8; clip-path: polygon(0 0, 100% 0, calc(100% - 34px) 100%, 0 100%); }
-  .top::after { content: ''; position: absolute; inset: 0 auto 0 270px; width: 44px; background: #16D9F5; clip-path: polygon(34px 0, 100% 0, 10px 100%, 0 100%); }
-  .win32 .top::before { width: 230px; }
-  .win32 .top::after { left: 200px; }
-  .logo { margin-right: 60px; color: #FFFFFF; font-size: 30px; }
-  .logo img { width: 34px; height: 34px; }
+  .top::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 100px; background: #064DE8; clip-path: polygon(0 0, 100% 0, calc(100% - 34px) 100%, 0 100%); }
+  .top::after { content: ''; position: absolute; inset: 0 auto 0 70px; width: 44px; background: #16D9F5; clip-path: polygon(34px 0, 100% 0, 10px 100%, 0 100%); }
+  .darwin .top { padding-left: 120px; } /* clear of the slash */
+  .win32 .top::before, .win32 .top::after { display: none; } /* no window buttons on this side to sit on the wedge */
   .branch { color: #06145BB0; }
   .gear { transition: transform .1s; }
   .clock { display: flex; align-items: center; gap: 8px; height: 56px; margin-right: -16px; padding: 0 30px 0 36px; background: #06145B; font-size: 24px; transform: none; clip-path: polygon(22px 0, 100% 0, 100% 100%, 0 100%); }
@@ -437,7 +431,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .set-tabs button { padding: 5px 16px; font: 900 italic 14px Barlow, Pretendard, sans-serif; color: var(--gray); clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); transition: background .09s, color .09s; }
 .set-tabs button:hover { color: var(--text); background: #16D9F540; }
 .set-tabs button.on { color: var(--sel-ink); background: var(--sel); }
-.row .key { width: 56px; }
+.row .key { min-width: 56px; }
 .stepper { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; }
 .stepper button { width: 28px; font-weight: 900; background: var(--sel); color: var(--sel-ink); clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%); }
 
