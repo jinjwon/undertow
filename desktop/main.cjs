@@ -1,11 +1,12 @@
 // The main process: one window, and the file, git, usage and terminal access the window asks for.
-const { app, BrowserWindow, dialog, ipcMain } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron')
 const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 const { execFile } = require('node:child_process')
 const pty = require('node-pty')
 const { codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { start: startPreview } = require('./serve.cjs')
 const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
 
 const home = os.homedir()
@@ -109,6 +110,34 @@ ipcMain.handle('fs:image', async (_, file) => {
   if (stat.size > 20e6) throw new Error(`Image too large: ${file}`)
   return `data:${type};base64,${(await fs.readFile(file)).toString('base64')}`
 })
+// Previews: one loopback server for every open project, started with the first preview (see serve.cjs).
+let preview // a promise, so two first previews share one server
+let previewBase = '' // http://127.0.0.1:<port>/t/<secret>/ once it runs
+const watchers = new Map() // root -> its watcher; a change reloads the open preview pages
+let reloadTimer
+const reloadSoon = () => {
+  clearTimeout(reloadTimer)
+  reloadTimer = setTimeout(() => preview?.then(p => p.changed()), 150)
+}
+ipcMain.handle('preview:url', async (_, file) => {
+  const real = await fs.realpath(await guard(file))
+  preview ??= startPreview({ roots: () => [...roots], guard, markdown: text => require('marked').marked.parse(text) })
+  const server = await preview
+  previewBase = `http://127.0.0.1:${server.port}/t/${server.token}/`
+  const url = server.urlOf(real)
+  if (!url) throw new Error(`Outside the open projects: ${file}`)
+  const root = [...roots].find(r => inside(r, real))
+  if (!watchers.has(root)) {
+    // Git's own files and installed packages change in bursts that no preview shows.
+    watchers.set(root, require('node:fs').watch(root, { recursive: true }, (_event, name) => /(^|[\\/])(\.git|node_modules)([\\/]|$)/.test(String(name)) || reloadSoon()))
+  }
+  return url
+})
+// The same page in the real browser. Only this server's own addresses are handed to the system.
+ipcMain.on('preview:open', (_, url) => {
+  if (previewBase && String(url).startsWith(previewBase)) shell.openExternal(String(url))
+})
+
 ipcMain.handle('fs:write', async (_, file, text) => fs.writeFile(await guard(file), String(text), 'utf8'))
 
 ipcMain.handle('git:branch', async (_, root) => {
@@ -248,9 +277,15 @@ app.whenReady().then(() => {
   win.webContents.session.setPermissionRequestHandler((_wc, _permission, answer) => answer(false)) // no camera, mic, location
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('will-navigate', e => e.preventDefault())
+  // A preview frame stays on the preview server (and Chromium's own PDF viewer): a link in a previewed page cannot take the frame to the web.
+  win.webContents.on('will-frame-navigate', e => {
+    if (!e.isMainFrame && !(previewBase && e.url.startsWith(previewBase)) && !e.url.startsWith('chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/')) e.preventDefault()
+  })
   win.loadFile(path.join(__dirname, 'dist', 'index.html'))
 })
 app.on('before-quit', () => {
+  for (const w of watchers.values()) w.close()
+  preview?.then(p => p.close())
   for (const term of terms.values()) term.kill()
   terms.clear()
 })

@@ -8,7 +8,7 @@ import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
 import { Pane } from './Pane'
 import { LANGS as UI_LANGS, langFrom, tr, type Lang } from './i18n'
 import { agentsOf, parseAgents, targetOf, type Agent, type Agents } from './agents'
-import { iconOf, isImage, promptVars, stepDate, weekOf } from './text'
+import { iconOf, isImage, previewKind, promptVars, stepDate, weekOf } from './text'
 import { EMPTY, FLOAT_IDS, fitCols, fitFloat, parseLayout, type Cols, type FloatId, type Layout, type MainId, type Rect } from './layout'
 import { LayoutEdit } from './LayoutEdit'
 import { baseName, lastUsedOf, projectsOf, rank, rankProjects } from '../../plugins/evoke/hooks/data'
@@ -20,8 +20,9 @@ const api = window.evoke
 
 type Project = { name: string; path: string }
 type Entry = { name: string; path: string; dir: boolean }
+// web: a preview page's address on the preview server (a PDF, a video, or the live view of an HTML or Markdown file, whose tab is named live:<path>);
 // head: a diff tab against the last commit; image: a picture shown instead of text; preview: replaced by the next single click, as in VS Code
-type Tab = { path: string; text: string; saved: string; head?: string; image?: string; preview?: boolean }
+type Tab = { path: string; text: string; saved: string; head?: string; image?: string; web?: string; preview?: boolean }
 type Change = { path: string; code: string }
 type Hit = { path: string; rel: string; line?: number; col?: number; preview?: string }
 type Finder = { mode: 'files' | 'search'; query: string; hits: Hit[]; at: number }
@@ -260,11 +261,21 @@ export function App() {
     const had = tabs.find(t => t.path === path)
     if (!had) {
       const image = isImage(path) ? await api.image(path).catch(() => '') : undefined
-      const text = image === undefined ? await api.read(path).catch(() => '') : ''
-      setTabs(ts => [...ts.filter(t => keep || !(t.preview && t.text === t.saved)), { path, text, saved: text, image, preview: !keep }])
+      const web = previewKind(path) === 'direct' ? await api.previewUrl(path).catch(() => '') : undefined
+      const text = image === undefined && web === undefined ? await api.read(path).catch(() => '') : ''
+      setTabs(ts => [...ts.filter(t => keep || !(t.preview && t.text === t.saved)), { path, text, saved: text, image, web, preview: !keep }])
     } else if (keep && had.preview) setTabs(ts => ts.map(t => (t.path === path ? { ...t, preview: false } : t)))
     setActive(path)
     if (path === active) reveal()
+  }
+  // The live view of an HTML or Markdown file, in a tab of its own beside the file's editor tab.
+  const openLive = async (path: string) => {
+    const id = `live:${path}`
+    if (!tabs.some(t => t.path === id)) {
+      const web = await api.previewUrl(path).catch(() => '')
+      setTabs(ts => (ts.some(t => t.path === id) ? ts : [...ts, { path: id, text: '', saved: '', web }]))
+    }
+    setActive(id)
   }
   // Puts the cursor on the line a search result or quick open asked for, once that file is the editor's model.
   const reveal = () => {
@@ -288,7 +299,7 @@ export function App() {
   // Claude Code edits files on disk: tabs without your own unsaved edits follow the disk when you come back to the window.
   useEffect(() => {
     const sync = async () => {
-      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved && t.head === undefined && t.image === undefined ? api.read(t.path).catch(() => t.saved) : t.saved)))
+      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved && t.head === undefined && t.image === undefined && t.web === undefined ? api.read(t.path).catch(() => t.saved) : t.saved)))
       setTabs(ts => ts.map((t, i) => (t.text === t.saved && fresh[i] !== undefined && fresh[i] !== t.saved ? { ...t, text: fresh[i], saved: fresh[i] } : t)))
     }
     window.addEventListener('focus', sync)
@@ -526,12 +537,17 @@ export function App() {
         <nav className="tabs">
           {tabs.map(t => (
             <div key={t.path} className={`tab ${t.path === active ? 'on' : ''} ${t.preview ? 'preview' : ''}`} onClick={() => setActive(t.path)} onDoubleClick={() => openFile(t.path, undefined, 1, true)} title={t.preview ? `${T('preview')}: ${t.path}` : t.path}>
-              <FileIcon name={t.path} />{t.head !== undefined && 'Δ '}{baseName(t.path)}{t.text !== t.saved && ' ●'}
+              <FileIcon name={t.path} />{t.head !== undefined && 'Δ '}{t.path.startsWith('live:') && '◉ '}{baseName(t.path)}{t.text !== t.saved && ' ●'}
               <span className="x" onClick={e => (e.stopPropagation(), closeTab(t.path))}>×</span>
             </div>
           ))}
+          {tab && tab.head === undefined && tab.web === undefined && previewKind(tab.path) === 'live' && (
+            <button className="live" onClick={() => openLive(tab.path)} title={T('live.open')} aria-label={T('live.open')}><Cut label="LIVE" ground="var(--edge)" /></button>
+          )}
         </nav>
-        {tab?.head !== undefined ? (
+        {tab?.web !== undefined ? (
+          <WebView key={tab.path} url={tab.web} T={T} />
+        ) : tab?.head !== undefined ? (
           <DiffEditor
             original={tab.head}
             modified={tab.text}
@@ -729,6 +745,21 @@ function Tree({ dir, depth, onOpen, active }: { dir: string; depth: number; onOp
         </div>
       ))}
     </>
+  )
+}
+
+// A preview page in a frame. It is another origin with no preload, so it cannot reach the app; no sandbox attribute, because Chromium refuses its PDF viewer in a sandboxed frame.
+function WebView({ url, T }: { url: string; T: (key: any, vars?: any) => string }) {
+  const [run, setRun] = useState(0)
+  return (
+    <div className="web-view">
+      <div className="web-bar">
+        <span>{url}</span>
+        <button onClick={() => setRun(r => r + 1)} title={T('live.reload')} aria-label={T('live.reload')}>↻</button>
+        <button onClick={() => api.previewOpen(url)} title={T('live.browser')} aria-label={T('live.browser')}>↗</button>
+      </div>
+      {url ? <iframe key={run} src={url} title={T('live.open')} /> : <p className="quiet">{T('binary')}</p>}
+    </div>
   )
 }
 

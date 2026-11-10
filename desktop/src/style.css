@@ -513,3 +513,14 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .split:hover, .split:active { background: #16D9F580; }
 .gear.fold:hover { transform: none; }
 .gear.fold[aria-pressed='false'] { opacity: .45; }
+
+/* Preview tabs: a PDF, a video, or the live view of an HTML or Markdown file, in a frame on the preview server. */
+.tabs .live { position: sticky; right: 0; flex: none; margin-left: auto; padding: 0 4px 0 10px; background: var(--plate); }
+.tabs .live .cut { margin-right: 0; }
+.web-view { display: flex; flex-direction: column; background: #FFFFFF; }
+.web-view iframe { flex: 1; min-height: 0; border: 0; background: #FFFFFF; }
+.web-view > p { margin: auto; }
+.web-bar { display: flex; align-items: center; gap: 6px; padding: 4px 10px; color: var(--gray); background: var(--plate); border-bottom: 1px solid var(--line); font: 12px Iosevka, Menlo, Consolas, monospace; }
+.web-bar span { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.web-bar button { padding: 0 6px; font-size: 15px; color: var(--hi); }
+.web-bar button:hover { color: var(--text); }
