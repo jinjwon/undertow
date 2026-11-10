@@ -78,6 +78,60 @@ Claude Code reports usage to plugins, so the numbers come from the Evoke plugin 
 
 The plugin also works on its own in any terminal: `/menu` opens the pane, `/projects` picks a project, `/skillbook` browses skills. Terminals that cannot draw images get plain rows.
 
+## Design
+
+### References
+
+| Source | What was taken | Where Evoke uses it |
+| --- | --- | --- |
+| Persona 5 | Red, black and white contrast, large slanted type, plates like cut paper, a name that grows and shifts when picked | The one selected menu: a white plate, a red slash across black type, a pink shadow. Its neighbours move aside. Red means selection or a warning, nothing else. The whole REBEL theme |
+| Persona 3 Reload | Cyan, blue and white, water and glass, panels cut on a slant, a line from the cursor to the content, a key guide at the bottom | The pane's ground (transparent over the water shader), three cyans for unselected names, the slanted HUD, the line from the cursor down to the content, the `Command` row. The whole TIDE theme |
+| VS Code | The layers Activity Bar → Side Bar → Editor → Panel → Status Bar, Quick Open, preview tabs | The nine menus act as the Activity Bar, the content under them as the Side Bar, the HUD and the band over the prompt as the Status Bar. The app's `⌘P` `⌘⇧F` `⌘B` `⌘J` are VS Code's keys |
+| Cursor | An AI panel beside the editor, sending a selection to chat | The CLAUDE / CODEX panel on the right, `⌘L` |
+
+The two games are not blended; each has a job. Ground and information use Persona 3 Reload's cold colours. Only the one thing selected is drawn in Persona 5's red on a white plate.
+
+### How menus and panels are built
+
+- **One direction, top to bottom:** HUD (state) → nine menus (pick) → the picked menu's content → the guide (what can be done, and its keys).
+- **Icons:** one before each name. A spark (SKILL), a file (ITEM), a plug (EQUIP), a party (AGENT), gauges (STATUS), a flag (QUEST), rings (LINK), the moon (CALENDAR), a gear (SYSTEM). An icon has its name's colour and turns red when selected.
+- **State colours:** red is selection, a gauge at 80% or more, an error. Cyan is what can be pressed and secondary information. Gray is what is not in use. Pink is the cursor's edge and counts.
+- **Sections:** the pane is cut into sections under band headers, as VS Code's Side Bar is. MENU, the picked menu's content (skills: a section per plugin), then COMMAND; a header carries its count at the right.
+- **Terminals with no pictures:** where images cannot be drawn, as in Windows Terminal, the same shape is drawn in text. The names stand in the art's crooked column; the picked one is black on a white plate with a pink corner.
+- **Real data only:** a menu with no record says so and shows nothing else.
+- **Picture and control kept apart:** in a terminal the slanted names are one picture and cannot be clicked. What can be pressed is `1`–`9` at the right edge and the key row at the bottom.
+- **Motion:** only a menu change swaps four pictures 24 ms apart. No timer runs otherwise.
+
+### Keys in the terminal pane
+
+No modifier keys, so they are the same on macOS, Windows and Linux. They work while the pane holds the keyboard; the bottom row then shows `KEYS ON`. Otherwise press `ctrl+x tab` or click the pane.
+
+| Group | Key | Does |
+| --- | --- | --- |
+| Move | `j` / `k` | Next / previous menu |
+| Pick | `1`–`9` | Picks that menu and fills its command into the prompt |
+| Run | `e`, then Enter | Fills the picked menu's command and runs it |
+| Page | `n` / `b` | Next / previous page of SKILL |
+| Switch pane | `p` / `s` | Project picker / skillbook |
+| Back | `Esc` | Closes the project picker or the skillbook |
+| Commands | `/menu` `/projects` `/skillbook` | Open a pane from the prompt |
+
+### Known limits
+
+- Under 110 columns Claude Code seats the pane above the prompt. It is then drawn as plain rows with the key row above the content, so what is cut is never the controls.
+- In a short window the picture shrinks whole to keep its shape, which leaves water on its right.
+- The picture's columns are worked out from Iosevka 14's cell (width ÷ height = 0.4). For another font, set its ratio in the environment, as `EVOKE_CELL=0.5`.
+
+### Sources
+
+- Persona 5 Royal: <https://persona.atlus.com/p5r/>
+- Persona 3 Reload: <https://persona.atlus.com/p3r/>
+- VS Code, user interface: <https://code.visualstudio.com/docs/editing/getting-started/userinterface>
+- VS Code, personalize: <https://code.visualstudio.com/docs/getstarted/personalize-vscode>
+- VS Code, keyboard shortcuts: <https://code.visualstudio.com/docs/configure/keybindings>
+- VS Code, default keybindings: <https://code.visualstudio.com/docs/reference/default-keybindings>
+- Cursor, keyboard shortcuts: <https://docs.cursor.com/advanced/keyboard-shortcuts>
+
 ## Build it yourself
 
 ```sh

@@ -11,7 +11,7 @@ declare module 'claude-code' {
       day: string
       usage: Usage | null
       projects: Project[]
-      place: { cwd: string; branch: string; art?: boolean }
+      place: { cwd: string; branch: string; art?: boolean; cell?: number }
       page: number
       skills: Skill[]
       uses: Record<string, number>

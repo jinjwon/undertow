@@ -35,6 +35,15 @@ export const cut = (Text: Parts['Text'], label: string, ground: string, ink: str
   </Text>
 )
 
+// A section's header, as an editor's side bar draws one: a band across the width, its name, and what it holds at the right. Every part of the pane starts with one.
+export const section = ({ Box, Text }: Parts, width: number, title: any, right = '') => (
+  <Box width={width} backgroundColor={K.MIDNIGHT} justifyContent="space-between">
+    <Text backgroundColor={K.MIDNIGHT} wrap="truncate"><Text backgroundColor={K.MIDNIGHT} color={K.CYAN}>▌</Text>{title}</Text>
+    <Text backgroundColor={K.MIDNIGHT} color={K.ICE} italic wrap="truncate">{right} </Text>
+  </Box>
+)
+const name = ({ Text }: Parts, label: string) => <Text backgroundColor={K.MIDNIGHT} color={K.WHITE} bold>{label}</Text>
+
 const tone = (percent: number | null | undefined) => ((percent ?? 0) >= 80 ? K.RED : K.CYAN)
 
 // One gauge of the HUD, as the runs of its two rows: the number stands on its bar, always in the same columns.
@@ -84,12 +93,8 @@ export const hud = (v: View, day: { date: string; moon: string }) => {
   )
 }
 
-const heading = ({ Box, Text }: Parts, v: View, right: string) => (
-  <Box justifyContent="space-between" width={v.width}>
-    <Text wrap="truncate"><Text color={K.WHITE} bold italic>{v.command}</Text><Text color={K.PINK} bold italic>  {rank(v.tally[v.menu] ?? 0)}</Text></Text>
-    <Text color={K.ICE} italic wrap="truncate">{right}</Text>
-  </Box>
-)
+const heading = (ui: Parts, v: View, right: string) =>
+  section(ui, v.width, <ui.Text backgroundColor={K.MIDNIGHT}>{name(ui, v.command)}<ui.Text backgroundColor={K.MIDNIGHT} color={K.PINK} bold italic>  {rank(v.tally[v.menu] ?? 0)}</ui.Text></ui.Text>, right)
 
 const nothing = ({ Text }: Parts) => <Text color={K.GRAY} italic>아직 기록이 없어요.</Text>
 
@@ -105,13 +110,7 @@ const skill = (v: View) => {
       <Box flexDirection="column" height={v.rows - 2} overflow="hidden">
         {cut_.rows.map(row => {
           if (row.kind === 'group') {
-            const name = row.name.toUpperCase()
-            return (
-              <Text key={`g${row.name}`} wrap="truncate">
-                <Text color={K.CYAN} bold italic>{name} </Text>
-                <Text color={K.GRAY}>{'─'.repeat(Math.max(0, v.width - name.length - String(row.count).length - 2))} {row.count}</Text>
-              </Text>
-            )
+            return <Box key={`g${row.name}`}>{section(v.ui, v.width, name(v.ui, row.name.toUpperCase()), String(row.count))}</Box>
           }
           const s = row.skill
           const times = v.used[s.name] ? ` ×${v.used[s.name]}` : ''
@@ -349,12 +348,16 @@ const CONTENT: Record<string, (v: View) => any> = { SKILL: skill, ITEM: item, EQ
 export const content = (v: View) => (CONTENT[v.menu] as (v: View) => any)(v)
 
 // What the selected menu does, then the keys, as the row under every screen.
-export const action = (v: View, says: string, keys: any) => {
+// The keys only answer while the pane holds the keyboard, so the bar says which state it is in and how to get there.
+export const action = (v: View, says: string, keys: any, isFocused?: boolean) => {
   const { Box, Text } = v.ui
   return (
     <Box flexDirection="column" width={v.width}>
-      <Box justifyContent="flex-end"><Text color={K.WHITE} bold italic wrap="truncate">{says}</Text></Box>
-      <Text wrap="truncate"><Text color={K.ICE} italic>Command </Text><Text color={K.GRAY}>{'─'.repeat(Math.max(0, v.width - 8))}</Text></Text>
+      <Box justifyContent="space-between">
+        {isFocused ? cut(Text, 'KEYS ON', K.RED, K.WHITE) : <Text color={K.GRAY} italic wrap="truncate">ctrl+x tab: 키 켜기</Text>}
+        <Text color={K.WHITE} bold italic wrap="truncate">{says}</Text>
+      </Box>
+      {section(v.ui, v.width, name(v.ui, 'COMMAND'))}
       {keys}
     </Box>
   )

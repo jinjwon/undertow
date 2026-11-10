@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { baseName, dayOf, entryOf, fitName, gauge, lastUsedOf, layoutOf, menuOf, monthOf, moon, openerOf, pageOf, projectsOf, rank, rankProjects, samePath, skillRows, skillsOf, slotsOf, tallied, untilReset } from './data'
+import { baseName, cellOf, dayOf, entryOf, fitName, gauge, lastUsedOf, layoutOf, menuOf, monthOf, moon, openerOf, pageOf, projectsOf, rank, rankProjects, samePath, skillRows, skillsOf, slotsOf, tallied, untilReset } from './data'
 import { ART, GRID, ITEM_ROWS } from './tokens.js'
 
 declare const setTimeout: (done: (value?: unknown) => void, ms: number) => void
@@ -23,6 +23,14 @@ test('the art keeps its shape and hands over its rows', async () => {
   expect(layoutOf(56, 30, ART, GRID)?.columns).toBe(41) // A shorter one shrinks the picture whole.
   expect(layoutOf(30, 40, ART, GRID)).toBeNull()
   expect(layoutOf(56, 20, ART, GRID)).toBeNull()
+})
+
+test('the cell of another font resizes the art, and a wrong one is ignored', async () => {
+  expect(cellOf('0.5')).toBe(0.5)
+  expect(cellOf(undefined)).toBe(0.4)
+  expect(cellOf('wide')).toBe(0.4)
+  expect(cellOf('3')).toBe(0.4)
+  expect(layoutOf(56, 41, ART, GRID, 0.5)?.columns).toBe(45) // A wider cell needs fewer columns for the same picture.
 })
 
 test('every menu name keeps a row of its own at the smallest art', async () => {
@@ -176,6 +184,31 @@ test('each menu draws its own content at every size, however long its log', asyn
   }
 })
 
+test('with no picture the pane is sections: the menu in its column, the content, the keys', async ($, on) => {
+  on('clock.now', () => ({ value: Date.UTC(2026, 10, 6) }))
+  const filled: string[] = []
+  on('prompt.fill', (_$, e) => {
+    filled.push(e.text)
+    return { isFilled: true } as never
+  })
+  on('ui.blit', () => ({ value: {} }))
+  on('clock.sleep', () => ({ value: undefined }))
+  for (const bodyRows of [40, 12]) {
+    const ui = await ($.ui as any).mount({
+      plugin: 'evoke',
+      surface: 'terminal',
+      component: 'Pane',
+      requestId: 'evoke',
+      props: { title: 'EVOKE', isFocused: true, bodyColumns: 30, placement: 'dock', scroll: { offset: 0, bodyRows }, view: {} },
+    })
+    for (const title of [/MENU/, /^\/skills/, /COMMAND/]) expect(await ui.find({ type: 'Text', text: title })).toBeTruthy()
+    await ui.press({ key: 'STATUS' })
+    expect(filled.pop()).toBe('/status')
+    await ui.press({ key: 'SKILL' }) // back, for the next size
+    await ui.unmount()
+  }
+})
+
 test('the keys still move the menu, fill the prompt and turn the page', async ($, on) => {
   const filled: string[] = []
   on('ui.blit', () => ({ value: {} }))
@@ -212,6 +245,7 @@ test('the keys still move the menu, fill the prompt and turn the page', async ($
   await ui.press({ key: 'up' })
   await shows(/^\/skills/)
   await shows(/skill0$/) // A menu change goes back to the first page.
+  await shows(/KEYS ON/) // The pane holds the keyboard here; without it the bar says how to take it.
   await ui.press({ key: 'run' })
   expect(filled).toEqual(['/skills'])
   await ui.press({ key: 'SYSTEM' })

@@ -78,6 +78,60 @@ Claude Code는 사용량을 플러그인에게 알려 주므로, 숫자는 CLAUD
 
 플러그인은 어느 터미널에서나 따로도 동작합니다. `/menu`는 패널, `/projects`는 프로젝트 선택, `/skillbook`은 스킬 목록입니다. 이미지를 그리지 못하는 터미널에서는 일반 텍스트 행으로 나옵니다.
 
+## 디자인
+
+### 참고한 것
+
+| 출처 | 가져온 것 | Evoke에서 쓰인 곳 |
+| --- | --- | --- |
+| Persona 5 | 레드·블랙·화이트 대비, 크고 기울어진 글자, 오려 붙인 종이 같은 판, 고르면 커지고 자리를 옮기는 이름 | 선택된 메뉴 하나: 흰 판, 검정 글자를 가르는 빨간 사선, 핑크 그림자. 이웃 이름은 위아래로 비켜납니다. 빨강은 선택과 경고에만 씁니다. REBEL 테마 전체 |
+| Persona 3 Reload | 시안·블루·화이트, 물과 유리, 사선으로 자른 패널, 커서에서 내용으로 이어지는 선, 하단 조작 안내 | 패널 바탕(물 셰이더가 비치는 투명 배경), 선택되지 않은 이름의 시안 세 단계, 사선 HUD, 커서에서 내용으로 내려오는 선, 하단 `Command` 줄. TIDE 테마 전체 |
+| VS Code | 액티비티 바 → 사이드 바 → 에디터 → 패널 → 상태 표시줄의 층, 빠른 열기, 미리보기 탭 | 메뉴 아홉 개가 액티비티 바, 그 아래 내용이 사이드 바, HUD와 입력칸 위 띠가 상태 표시줄 역할을 합니다. 앱의 `⌘P` `⌘⇧F` `⌘B` `⌘J`는 VS Code와 같은 키입니다 |
+| Cursor | 에디터 옆 AI 패널, 선택 영역을 채팅으로 보내기 | 오른쪽 CLAUDE / CODEX 패널, `⌘L` |
+
+두 게임을 섞지 않고 역할을 나눴습니다. 바탕과 정보는 Persona 3 Reload의 차가운 색으로, 지금 고른 것 하나만 Persona 5의 빨강과 흰 판으로 그립니다.
+
+### 메뉴와 패널의 원칙
+
+- **위에서 아래로 한 방향:** HUD(상태) → 메뉴 아홉 개(고르기) → 고른 메뉴의 내용 → 하단 안내(할 수 있는 일과 키).
+- **아이콘:** 메뉴마다 이름 앞에 하나씩 있습니다. 불꽃(SKILL), 파일(ITEM), 플러그(EQUIP), 일행(AGENT), 게이지(STATUS), 깃발(QUEST), 고리(LINK), 달(CALENDAR), 톱니(SYSTEM). 이름과 같은 색이고, 선택되면 빨강이 됩니다.
+- **상태 색:** 빨강은 선택, 80% 이상 게이지, 오류. 시안은 누를 수 있는 것과 보조 정보. 회색은 쓰지 않는 것. 핑크는 커서의 가장자리와 횟수.
+- **섹션:** 패널은 VS Code 사이드 바처럼 띠 머리글이 붙은 섹션으로 나뉩니다. MENU, 고른 메뉴의 내용(스킬은 플러그인마다 한 섹션), COMMAND 순서이고, 머리글 오른쪽에 개수가 붙습니다.
+- **그림이 없는 터미널:** Windows Terminal처럼 이미지를 못 그리는 곳에서도 같은 모양을 글자로 그립니다. 이름은 아트처럼 어긋난 세로 열에 서고, 고른 이름은 흰 판에 검정 글자, 핑크 모서리입니다.
+- **실제 데이터만:** 기록이 없는 메뉴는 "아직 기록이 없어요"만 보여 줍니다.
+- **그림과 조작을 구분:** 터미널에서 기울어진 이름은 그림 한 장이라 누를 수 없습니다. 누를 수 있는 것은 오른쪽 가장자리의 `1`–`9`와 하단 키 줄입니다.
+- **움직임:** 메뉴가 바뀔 때만 그림 네 장을 24ms 간격으로 바꿉니다. 그 밖에는 타이머가 돌지 않습니다.
+
+### 터미널 패널의 키
+
+수식 키가 없어 macOS, Windows, Linux에서 같습니다. 패널이 키보드를 잡고 있을 때만 동작하며, 하단 줄에 `KEYS ON`이 보입니다. 아니면 `ctrl+x tab`을 누르거나 패널을 클릭합니다.
+
+| 분류 | 키 | 동작 |
+| --- | --- | --- |
+| 메뉴 이동 | `j` / `k` | 다음 / 이전 메뉴 |
+| 메뉴 선택 | `1`–`9` | 그 메뉴를 고르고 명령을 입력칸에 채움 |
+| 실행 | `e`, 이어서 Enter | 고른 메뉴의 명령을 입력칸에 채우고 실행 |
+| 쪽 넘김 | `n` / `b` | SKILL의 다음 쪽 / 이전 쪽 |
+| 패널 전환 | `p` / `s` | 프로젝트 선택 / 스킬북 |
+| 뒤로 | `Esc` | 프로젝트 선택이나 스킬북을 닫음 |
+| 명령 | `/menu` `/projects` `/skillbook` | 입력칸에서 패널을 엶 |
+
+### 알려진 한계
+
+- 터미널이 110열보다 좁으면 Claude Code가 패널을 입력칸 위에 놓습니다. 이때는 그림 없이 일반 행으로 그리고, 키 줄을 내용 위에 둬서 잘려도 조작은 남습니다.
+- 창이 낮으면 그림이 비율을 지키며 통째로 작아져 오른쪽에 물이 남습니다.
+- 그림의 열 수는 Iosevka 14의 셀 비율(너비 ÷ 높이 = 0.4)로 계산합니다. 다른 글꼴이면 `EVOKE_CELL=0.5`처럼 그 글꼴의 비율을 환경 변수로 줍니다.
+
+### 출처
+
+- Persona 5 Royal: <https://persona.atlus.com/p5r/>
+- Persona 3 Reload: <https://persona.atlus.com/p3r/>
+- VS Code, user interface: <https://code.visualstudio.com/docs/editing/getting-started/userinterface>
+- VS Code, personalize: <https://code.visualstudio.com/docs/getstarted/personalize-vscode>
+- VS Code, keyboard shortcuts: <https://code.visualstudio.com/docs/configure/keybindings>
+- VS Code, default keybindings: <https://code.visualstudio.com/docs/reference/default-keybindings>
+- Cursor, keyboard shortcuts: <https://docs.cursor.com/advanced/keyboard-shortcuts>
+
 ## 직접 빌드
 
 ```sh

@@ -2,8 +2,8 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { ART, COLOR as K, GRID, ITEM_ROWS } from './tokens.js'
-import { baseName, dayOf, entryOf, fitName, lastUsedOf, layoutOf, menuOf, openerOf, projectsOf, rankProjects, samePath, skillsOf, usageOf } from './data'
-import { action, content, cut, hud, limitName } from './views'
+import { CELL, baseName, cellOf, dayOf, entryOf, fitName, lastUsedOf, layoutOf, menuOf, openerOf, projectsOf, rankProjects, samePath, skillsOf, usageOf } from './data'
+import { action, content, cut, hud, limitName, section } from './views'
 import type { View } from './views'
 
 const PANE = 'evoke'
@@ -43,7 +43,7 @@ const last = atom({ plugin: 'evoke', key: 'last' } as const, null)
 const day = atom({ plugin: 'evoke', key: 'day' } as const, '')
 const usage = atom({ plugin: 'evoke', key: 'usage' } as const, null)
 const projects = atom({ plugin: 'evoke', key: 'projects' } as const, [])
-const place = atom({ plugin: 'evoke', key: 'place' } as const, { cwd: '', branch: '', art: true })
+const place = atom({ plugin: 'evoke', key: 'place' } as const, { cwd: '', branch: '', art: true, cell: CELL })
 const page = atom({ plugin: 'evoke', key: 'page' } as const, 0)
 
 const skills = atom({ plugin: 'evoke', key: 'skills' } as const, [])
@@ -54,6 +54,8 @@ const PROJECTS = 'evoke-projects'
 const BOOK = 'evoke-skills'
 // More small frames instead of a few large ones: an Image swap is cheap, so the cut-in reads as motion.
 const FRAMES = [25, 50, 75, 90]
+// What the plain rows spend around the content: the HUD's 4, the menu's 3, the action bar's 3 and their 2 gaps.
+const PLAIN_ROWS = 12
 const scene = (root: string, menu: string, frame: number) => ({ file: `${root}/scenes/${menu}_${frame}.png`, format: 'png' as const })
 
 const today = async ($: { clock: { now: () => Promise<number> } }) => {
@@ -111,7 +113,8 @@ export const register: Register = on => {
     // No git on the machine only costs the branch name.
     const git = await $.process.run(['git', '-C', e.cwd, 'rev-parse', '--abbrev-ref', 'HEAD']).catch(() => null)
     const terminal = await $.env.get('TERM_PROGRAM')
-    await update($, place, () => ({ cwd: e.cwd, branch: git?.exitCode === 0 ? git.stdout.trim() : '', art: ART_TERMINALS.includes(terminal ?? '') }))
+    const cell = cellOf(await $.env.get('EVOKE_CELL'))
+    await update($, place, () => ({ cwd: e.cwd, branch: git?.exitCode === 0 ? git.stdout.trim() : '', art: ART_TERMINALS.includes(terminal ?? ''), cell }))
     const seen = await $.session.usage()
     await update($, usage, () => usageOf(seen))
     void $.ui.open(PANE_ARGS)
@@ -337,8 +340,10 @@ export const register: Register = on => {
     const ms = await $.clock.now()
     const where = await read($, place)
     const history = await read($, log)
-    const layout = e.surface !== 'terminal' || where.art === false ? null : layoutOf(e.props.bodyColumns, e.props.scroll.bodyRows, ART, GRID)
+    const layout = e.surface !== 'terminal' || where.art === false ? null : layoutOf(e.props.bodyColumns, e.props.scroll.bodyRows, ART, GRID, where.cell)
     const width = e.props.bodyColumns - 2
+    // With no picture and room for it, the names stand in the art's crooked column, one to a row.
+    const isTall = !layout && e.props.scroll.bodyRows >= 28
     const step = (by: number) => () => {
       const m = MENUS[(MENUS.indexOf(on_) + by + MENUS.length) % MENUS.length] as keyof typeof MENU
       return show($, m, MENU[m])
@@ -352,7 +357,7 @@ export const register: Register = on => {
       menu: on_,
       command: MENU[on_],
       width,
-      rows: layout ? layout.footer - layout.content : Math.max(8, e.props.scroll.bodyRows - MENUS.length - 6),
+      rows: layout ? layout.footer - layout.content : Math.max(8, e.props.scroll.bodyRows - PLAIN_ROWS - (isTall ? MENUS.length - 1 : 0)),
       now: ms,
       page: await read($, page),
       tally,
@@ -384,17 +389,21 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column" paddingX={1}>
           {hud(view, dayOf(ms))}
-          <Box flexWrap="wrap" marginTop={1}>
+          <Box marginTop={1}>{section({ Box, Text, Button }, width, <Text backgroundColor={K.MIDNIGHT} color={K.WHITE} bold>MENU</Text>, `${MENUS.indexOf(on_) + 1}/${MENUS.length}`)}</Box>
+          <Box flexWrap="wrap" flexDirection={isTall ? 'column' : 'row'}>
             {MENUS.map((m, i) => (
-              <Box key={m} marginRight={1}>
+              <Box key={m} marginRight={1} marginLeft={isTall ? Math.round(((ITEM_ROWS[i] as { x: number }).x - 440) / 25) : 0}>
                 <Button key={m} plain hotkey={String(i + 1)} onPress={() => pick(m)}>
-                  {m === on_ ? cut(Text, m, K.RED, K.WHITE) : <Text color={K.ICE} bold italic>{m}</Text>}
+                  {/* The art's selection: a white plate, black name, pink edge. */}
+                  {m === on_ ? cut(Text, m, K.WHITE, K.BLACK) : <Text color={[K.CYAN, K.ICE, '#2FC6FA'][i % 3]} bold italic>{m}</Text>}
                 </Button>
+                {m === on_ ? <Text color={K.PINK} bold>◣</Text> : null}
               </Box>
             ))}
           </Box>
+          {/* The keys stand above the content: a short pane (inline, under 110 columns) cuts its last rows, and those must be the log's, not the controls'. */}
+          {action(view, SAYS[on_], keys, e.props.isFocused)}
           <Box marginTop={1}>{content(view)}</Box>
-          {action(view, SAYS[on_], keys)}
         </Box>
       )
     }
@@ -414,7 +423,7 @@ export const register: Register = on => {
           </Box>
         ))}
         <Box key={stamp} position="absolute" top={layout.content} left={1} height={view.rows} overflow="hidden">{content(view)}</Box>
-        <Box key={`footer${on_}`} position="absolute" top={layout.footer} left={1}>{action(view, SAYS[on_], keys)}</Box>
+        <Box key={`footer${on_}${e.props.isFocused}`} position="absolute" top={layout.footer} left={1}>{action(view, SAYS[on_], keys, e.props.isFocused)}</Box>
       </Box>
     )
   })
