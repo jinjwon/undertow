@@ -9,7 +9,7 @@ import { Pane } from './Pane'
 import { LANGS as UI_LANGS, langFrom, tr, type Lang } from './i18n'
 import { agentsOf, parseAgents, targetOf, type Agent, type Agents } from './agents'
 import { iconOf, isImage, previewKind, promptVars, stepDate, weekOf } from './text'
-import { EMPTY, FLOAT_IDS, fitCols, fitFloat, parseLayout, type Cols, type FloatId, type Layout, type MainId, type Rect } from './layout'
+import { EMPTY, FLOAT_IDS, fillHidden, fitCols, fitFloat, parseLayout, type Cols, type FloatId, type Layout, type MainId, type Rect } from './layout'
 import { LayoutEdit } from './LayoutEdit'
 import { baseName, lastUsedOf, projectsOf, rank, rankProjects, samePath } from '../../plugins/evoke/hooks/data'
 
@@ -330,6 +330,20 @@ export function App() {
         e.preventDefault()
         e.stopPropagation()
         setSplit(s => (e.key === 'b' ? { ...s, hidePane: !s.hidePane } : { ...s, hideRight: !s.hideRight }))
+      } else if (mod && !e.shiftKey && e.key === 'w' && active) {
+        e.preventDefault()
+        e.stopPropagation()
+        closeTab(active)
+      } else if (e.ctrlKey && e.key === 'Tab' && tabs.length > 1) {
+        e.preventDefault()
+        e.stopPropagation()
+        const i = tabs.findIndex(t => t.path === active)
+        setActive(tabs[(i + (e.shiftKey ? tabs.length - 1 : 1)) % tabs.length].path)
+      } else if (mod && e.key === ',') {
+        e.preventDefault()
+        e.stopPropagation()
+        setSettingsTab('keys') // the list of shortcuts is what a key press is most likely after
+        setSettings(s => !s)
       } else if (mod && e.key === 'o') {
         e.preventDefault()
         setPicker(p => !p)
@@ -341,7 +355,7 @@ export function App() {
     }
     window.addEventListener('keydown', key, true) // capture: before Monaco and xterm take the keys
     return () => window.removeEventListener('keydown', key, true)
-  }, [picker, projects, open, draft])
+  }, [picker, projects, open, draft, tabs, active])
 
   // The workspace in pixels: only edit mode and widget minimums need it; the panels themselves are percentages.
   useLayoutEffect(() => {
@@ -372,7 +386,7 @@ export function App() {
   const cols = fitCols(split, ws.w)
   const customCols = split.pane !== undefined || split.right !== undefined || hidePane || hideRight
   const mainStyle = (id: MainId): CSSProperties => ({
-    ...(shown.main ? rectStyle(shown.main[id]) : undefined),
+    ...(shown.main ? rectStyle(fillHidden(shown.main, [...(hidePane ? ['pane' as const] : []), ...(hideRight ? ['right' as const] : [])])[id]) : undefined),
     ...((id === 'pane' && hidePane) || (id === 'right' && hideRight) ? { display: 'none' } : undefined), // hidden, not unmounted: the terminals keep running
   })
   const divider = (which: 'pane' | 'right') => (
@@ -468,7 +482,6 @@ export function App() {
   return (
     <div className={`app ${api.platform} ${shown.main ? 'custom' : ''}`} style={customCols ? { gridTemplateColumns: `${hidePane ? 0 : cols.pane}px 1fr ${hideRight ? 0 : cols.right}px` } : undefined}>
       <header className="top">
-        <span className="logo"><img src={THEMES[theme].logo} alt="" />EVOKE</span>
         <button className="project" onClick={() => setPicker(true)} title={`${MOD}O`}>
           <Cut label="PROJECT" /> {root ? baseName(root) : T('pickProject')}
         </button>
@@ -690,7 +703,7 @@ export function App() {
                 <button className="row" onClick={startEdit}><b>▸</b> {T('edit.open')}</button>
               </>
             )}
-            {settingsTab === 'keys' && (['P', 'F', 'S', 'L', 'O', 'B', 'J'] as const).map(k => <div key={k} className="row"><b className="key">{MOD}{k === 'F' ? '⇧F' : k}</b> {T(`key.${k}`)}</div>)}
+            {settingsTab === 'keys' && (['P', 'F', 'S', 'L', 'O', 'B', 'J', 'W', 'Tab', ','] as const).map(k => <div key={k} className="row"><b className="key">{k === 'Tab' ? 'Ctrl+Tab' : `${MOD}${k === 'F' ? '⇧F' : k}`}</b> {T(`key.${k}`)}</div>)}
             {settingsTab === 'terminal' && (
               <>
                 <div className="row"><b>◆</b> {T('term.size')}

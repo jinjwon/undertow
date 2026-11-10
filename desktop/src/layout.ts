@@ -148,6 +148,29 @@ export const swapMain = (main: Record<MainId, Rect>, a: MainId, b: MainId) => {
   return fits(a, main[b]) && fits(b, main[a]) ? { ...main, [a]: main[b], [b]: main[a] } : null
 }
 
+// A saved layout with panels folded away: each panel left on screen grows over a folded neighbour it shares a whole edge with.
+// Works in fractions or pixels; a panel grows only where nothing else on screen is in the way.
+export const fillHidden = (main: Record<MainId, Rect>, hidden: MainId[]): Record<MainId, Rect> => {
+  const out = { ...main }
+  const seen = MAIN_IDS.filter(id => !hidden.includes(id))
+  const eps = 1e-3 * Math.max(...MAIN_IDS.map(id => main[id].x + main[id].w), 1)
+  const near = (a: number, b: number) => Math.abs(a - b) <= eps
+  for (const h of hidden.map(id => main[id])) for (const id of seen) {
+    const v = out[id]
+    const within = (lo: number, len: number, hLo: number, hLen: number) => lo >= hLo - eps && lo + len <= hLo + hLen + eps
+    let grown: Rect | null = null
+    if (within(v.y, v.h, h.y, h.h)) {
+      if (near(v.x + v.w, h.x)) grown = { ...v, w: v.w + h.w }
+      else if (near(v.x, h.x + h.w)) grown = { ...v, x: h.x, w: v.w + h.w }
+    } else if (within(v.x, v.w, h.x, h.w)) {
+      if (near(v.y + v.h, h.y)) grown = { ...v, h: v.h + h.h }
+      else if (near(v.y, h.y + h.h)) grown = { ...v, y: h.y, h: v.h + h.h }
+    }
+    if (grown && !seen.some(o => o !== id && grown!.x < out[o].x + out[o].w - eps && out[o].x < grown!.x + grown!.w - eps && grown!.y < out[o].y + out[o].h - eps && out[o].y < grown!.y + grown!.h - eps)) out[id] = grown
+  }
+  return out
+}
+
 // A small window must not squeeze a floating widget below what it can draw.
 export const fitFloat = (r: Rect, id: FloatId, ws: Size): Rect => toFrac(clampRect(toPx(r, ws), id, ws), ws)
 

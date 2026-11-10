@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert'
-import { clampRect, fitCols, fitFloat, gapsOf, mainDefaults, moveRect, overlaps, parseLayout, placeRect, resetMain, resizeRect, swapMain, toFrac, toPx, type Ctx } from './layout.ts'
+import { clampRect, fillHidden, fitCols, fitFloat, gapsOf, mainDefaults, moveRect, overlaps, parseLayout, placeRect, resetMain, resizeRect, swapMain, toFrac, toPx, type Ctx } from './layout.ts'
 
 const ws = { w: 1440, h: 800 }
 const ctx = (over: Partial<Ctx> = {}): Ctx => ({ id: 'center', ws, lines: [], solid: [], snap: false, ...over })
@@ -118,4 +118,18 @@ test('parseLayout keeps valid rects and drops the rest', () => {
 test('clampRect keeps a too-small workspace from going negative', () => {
   const r = clampRect(box, 'right', { w: 100, h: 100 })
   assert.ok(r.x >= 0 && r.y >= 0 && r.w <= 100 && r.h <= 100)
+})
+
+test('folding a panel of a saved layout lets its neighbours take the room', () => {
+  const m = { pane: { x: 0, y: 0, w: .25, h: 1 }, center: { x: .25, y: 0, w: .4, h: 1 }, right: { x: .65, y: 0, w: .35, h: 1 } }
+  assert.deepStrictEqual(fillHidden(m, ['pane']).center, { x: 0, y: 0, w: .65, h: 1 })
+  assert.deepStrictEqual(fillHidden(m, ['pane']).right, m.right)
+  const both = fillHidden(m, ['pane', 'right']).center
+  assert.ok(Math.abs(both.x) < 1e-9 && Math.abs(both.w - 1) < 1e-9)
+  // The terminal under the editor: folding it makes the editor taller, and the pane beside it stays.
+  const stacked = { pane: { x: 0, y: 0, w: .25, h: 1 }, center: { x: .25, y: 0, w: .75, h: .6 }, right: { x: .25, y: .6, w: .75, h: .4 } }
+  assert.deepStrictEqual(fillHidden(stacked, ['right']), { ...stacked, center: { x: .25, y: 0, w: .75, h: 1 } })
+  // Only one neighbour takes a folded panel that sits between two.
+  const mid = fillHidden({ pane: { x: .3, y: 0, w: .2, h: 1 }, center: { x: 0, y: 0, w: .3, h: 1 }, right: { x: .5, y: 0, w: .5, h: 1 } }, ['pane'])
+  assert.deepStrictEqual([mid.center.w, mid.right.x], [.5, .5])
 })
