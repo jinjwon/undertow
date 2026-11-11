@@ -39,7 +39,7 @@
 [data-theme='rebel'] .tab { clip-path: none; }
 [data-theme='rebel'] .tab.on { background: #FFFFFF; color: #000000; box-shadow: 4px 4px 0 var(--blood); transform: rotate(-2deg); }
 
-[data-theme='rebel'] .empty .mark { width: 220px; filter: drop-shadow(3px 0 0 #FFF) drop-shadow(-3px 0 0 #FFF) drop-shadow(0 3px 0 #FFF) drop-shadow(0 -3px 0 #FFF) drop-shadow(10px 10px 0 var(--blood)); transform: rotate(-7deg); }
+[data-theme='rebel'] .empty .mark { display: none; } /* REBEL's empty page is the outlined word alone; the logo lives on the Dock icon */
 [data-theme='rebel'] .empty .big { color: transparent; -webkit-text-stroke: 3px var(--big); transform: rotate(-8deg) skewX(-6deg); }
 [data-theme='rebel'] .empty p { background: #000000; color: #FFFFFF; padding: 4px 12px; transform: rotate(-2deg); }
 [data-theme='rebel'] .sheet { border: 3px solid #FFFFFF; box-shadow: 12px 12px 0 var(--blood); transform: rotate(-1.5deg) skewX(-4deg); }
