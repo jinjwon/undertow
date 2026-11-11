@@ -113,9 +113,19 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .empty .big { font: 900 italic 120px Barlow, sans-serif; color: var(--big); transform: rotate(-6deg); }
 .empty .mark { width: 160px; margin: 0 auto 8px; opacity: .9; }
 
-.right { grid-area: right; display: flex; flex-direction: column; min-width: 0; background: var(--deep); border-left: 1px solid var(--line); }
+.right { grid-area: right; display: grid; grid-template: auto 1fr / 1fr; min-width: 0; min-height: 0; background: var(--deep); border-left: 1px solid var(--line); }
 .claude { display: none; flex: 1; min-height: 0; position: relative; padding: 6px 0 0 8px; }
 .claude.on { display: flex; }
+/* The agent panel's dock: grid areas come from dockGrid in docks.ts. */
+.right > * { min-width: 0; min-height: 0; }
+.dock-split { background: var(--line); touch-action: none; }
+.dock-split.row { cursor: col-resize; }
+.dock-split.col { cursor: row-resize; }
+.drop { position: relative; z-index: 5; display: grid; place-items: center; font: 900 italic 14px Barlow, Pretendard, sans-serif; color: var(--text); }
+.drop > span { opacity: 0; }
+.drop[data-side] > span { opacity: 1; }
+.sides .insert { align-self: stretch; width: 3px; background: var(--edge); }
+.sides button.dragging { opacity: .5; }
 .term { flex: 1; min-width: 0; }
 .restart { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 8px 16px; background: var(--chip); color: var(--chip-ink); font-weight: 700; clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
 

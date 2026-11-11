@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert'
-import { DOCKS, dockGrid, dropSide, groupOf, moveTool, parseDocks, pickActive, splitDocks } from './docks.ts'
+import { DOCKS, dockGrid, dropSide, groupOf, moveBefore, moveTool, parseDocks, pickActive, splitDocks } from './docks.ts'
 
 test('parseDocks repairs whatever storage holds', () => {
   assert.deepStrictEqual(parseDocks(null), DOCKS)
@@ -42,4 +42,12 @@ test('dropSide splits on the right or bottom 30%, else drops into the group', ()
   assert.strictEqual(dropSide(100, 580, 400, 600), 'col')
   assert.strictEqual(dropSide(395, 590, 400, 600), 'row') // corner: the nearer edge, by share of its side
   assert.strictEqual(dropSide(200, 300, 400, 600), null)
+})
+
+test('moveBefore drops a tool in front of another, at the end for null, and ignores a drop on itself', () => {
+  const d = splitDocks(DOCKS, 'shell', 'row')
+  assert.deepStrictEqual(moveBefore(d, 'ssh', 0, 'chat').groups[0], ['claude', 'ssh', 'chat', 'codex'])
+  assert.deepStrictEqual(moveBefore(d, 'claude', 0, null).groups[0], ['chat', 'codex', 'ssh', 'claude'])
+  assert.deepStrictEqual(moveBefore(d, 'codex', 1, 'shell').groups[1], ['codex', 'shell'])
+  assert.deepStrictEqual(moveBefore(d, 'chat', 0, 'chat'), d)
 })

@@ -39,7 +39,14 @@ export const moveTool = (d: Docks, tool: ToolId, group: number, index: number): 
   return parseDocks({ ...d, groups })
 }
 
-export const splitDocks = (d: Docks, tool: ToolId, dir: Dir): Docks => {
+// A chip dropped in a group's head lands in front of `before` (the chip under the marker), or last when it is null.
+export const moveBefore = (d: Docks, tool: ToolId, group: number, before: ToolId | null): Docks => {
+  if (before === tool) return d
+  const rest = (d.groups[group] ?? []).filter(t => t !== tool)
+  return moveTool(d, tool, group, before ? rest.indexOf(before) : rest.length)
+}
+
+export const splitDocks =(d: Docks, tool: ToolId, dir: Dir): Docks => {
   // Splitting off the only tool of group 0 while group 1 exists would just swap them; keep it in place instead.
   const rest = d.groups.map(g => g.filter(t => t !== tool)).filter(g => g.length)
   return parseDocks({ ...d, dir, groups: [rest[0] ?? [], [...(rest[1] ?? []), tool]] })
