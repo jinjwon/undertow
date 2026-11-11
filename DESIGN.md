@@ -25,6 +25,7 @@ What each observation became:
 | Huge cropped word behind content | `EVOKE` at up to 250px, the menu name rotated in the pane | Outlined `EVOKE`, tilted | `.empty .big`, `.cutin` |
 | White plate with offset hard shadow | Cyan shadow, no rotation | Red shadow, 1 to 3 degree rotation | `.sheet`, `.toast`, `.float`, `.inspector` |
 | Selection is a shape, not a tint | Blue parallelogram that slides right | White slab knocked off true | `.entry.on`, `.row.on`, `.tab.on` |
+| Selection is a shape (agent dock) | The drop target is a blue parallelogram with a cyan leading edge; the insert marker is a cyan bar on the slant; a dragged chip slides 6px right | The drop target is a white slab 2 degrees off true with a red hard shadow; the marker is a white bar with a red shadow, tilted; a dragged chip tilts -3 degrees | `.drop`, `.sides .insert`, `.sides button.dragging` |
 | Menu rows each at their own offset | Menu names stepped along a curve | Same, on the scene art | `.hot-menu` |
 | Ransom-note letters | not used | Every chip, and prompt variables | `.cut > span`, `.pv` |
 | Halftone dots as texture | Cyan dots on the empty page | Red dots on panel seams | `.empty .big::after`, `.right::before` |
@@ -103,6 +104,11 @@ Three panels: `pane` (menu and files), `center` (editor), `right` (terminals).
 - **Folding:** `⌘B` folds the pane, `⌘J` folds the terminals. A folded panel is hidden, not unmounted, so terminals keep running.
 - **A folded panel gives its room away.** In the default split the grid column goes to zero. In a saved layout, a panel that shares a whole edge with the folded one grows over it (`fillHidden` in `layout.ts`). Only one neighbour takes a panel that sits between two.
 - Limits per panel (min and max size) are in `LIMITS` in `layout.ts`. No rule may break them.
+- **The agent panel holds up to two dock groups** (`docks.ts`), side by side or stacked. Its tools (Claude, Chat, Codex, Shell, SSH) are chips: drag one within a head to reorder, onto another head to move it, or onto the right or bottom edge of a body to split. UI edit mode offers the same changes by keyboard (show, group, direction).
+- A group with nothing visible gives its room away. A tool shown in a group starts as a click on it would.
+- Moving a tool never restarts its terminal: every terminal stays a child of the panel's grid and only changes grid area.
+- Built-in presets: DEFAULT (the grid split), VIBE (agents take half, Claude above Codex and the shell), REVIEW (the editor takes most).
+- REBEL's empty page shows the outlined word alone, without the logo.
 
 ## Shortcuts
 

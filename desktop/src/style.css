@@ -39,7 +39,7 @@
 [data-theme='rebel'] .tab { clip-path: none; }
 [data-theme='rebel'] .tab.on { background: #FFFFFF; color: #000000; box-shadow: 4px 4px 0 var(--blood); transform: rotate(-2deg); }
 
-[data-theme='rebel'] .empty .mark { width: 220px; filter: drop-shadow(3px 0 0 #FFF) drop-shadow(-3px 0 0 #FFF) drop-shadow(0 3px 0 #FFF) drop-shadow(0 -3px 0 #FFF) drop-shadow(10px 10px 0 var(--blood)); transform: rotate(-7deg); }
+[data-theme='rebel'] .empty .mark { display: none; } /* REBEL's empty page is the outlined word alone; the logo lives on the Dock icon */
 [data-theme='rebel'] .empty .big { color: transparent; -webkit-text-stroke: 3px var(--big); transform: rotate(-8deg) skewX(-6deg); }
 [data-theme='rebel'] .empty p { background: #000000; color: #FFFFFF; padding: 4px 12px; transform: rotate(-2deg); }
 [data-theme='rebel'] .sheet { border: 3px solid #FFFFFF; box-shadow: 12px 12px 0 var(--blood); transform: rotate(-1.5deg) skewX(-4deg); }
@@ -113,9 +113,22 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .empty .big { font: 900 italic 120px Barlow, sans-serif; color: var(--big); transform: rotate(-6deg); }
 .empty .mark { width: 160px; margin: 0 auto 8px; opacity: .9; }
 
-.right { grid-area: right; display: flex; flex-direction: column; min-width: 0; background: var(--deep); border-left: 1px solid var(--line); }
+.right { grid-area: right; display: grid; grid-template: auto 1fr / 1fr; min-width: 0; min-height: 0; background: var(--deep); border-left: 1px solid var(--line); }
 .claude { display: none; flex: 1; min-height: 0; position: relative; padding: 6px 0 0 8px; }
 .claude.on { display: flex; }
+/* The agent panel's dock: grid areas come from dockGrid in docks.ts. */
+.right > * { min-width: 0; min-height: 0; }
+.dock-split { background: var(--line); touch-action: none; }
+.dock-split.row { cursor: col-resize; }
+.dock-split.col { cursor: row-resize; }
+.drop { position: relative; z-index: 5; display: grid; place-items: center; font: 900 italic 14px Barlow, Pretendard, sans-serif; color: var(--text); }
+.drop > span { opacity: 0; }
+.drop[data-side] > span { opacity: 1; }
+.sides .insert { align-self: stretch; width: 3px; background: var(--edge); }
+.sides button.dragging { opacity: .5; }
+.inspector .dock-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.inspector .dock-dir { display: flex; gap: 6px; }
+.inspector .dock-dir [aria-pressed='true'] { background: var(--sel); color: var(--sel-ink); }
 .term { flex: 1; min-width: 0; }
 .restart { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 8px 16px; background: var(--chip); color: var(--chip-ink); font-weight: 700; clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
 
@@ -578,3 +591,29 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 [data-theme='rebel'] .ask { box-shadow: 6px 6px 0 var(--blood); transform: rotate(-.6deg); }
 [data-theme='rebel'] .answers button, [data-theme='rebel'] .chat-box button { clip-path: none; }
 [data-theme='rebel'] .answers .yes, [data-theme='rebel'] .chat-box button[type='submit'] { color: #000000; background: #FFFFFF; box-shadow: 3px 3px 0 var(--blood); }
+
+/* The agent dock's drag, drop and divider. TIDE: blue water, cyan edge, everything on the slant.
+   REBEL: black ground, one red, white slabs knocked off true. Motion is cut by the reduce rules near the top. */
+.sides button { transition: transform 120ms, opacity 120ms; }
+.dock-split { transition: background 120ms; }
+.drop[data-side='row']::before, .drop[data-side='col']::before { content: ''; position: absolute; pointer-events: none; }
+.drop[data-side='row']::before { inset: 0 0 0 50%; }
+.drop[data-side='col']::before { inset: 50% 0 0 0; }
+.drop > span { position: relative; z-index: 1; padding: 4px 14px; background: var(--chip); color: var(--chip-ink); }
+
+[data-theme='tide'] .sides button.dragging { transform: translateX(6px); }
+[data-theme='tide'] .sides .insert { transform: skewX(-12deg); }
+[data-theme='tide'] .drop[data-side='in'] { background: color-mix(in srgb, var(--sel) 20%, transparent); }
+[data-theme='tide'] .drop::before { background: linear-gradient(100deg, var(--edge) 0 6px, color-mix(in srgb, var(--sel) 55%, transparent) 6px); clip-path: polygon(14% 0, 100% 0, 100% 100%, 0 100%); }
+[data-theme='tide'] .drop > span { transform: skewX(-12deg); }
+[data-theme='tide'] .dock-split:hover, [data-theme='tide'] .dock-split:active { background: var(--edge); }
+[data-theme='tide'] .dock-head.focused { box-shadow: inset 0 -3px 0 var(--edge); }
+
+[data-theme='rebel'] .sides button.dragging { transform: rotate(-3deg); }
+[data-theme='rebel'] .sides .insert { width: 4px; background: #FFFFFF; box-shadow: 3px 0 0 var(--blood); transform: rotate(4deg); }
+[data-theme='rebel'] .drop[data-side='in'] { background: color-mix(in srgb, var(--blood) 20%, transparent); }
+[data-theme='rebel'] .drop::before { background: #FFFFFF; opacity: .85; transform: rotate(2deg); box-shadow: 6px 6px 0 var(--blood); }
+[data-theme='rebel'] .drop > span { transform: rotate(-3deg); }
+[data-theme='rebel'] .dock-split { background: #000000; }
+[data-theme='rebel'] .dock-split:hover, [data-theme='rebel'] .dock-split:active { background: var(--blood); }
+[data-theme='rebel'] .right:has(.dock-head.focused) .dock-head:not(.focused) { opacity: .6; }

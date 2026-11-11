@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert'
-import { clampRect, fillHidden, fitCols, fitFloat, gapsOf, mainDefaults, moveRect, overlaps, parseLayout, placeRect, resetMain, resizeRect, swapMain, toFrac, toPx, type Ctx } from './layout.ts'
+import { DOCKS } from './docks.ts'
+import { MAIN_IDS, PRESETS, type MainId, clampRect, fillHidden, fitCols, fitFloat, gapsOf, mainDefaults, moveRect, overlaps, parseLayout, placeRect, resetMain, resizeRect, swapMain, toFrac, toPx, type Ctx } from './layout.ts'
 
 const ws = { w: 1440, h: 800 }
 const ctx = (over: Partial<Ctx> = {}): Ctx => ({ id: 'center', ws, lines: [], solid: [], snap: false, ...over })
@@ -109,10 +110,10 @@ test('gaps measure to the nearest neighbour or edge', () => {
 
 test('parseLayout keeps valid rects and drops the rest', () => {
   const good = { x: 0, y: 0, w: 0.5, h: 1 }
-  assert.deepStrictEqual(parseLayout({ main: { pane: good, center: good, right: good }, floats: { clock: good } }), { main: { pane: good, center: good, right: good }, floats: { clock: good } })
-  assert.deepStrictEqual(parseLayout({ main: { pane: good }, floats: { clock: { x: 'a' }, nope: good } }), { main: null, floats: {} })
-  assert.deepStrictEqual(parseLayout(null), { main: null, floats: {} })
-  assert.deepStrictEqual(parseLayout({ floats: { info: { x: 0.9, y: 0, w: 0.5, h: 0.5 } } }), { main: null, floats: {} })
+  assert.deepStrictEqual(parseLayout({ main: { pane: good, center: good, right: good }, floats: { clock: good } }), { main: { pane: good, center: good, right: good }, floats: { clock: good }, docks: DOCKS })
+  assert.deepStrictEqual(parseLayout({ main: { pane: good }, floats: { clock: { x: 'a' }, nope: good } }), { main: null, floats: {}, docks: DOCKS })
+  assert.deepStrictEqual(parseLayout(null), { main: null, floats: {}, docks: DOCKS })
+  assert.deepStrictEqual(parseLayout({ floats: { info: { x: 0.9, y: 0, w: 0.5, h: 0.5 } } }), { main: null, floats: {}, docks: DOCKS })
 })
 
 test('clampRect keeps a too-small workspace from going negative', () => {
@@ -132,4 +133,22 @@ test('folding a panel of a saved layout lets its neighbours take the room', () =
   // Only one neighbour takes a folded panel that sits between two.
   const mid = fillHidden({ pane: { x: .3, y: 0, w: .2, h: 1 }, center: { x: 0, y: 0, w: .3, h: 1 }, right: { x: .5, y: 0, w: .5, h: 1 } }, ['pane'])
   assert.deepStrictEqual([mid.center.w, mid.right.x], [.5, .5])
+})
+
+test('a layout saved before docks existed loads with the default dock', () => {
+  const old = { main: null, floats: { clock: { x: 0.8, y: 0, w: 0.15, h: 0.08 } } }
+  assert.deepStrictEqual(parseLayout(old), { ...old, docks: DOCKS })
+})
+
+test('docks round-trip through parseLayout', () => {
+  assert.deepStrictEqual(parseLayout(JSON.parse(JSON.stringify(PRESETS.vibe))), PRESETS.vibe)
+})
+
+test('built-in presets tile without overlap and keep every panel inside its limits at 1440x800', () => {
+  for (const p of Object.values(PRESETS)) {
+    if (!p.main) continue
+    const px = (id: MainId) => toPx(p.main![id], ws)
+    for (const id of MAIN_IDS) assert.deepStrictEqual(clampRect(px(id), id, ws), px(id), id)
+    assert.ok(!overlaps(px('pane'), px('center')) && !overlaps(px('center'), px('right')))
+  }
 })

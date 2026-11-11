@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## 2.5.0 - 2026-11-11
 
 ### Added
 
+- Agent panel in two groups: drag a tab (CLAUDE, CHAT, CODEX, SHELL, SSH) within its row to reorder it, onto the other row to move it, or onto the right or bottom edge of a terminal to split the panel. Drag the line between the groups to resize them; double-click evens them. A terminal keeps its session when it moves.
+- UI edit mode: an agent panel section (show or hide each tab, pick its group, side by side or stacked) and three built-in layouts: DEFAULT, VIBE (agents take half the window) and REVIEW (the editor takes most).
+- Claude Code links to the editor as it does in VS Code: it reads the selection, the open tabs and the diagnostics, and shows its edits as a diff to accept or reject.
+- CHAT tab: Claude Code as a chat, with a question and ALLOW or DENY whenever a tool needs permission.
 - Terminal pane: an icon before each menu name, in the art. The selected menu's icon is red on its plate.
 - Terminal pane: the bottom row shows `KEYS ON` while the pane holds the keyboard, and `ctrl+x tab` when it does not.
 - Terminal pane: band headers cut it into sections (MENU, the content, a section per plugin in SKILL, COMMAND), as an editor's side bar.
@@ -11,6 +15,12 @@
 - Desktop MENU panel: the same section headers. Every menu's content starts under one (FILES, CHANGES, SESSIONS, TODO, PROJECTS), and SKILL has a section per plugin.
 - `EVOKE_CELL`: the cell's width over its height, for a terminal font other than Iosevka 14.
 - README: a design section with the references, the menu and panel rules, the terminal pane's keys and the known limits.
+
+### Changed
+
+- Settings are kept in files the app owns instead of the window's storage. Your theme, language, layout and presets carry over on the first start.
+- New REBEL logo for the Dock and taskbar. REBEL's empty page no longer shows the big logo.
+- Korean text is friendlier and plainer (해요체).
 
 ### Fixed
 

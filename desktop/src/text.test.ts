@@ -66,3 +66,9 @@ test('previewKind sorts files into opened-as-preview, previewable, and neither',
   for (const p of ['i.html', 'i.htm', 'r.md', 'R.MARKDOWN']) assert.strictEqual(previewKind(p), 'live')
   for (const p of ['a.ts', 'a.png', 'pdf', 'a.docx']) assert.strictEqual(previewKind(p), null)
 })
+
+test('Korean permission and chat copy reads right for any tool name', () => {
+  assert.strictEqual(tr('ko', 'chat.ask', { tool: 'Bash' }), 'Bash 사용을 허용할까요?')
+  assert.strictEqual(tr('ko', 'chat.ask', { tool: 'Write' }), 'Write 사용을 허용할까요?')
+  assert.ok(tr('ko', 'chat.empty').includes('허락을 구해요'))
+})

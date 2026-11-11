@@ -12,6 +12,9 @@ import { agentsOf, parseAgents, targetOf, type Agent, type Agents } from './agen
 import { iconOf, isImage, previewKind, promptVars, stepDate, weekOf } from './text'
 import { EMPTY, FLOAT_IDS, fillHidden, fitCols, fitFloat, parseLayout, type Cols, type FloatId, type Layout, type MainId, type Rect } from './layout'
 import { LayoutEdit } from './LayoutEdit'
+import { DockHead, toolOf } from './Dock'
+import { TOOL_IDS, dockGrid, dropSide, groupOf, moveBefore, moveTool, parseDocks, pickActive, showIn, splitDocks, type Docks, type ToolId } from './docks'
+import { prefs } from './prefs'
 import { baseName, lastUsedOf, projectsOf, rank, rankProjects, samePath } from '../../plugins/evoke/hooks/data'
 
 declare global {
@@ -36,29 +39,29 @@ const langOf = (path: string) => LANGS[path.split('.').pop()?.toLowerCase() ?? '
 const MOD = api.platform === 'darwin' ? '⌘' : 'Ctrl+'
 const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const stored = (): ThemeName => {
-  try { const t = localStorage.getItem('theme') as ThemeName; return THEMES[t] ? t : 'tide' } catch { return 'tide' }
+  try { const t = prefs.getItem('theme') as ThemeName; return THEMES[t] ? t : 'tide' } catch { return 'tide' }
 }
 const storedAgents = (): Agents => {
-  try { return parseAgents(localStorage.getItem('agents')) } catch { return 'both' }
+  try { return parseAgents(prefs.getItem('agents')) } catch { return 'both' }
 }
 const storedLang = (): Lang => {
-  try { return langFrom(localStorage.getItem('lang') ?? navigator.language) } catch { return langFrom(navigator.language) }
+  try { return langFrom(prefs.getItem('lang') ?? navigator.language) } catch { return langFrom(navigator.language) }
 }
 const storedLayout = (): Layout => {
-  try { return parseLayout(JSON.parse(localStorage.getItem('layout') ?? 'null')) } catch { return EMPTY }
+  try { return parseLayout(JSON.parse(prefs.getItem('layout') ?? 'null')) } catch { return EMPTY }
 }
 // The dividers and the collapsed panels of the default split; a saved custom layout draws its own rects instead.
 type Split = Cols & { hidePane?: boolean; hideRight?: boolean }
 const storedSplit = (): Split => {
   try {
-    const v = JSON.parse(localStorage.getItem('split') ?? '{}') ?? {}
+    const v = JSON.parse(prefs.getItem('split') ?? '{}') ?? {}
     const px = (n: unknown) => (typeof n === 'number' && n > 0 && Number.isFinite(n) ? n : undefined)
     return { pane: px(v.pane), right: px(v.right), hidePane: v.hidePane === true, hideRight: v.hideRight === true }
   } catch { return {} }
 }
 type TermPrefs = { size: number; blink: boolean }
 const storedTerm = (): TermPrefs => {
-  try { const v = JSON.parse(localStorage.getItem('terminal') ?? 'null'); return { size: Math.min(22, Math.max(10, Number(v?.size) || 13)), blink: v?.blink !== false } } catch { return { size: 13, blink: true } }
+  try { const v = JSON.parse(prefs.getItem('terminal') ?? 'null'); return { size: Math.min(22, Math.max(10, Number(v?.size) || 13)), blink: v?.blink !== false } } catch { return { size: 13, blink: true } }
 }
 // The live terminals by id, so the toolbar can reach the one on screen.
 const TERMS = new Map<string, Terminal>()
@@ -82,6 +85,8 @@ const Mask = () => (
     <path d="M2 4 Q16 0 32 9 Q48 0 62 4 Q60 20 46 24 Q36 26 32 17 Q28 26 18 24 Q4 20 2 4Z M12 10 Q18 7 25 12 Q19 16 12 10Z M39 12 Q46 7 52 10 Q45 16 39 12Z" fillRule="evenodd" />
   </svg>
 )
+// Once the terminal is on screen (the next frame), its keyboard input takes focus.
+const focusTerm = (id: string) => requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-term="${CSS.escape(id)}"] .xterm-helper-textarea`)?.focus())
 // Text typed into a terminal for you: no control characters, so a file or skill name can never press Enter or send keys.
 const typed = (text: string) => text.replace(/[\x00-\x1f\x7f]/g, '')
 const fileUrl = (path: string) => encodeURI(`file://${path.startsWith('/') ? '' : '/'}${path.replace(/\\/g, '/')}`)
@@ -106,24 +111,24 @@ export function App() {
   const [theme, setTheme] = useState<ThemeName>(stored)
   const [lang, setLang] = useState<Lang>(storedLang)
   const [settings, setSettings] = useState(false)
-  const [calm, setCalm] = useState(() => { try { return localStorage.getItem('motion') === 'reduce' } catch { return false } })
+  const [calm, setCalm] = useState(() => { try { return prefs.getItem('motion') === 'reduce' } catch { return false } })
   useEffect(() => {
     document.documentElement.dataset.motion = calm ? 'reduce' : 'full'
-    try { localStorage.setItem('motion', calm ? 'reduce' : 'full') } catch {}
+    try { prefs.setItem('motion', calm ? 'reduce' : 'full') } catch {}
   }, [calm])
   const [settingsTab, setSettingsTab] = useState<'general' | 'appearance' | 'keys' | 'terminal'>('general')
   const [layout, setLayout] = useState<Layout>(storedLayout)
   const [draft, setDraft] = useState<Layout | null>(null) // set while UI edit mode is open; only Save copies it to layout
   const shown = draft ?? layout
   const [split, setSplit] = useState<Split>(storedSplit)
-  useEffect(() => { try { localStorage.setItem('split', JSON.stringify(split)) } catch {} }, [split])
+  useEffect(() => { try { prefs.setItem('split', JSON.stringify(split)) } catch {} }, [split])
   const splitDrag = useRef<{ which: 'pane' | 'right'; sx: number; start: Required<Cols> } | null>(null)
   const [ws, setWs] = useState({ w: window.innerWidth, h: window.innerHeight, top: 0 })
   const [floatHost, setFloatHost] = useState<HTMLElement | null>(null)
   const [termPrefs, setTermPrefs] = useState<TermPrefs>(storedTerm)
   const setTerm = (p: Partial<TermPrefs>) => setTermPrefs(was => {
     const next = { ...was, ...p, size: Math.min(22, Math.max(10, p.size ?? was.size)) }
-    try { localStorage.setItem('terminal', JSON.stringify(next)) } catch {}
+    try { prefs.setItem('terminal', JSON.stringify(next)) } catch {}
     return next
   })
   const T = (key: Parameters<typeof tr>[1], vars?: Record<string, string | number>) => tr(lang, key, vars)
@@ -136,14 +141,34 @@ export function App() {
   const [toast, setToast] = useState('')
   const warned = useRef(new Set<string>())
   const [agents, setAgents] = useState<Agents>(storedAgents)
-  const [pane, setPane] = useState<'claude' | 'codex' | 'shell' | 'ssh' | 'chat'>(() => agentsOf(storedAgents())[0])
+  const [picked, setPicked] = useState<(ToolId | null)[]>(() => [agentsOf(storedAgents())[0], null]) // the tool each dock group was last asked to show
+  const [focus, setFocus] = useState(0) // the group skills and ⌘L type into
+  const [dragging, setDragging] = useState(false)
+  const [dropAt, setDropAt] = useState<{ group: number; side: 'row' | 'col' | null } | null>(null)
   const [hosts, setHosts] = useState<string[]>([]) // LINK: the hosts of ~/.ssh/config
   const [remotes, setRemotes] = useState<string[]>([]) // hosts with an ssh terminal open
   const [remote, setRemote] = useState('')
+  // The agent panel: what each group can show, and the one tool on screen in each.
+  const docks = shown.docks
+  const visible = TOOL_IDS.filter(t => !(agents === 'codex' && (t === 'claude' || t === 'chat')) && !(agents === 'claude' && t === 'codex') && !(t === 'ssh' && !remotes.length))
+  const act = pickActive(docks, picked, visible)
+  const shownGroups = act.flatMap((t, i) => (t ? [i] : []))
+  const focused = shownGroups.includes(focus) ? focus : shownGroups[0] ?? 0
+  const pane: ToolId = act[focused] ?? 'shell'
+  const isOn = (t: ToolId) => act[groupOf(docks, t)] === t
+  // A dock change shows at once; outside edit mode it is also kept, inside it waits for Save like the rest of the draft.
+  const setDocks = (next: Docks) => {
+    if (draft) return setDraft(d => d && { ...d, docks: next })
+    setLayout(l => {
+      const out = { ...l, docks: next }
+      try { prefs.setItem('layout', JSON.stringify(out)) } catch {}
+      return out
+    })
+  }
   const connect = (host: string) => {
     setRemotes(was => (was.includes(host) ? was : [...was, host]))
     setRemote(host)
-    setPane('ssh')
+    showPane('ssh')
     setSplit(s => ({ ...s, hideRight: false }))
   }
   const [shells, setShells] = useState<string[]>([]) // projects with a shell open; started on first use
@@ -151,12 +176,25 @@ export function App() {
   const [sessions, setSessions] = useState<{ id: string; title: string; mtime: number }[]>([])
   const [codexes, setCodexes] = useState<string[]>([]) // projects with Codex open; started on first use, like the shell
   const [chatting, setChatting] = useState<string[]>([]) // projects with the chat panel open; started on first use
-  const showPane = (p: 'claude' | 'codex' | 'shell' | 'chat') => {
-    setPane(p)
+  // `under` is the dock the tool is shown in; after a drag, pass the docks the drop produced, not the ones on screen.
+  const showPane = (p: ToolId, under: Docks = docks) => {
+    const next = showIn(under, picked, p)
+    setPicked(next.picked)
+    setFocus(next.focus)
     if (p === 'chat' && root) setChatting(was => (was.includes(root) ? was : [...was, root]))
     if (p === 'shell' && root) setShells(was => (was.includes(root) ? was : [...was, root]))
     if (p === 'codex' && root) setCodexes(was => (was.includes(root) ? was : [...was, root]))
   }
+  // A tool on screen in any group starts the way a click on it would, so a second group never shows an empty body.
+  // Driven by the saved layout, so trying a preset in edit mode starts nothing that Cancel would leave running.
+  const liveAct = pickActive(layout.docks, picked, visible)
+  useEffect(() => {
+    if (!root) return
+    const start = (on: boolean, set: (f: (was: string[]) => string[]) => void) => on && set(was => (was.includes(root) ? was : [...was, root]))
+    start(liveAct.includes('chat'), setChatting)
+    start(liveAct.includes('shell'), setShells)
+    start(liveAct.includes('codex'), setCodexes)
+  }, [liveAct.join(), root])
   const calendarOut = Boolean(shown.floats.calendar)
   const [changes, setChanges] = useState<Change[]>([])
   const refreshGit = useCallback(async () => setChanges(root ? await api.status(root) : []), [root])
@@ -184,15 +222,15 @@ export function App() {
     for (const a of agentsOf(agents)) if (!agentsOf(next).includes(a)) for (const path of live[a]) api.pty.kill(`${a}:${path}`)
     if (next !== 'both') setCodexes([])
     if (next === 'codex') for (const path of chatting) api.chat.stop(`chat:${path}`)
-    if (pane === 'chat' ? next === 'codex' : (pane === 'claude' || pane === 'codex') && !agentsOf(next).includes(pane)) setPane(agentsOf(next)[0])
+    if (pane === 'chat' ? next === 'codex' : (pane === 'claude' || pane === 'codex') && !agentsOf(next).includes(pane)) showPane(agentsOf(next)[0])
     setAgents(next)
-    try { localStorage.setItem('agents', next) } catch {}
+    try { prefs.setItem('agents', next) } catch {}
   }
   const say = (text: string) => {
     const to = targetOf(agents, pane)
     api.pty.write(`${to}:${root}`, typed(text))
     showPane(to)
-    document.querySelector<HTMLElement>('.claude.on .xterm-helper-textarea')?.focus()
+    focusTerm(`${to}:${root}`)
   }
   const resume = (id: string) => { if (agents !== 'codex') (setResumes(r => ({ ...r, [root]: id })), showPane('claude')) } // only Claude Code has sessions to resume here
 
@@ -294,11 +332,11 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     api.setTheme(theme)
-    try { localStorage.setItem('theme', theme) } catch {}
+    try { prefs.setItem('theme', theme) } catch {}
   }, [theme])
   useEffect(() => {
     document.documentElement.lang = lang
-    try { localStorage.setItem('lang', lang) } catch {}
+    try { prefs.setItem('lang', lang) } catch {}
   }, [lang])
   const nextTheme = () => setTheme(t => THEME_NAMES[(THEME_NAMES.indexOf(t) + 1) % THEME_NAMES.length])
 
@@ -466,7 +504,7 @@ export function App() {
   const saveEdit = () => {
     if (!draft) return
     setLayout(draft)
-    try { localStorage.setItem('layout', JSON.stringify(draft)) } catch {}
+    try { prefs.setItem('layout', JSON.stringify(draft)) } catch {}
     setDraft(null)
   }
   // Edit mode shows every panel, so a collapsed one can still be placed.
@@ -569,11 +607,14 @@ export function App() {
       const s = editor.getSelection()
       if (!active || !s) return
       const lines = s.isEmpty() ? '' : `#L${s.startLineNumber}${s.endLineNumber > s.startLineNumber ? `-${s.endLineNumber}` : ''}`
-      api.pty.write(`${targetOf(agents, pane)}:${root}`, typed(`@${relative(root, active)}${lines} `)) // to the agent on screen, else the first one enabled
-      document.querySelector<HTMLElement>('.claude.on .xterm-helper-textarea')?.focus()
+      const to = targetOf(agents, pane)
+      api.pty.write(`${to}:${root}`, typed(`@${relative(root, active)}${lines} `)) // to the agent on screen, else the first one enabled
+      focusTerm(`${to}:${root}`)
     })
   }
 
+  const grid = dockGrid(docks, shownGroups)
+  const termOf = (t: ToolId) => (t === 'ssh' ? `ssh:${remote}` : `${t}:${root}`)
   const calendar = <Calendar now={now} sessions={sessions} day={day} onDay={setDay} onPick={resume} T={T} />
   return (
     <div className={`app ${api.platform} ${shown.main ? 'custom' : ''}`} style={customCols ? { gridTemplateColumns: `${hidePane ? 0 : cols.pane}px 1fr ${hideRight ? 0 : cols.right}px` } : undefined}>
@@ -730,24 +771,87 @@ export function App() {
         )}
       </main>
 
-      <section className="right" style={mainStyle('right')}>
-        <div className="head sides">
-          {agents !== 'codex' && <button onClick={() => showPane('claude')} className={pane === 'claude' ? 'on' : ''}><Cut label="CLAUDE" ground={pane === 'claude' ? 'var(--edge)' : 'var(--mid)'} /></button>}
-          {agents !== 'codex' && <button onClick={() => showPane('chat')} className={pane === 'chat' ? 'on' : ''} title={T('chat.title')}><Cut label="CHAT" ground={pane === 'chat' ? 'var(--edge)' : 'var(--mid)'} /></button>}
-          {agents !== 'claude' && <button onClick={() => showPane('codex')} className={pane === 'codex' ? 'on' : ''}><Cut label="CODEX" ground={pane === 'codex' ? 'var(--edge)' : 'var(--mid)'} /></button>}
-          <button onClick={() => showPane('shell')} className={pane === 'shell' ? 'on' : ''}><Cut label="SHELL" ground={pane === 'shell' ? 'var(--edge)' : 'var(--mid)'} /></button>
-          {remotes.length > 0 && <button onClick={() => setPane('ssh')} className={pane === 'ssh' ? 'on' : ''}><Cut label={`SSH ${remote}`} ground={pane === 'ssh' ? 'var(--edge)' : 'var(--mid)'} /></button>}
-          <span className="tools">
+      {/* The agent panel: one or two dock groups on a grid. Every terminal stays a child of this section, so moving a tool never restarts it. */}
+      <section
+        className="right"
+        style={{ ...mainStyle('right'), gridTemplateColumns: grid.columns, gridTemplateRows: grid.rows, gridTemplateAreas: grid.areas }}
+        onPointerDown={e => { const g = (e.target as HTMLElement).closest('[data-group]')?.getAttribute('data-group'); if (g) setFocus(Number(g)) }}
+      >
+        {shownGroups.map(g => (
+          <DockHead
+            key={g}
+            group={g}
+            focused={shownGroups.length > 1 && g === focused}
+            tools={docks.groups[g].filter(t => visible.includes(t) && !docks.hidden.includes(t))}
+            active={act[g]}
+            label={t => (t === 'ssh' ? `SSH ${remote}` : t.toUpperCase())}
+            title={t => (t === 'chat' ? T('chat.title') : T('dock.split'))}
+            chip={(text, on) => <Cut label={text} ground={on ? 'var(--edge)' : 'var(--mid)'} />}
+            onPick={showPane}
+            dragging={dragging}
+            onDrop={(t, before) => {
+              const next = moveBefore(docks, t, g, before)
+              setDocks(next)
+              showPane(t, next)
+              setDragging(false) // the dragged chip may have left this head's DOM, so its dragend never reaches React
+              setDropAt(null)
+            }}
+            onDragState={on => { setDragging(on); if (!on) setDropAt(null) }}
+          >
             <button onClick={() => setTerm({ size: termPrefs.size - 1 })} title={T('term.smaller')} aria-label={T('term.smaller')}><Cut label="A-" ground="var(--mid)" /></button>
             <button onClick={() => setTerm({ size: termPrefs.size + 1 })} title={T('term.larger')} aria-label={T('term.larger')}><Cut label="A+" ground="var(--mid)" /></button>
-            <button onClick={() => TERMS.get(pane === 'ssh' ? `ssh:${remote}` : `${pane}:${root}`)?.clear()} title={T('term.clear')} aria-label={T('term.clear')}><Cut label="CLEAR" ground="var(--mid)" /></button>
-          </span>
-        </div>
-        {claudeOn.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
-        {remotes.map(host => <Claude key={`ssh:${host}`} kind="ssh" cwd={host} on={pane === 'ssh' && host === remote} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
-        {codexOn.map(path => <Claude key={`codex:${path}`} kind="codex" cwd={path} on={pane === 'codex' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
-        {agents !== 'codex' && chatting.map(path => <Chat key={`chat:${path}`} cwd={path} on={pane === 'chat' && path === root} T={T} />)}
-        {shells.map(path => <Claude key={`shell:${path}`} kind="shell" cwd={path} on={pane === 'shell' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+            <button onClick={() => act[g] && TERMS.get(termOf(act[g]!))?.clear()} title={T('term.clear')} aria-label={T('term.clear')}><Cut label="CLEAR" ground="var(--mid)" /></button>
+          </DockHead>
+        ))}
+        {shownGroups.length > 1 && (
+          <div
+            className={`dock-split ${docks.dir}`}
+            style={{ gridArea: 'split' }}
+            title={T('dock.ratio')}
+            onPointerDown={e => e.currentTarget.setPointerCapture(e.pointerId)}
+            onPointerMove={e => {
+              if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+              const b = e.currentTarget.parentElement!.getBoundingClientRect()
+              setDocks(parseDocks({ ...docks, ratio: docks.dir === 'row' ? (e.clientX - b.left) / b.width : (e.clientY - b.top) / b.height }))
+            }}
+            onDoubleClick={() => setDocks({ ...docks, ratio: 0.5 })}
+          />
+        )}
+        {claudeOn.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} group={groupOf(docks, 'claude')} on={isOn('claude') && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+        {remotes.map(host => <Claude key={`ssh:${host}`} kind="ssh" cwd={host} group={groupOf(docks, 'ssh')} on={isOn('ssh') && host === remote} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+        {codexOn.map(path => <Claude key={`codex:${path}`} kind="codex" cwd={path} group={groupOf(docks, 'codex')} on={isOn('codex') && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+        {agents !== 'codex' && chatting.map(path => <Chat key={`chat:${path}`} cwd={path} group={groupOf(docks, 'chat')} on={isOn('chat') && path === root} T={T} />)}
+        {shells.map(path => <Claude key={`shell:${path}`} kind="shell" cwd={path} group={groupOf(docks, 'shell')} on={isOn('shell') && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+        {/* While a chip is dragged, each body takes the drop: its right or bottom edge splits, the rest moves the tool into that group. */}
+        {dragging && shownGroups.map(g => (
+          <div
+            key={`drop${g}`}
+            className="drop"
+            data-group={g}
+            data-side={dropAt?.group === g ? dropAt.side ?? 'in' : undefined}
+            style={{ gridArea: `b${g}` }}
+            onDragOver={e => {
+              e.preventDefault()
+              const b = e.currentTarget.getBoundingClientRect()
+              const side = dropSide(e.clientX - b.left, e.clientY - b.top, b.width, b.height)
+              if (dropAt?.group !== g || dropAt.side !== side) setDropAt({ group: g, side })
+            }}
+            onDragLeave={() => setDropAt(null)}
+            onDrop={e => {
+              e.preventDefault()
+              const t = toolOf(e)
+              const b = e.currentTarget.getBoundingClientRect()
+              const side = dropSide(e.clientX - b.left, e.clientY - b.top, b.width, b.height)
+              if (t) {
+                const next = side ? splitDocks(docks, t, side) : moveTool(docks, t, g, Infinity)
+                setDocks(next)
+                showPane(t, next)
+              }
+              setDragging(false)
+              setDropAt(null)
+            }}
+          ><span>{T('dock.split')}</span></div>
+        ))}
       </section>
 
       {/* The status band, as above the terminal's prompt. */}
@@ -904,7 +1008,7 @@ function WebView({ url, T }: { url: string; T: (key: any, vars?: any) => string 
 }
 
 // One terminal per project and kind, kept alive while hidden so switching never ends a session. For ssh, cwd is the host.
-function Claude({ kind, cwd, on, theme, prefs, resume, endedLabel }: { kind: 'claude' | 'codex' | 'shell' | 'ssh'; cwd: string; on: boolean; theme: ThemeName; prefs: TermPrefs; resume?: string; endedLabel: (code: number) => string }) {
+function Claude({ kind, cwd, group, on, theme, prefs, resume, endedLabel }: { kind: 'claude' | 'codex' | 'shell' | 'ssh'; cwd: string; group: number; on: boolean; theme: ThemeName; prefs: TermPrefs; resume?: string; endedLabel: (code: number) => string }) {
   const id = `${kind}:${cwd}`
   const box = useRef<HTMLDivElement>(null)
   const fit = useRef<FitAddon>()
@@ -960,7 +1064,7 @@ function Claude({ kind, cwd, on, theme, prefs, resume, endedLabel }: { kind: 'cl
   }, [prefs])
 
   return (
-    <div className={`claude ${on ? 'on' : ''}`}>
+    <div className={`claude ${on ? 'on' : ''}`} data-group={group} data-term={id} style={{ gridArea: `b${group}` }}>
       <div ref={box} className="term" />
       {ended !== null && (
         <button className="restart" onClick={() => setRun(r => r + 1)}>{endedLabel(ended)}</button>

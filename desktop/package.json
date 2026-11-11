@@ -1,7 +1,7 @@
 {
   "name": "evoke-desktop",
   "productName": "Evoke",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "private": true,
   "description": "Evoke as a desktop editor: files, Monaco, and Claude Code side by side.",
   "author": "jinjwon",
@@ -13,7 +13,7 @@
     "dist:mac": "vite build && electron-builder --mac dir && sh sign-mac.sh",
     "dist:win": "vite build && electron-builder --win",
     "dist:win:zip": "vite build && electron-builder --win zip --x64",
-    "test": "node --test ide.test.cjs paths.test.cjs match.test.cjs serve.test.cjs src/text.test.ts src/layout.test.ts src/agents.test.ts src/chat.test.ts"
+    "test": "node --test ide.test.cjs paths.test.cjs match.test.cjs serve.test.cjs store.test.cjs src/prefs.test.ts src/docks.test.ts src/text.test.ts src/layout.test.ts src/agents.test.ts src/chat.test.ts"
   },
   "build": {
     "appId": "dev.evoke.desktop",
@@ -25,6 +25,7 @@
       "match.cjs",
       "serve.cjs",
       "ide.cjs",
+      "store.cjs",
       "dist/**",
       "!node_modules/node-pty/build/**",
       "!node_modules/node-pty/**/*.pdb"

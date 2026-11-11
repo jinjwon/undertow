@@ -5,7 +5,7 @@ import { EMPTY_CHAT, chatReduce, type Chat as ChatState } from './chat'
 
 const api = window.evoke
 
-export function Chat({ cwd, on, T }: { cwd: string; on: boolean; T: (key: any, vars?: any) => string }) {
+export function Chat({ cwd, group, on, T }: { cwd: string; group: number; on: boolean; T: (key: any, vars?: any) => string }) {
   const id = `chat:${cwd}`
   const [chat, setChat] = useState<ChatState>(EMPTY_CHAT)
   const [draft, setDraft] = useState('')
@@ -29,7 +29,7 @@ export function Chat({ cwd, on, T }: { cwd: string; on: boolean; T: (key: any, v
   }
 
   return (
-    <div className={`claude chat ${on ? 'on' : ''}`}>
+    <div className={`claude chat ${on ? 'on' : ''}`} data-group={group} data-term={id} style={{ gridArea: `b${group}` }}>
       <div className="chat-log" role="log" aria-live="polite">
         {!chat.items.length && <p className="quiet">{T('chat.empty')}</p>}
         {chat.items.map((item, i) =>

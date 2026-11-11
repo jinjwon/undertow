@@ -9,6 +9,7 @@ const listen = (channel, fn) => {
 
 contextBridge.exposeInMainWorld('evoke', {
   platform: process.platform,
+  store: { snapshot: ipcRenderer.sendSync('store:load'), set: (key, value) => ipcRenderer.send('store:set', key, value) },
   projectsRaw: () => ipcRenderer.invoke('projects:raw'),
   exists: paths => ipcRenderer.invoke('projects:exists', paths),
   pickProject: () => ipcRenderer.invoke('project:pick'),

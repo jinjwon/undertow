@@ -6,6 +6,7 @@ const path = require('node:path')
 const { execFile } = require('node:child_process')
 const pty = require('node-pty')
 const { startIde } = require('./ide.cjs')
+const { createStore } = require('./store.cjs')
 const { contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 const { start: startPreview } = require('./serve.cjs')
 const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
@@ -17,6 +18,10 @@ const claudeJson = () => fs.readFile(path.join(home, '.claude.json'), 'utf8').ca
 const codexToml = () => fs.readFile(path.join(home, '.codex', 'config.toml'), 'utf8').catch(() => '')
 const terms = new Map() // one Claude Code session per project, kept while you switch
 let win
+const store = createStore(path.join(app.getPath('userData'), 'store'))
+// The page reads every setting once, synchronously, before it draws; writes come back one at a time.
+ipcMain.on('store:load', e => { e.returnValue = store.snapshot() })
+ipcMain.on('store:set', (_, key, value) => { store.set(key, value).catch(() => {}) })
 
 const allowed = target => [...roots].some(root => inside(root, target))
 // Real path, so a symlink inside a project cannot reach a file outside it.
@@ -350,6 +355,7 @@ ipcMain.on('ide:notify', (_, method, params) => {
 ipcMain.handle('ide:connected', () => ide?.connected() ?? 0)
 
 app.whenReady().then(async () => {
+  await store.load()
   ide = await startIde({ call: askWindow, folders: () => [...roots], dir: path.join(home, '.claude', 'ide') }).catch(() => undefined) // without it Claude Code still runs, only unlinked
   win = new BrowserWindow({
     width: 1440,

@@ -1,16 +1,18 @@
 // UI edit mode: one overlay above the whole window, so while it is open nothing underneath can be clicked or typed into,
 // and when it is closed none of this exists. Changes go to the draft in App, which draws them live; only Save keeps them.
 import { useEffect, useRef, useState, type PointerEvent as PE } from 'react'
-import { EMPTY, FLOAT_IDS, MAIN_IDS, gapsOf, mainDefaults, moveRect, parseLayout, placeRect, resetMain, resizeRect, swapMain, toFrac, toPx, type Cols, type Ctx, type FloatId, type Guides, type Handle, type Id, type Layout, type MainId, type Rect, type Size } from './layout'
+import { TOOL_IDS, groupOf, moveTool, parseDocks, type Docks } from './docks'
+import { EMPTY, FLOAT_IDS, MAIN_IDS, PRESETS as BUILT_IN, gapsOf, mainDefaults, moveRect, parseLayout, placeRect, resetMain, resizeRect, swapMain, toFrac, toPx, type Cols, type Ctx, type FloatId, type Guides, type Handle, type Id, type Layout, type MainId, type Rect, type Size } from './layout'
+import { prefs } from './prefs'
 
 const HANDLES: Handle[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
 const isMain = (id: Id): id is MainId => (MAIN_IDS as string[]).includes(id)
 const PRESETS = 'layoutPresets'
 const readPresets = (): Record<string, unknown> => {
-  try { return JSON.parse(localStorage.getItem(PRESETS) ?? '{}') ?? {} } catch { return {} }
+  try { return JSON.parse(prefs.getItem(PRESETS) ?? '{}') ?? {} } catch { return {} }
 }
 const writePresets = (p: Record<string, unknown>) => {
-  try { localStorage.setItem(PRESETS, JSON.stringify(p)) } catch {}
+  try { prefs.setItem(PRESETS, JSON.stringify(p)) } catch {}
 }
 type Drag = { id: Id; mode: 'move' | Handle; sx: number; sy: number; start: Rect; live: boolean }
 
@@ -50,6 +52,7 @@ export function LayoutEdit({ value, onChange, ws, cols, top, onSave, onCancel, T
     if (isMain(id)) onChange({ ...value, main: { ...(value.main ?? Object.fromEntries(MAIN_IDS.map(m => [m, toFrac(defaults[m], ws)])) as Record<MainId, Rect>), [id]: f } })
     else onChange({ ...value, floats: { ...value.floats, [id]: f } })
   }
+  const docks = (d: Docks) => onChange({ ...value, docks: parseDocks(d) })
   const place = (id: Id, r: Rect) => { const p = placeRect(r, ctxOf(id, false)); if (p) apply(id, p) }
 
   const resetOne = (id: Id) => {
@@ -97,7 +100,7 @@ export function LayoutEdit({ value, onChange, ws, cols, top, onSave, onCancel, T
         e.preventDefault(); e.stopPropagation()
         return preview ? setPreview(false) : onCancel()
       }
-      if ((e.target as HTMLElement).tagName === 'INPUT' || !sel || preview) return
+      if (['INPUT', 'SELECT'].includes((e.target as HTMLElement).tagName) || !sel || preview) return
       const step = e.shiftKey ? 16 : 1
       const by = ({ ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] } as Record<string, number[]>)[e.key]
       if (!by) return
@@ -163,6 +166,25 @@ export function LayoutEdit({ value, onChange, ws, cols, top, onSave, onCancel, T
             <div className="nums">{field('w', 'W')}{field('h', 'H')}{field('x', 'X')}{field('y', 'Y')}</div>
             <label className="check"><input type="checkbox" checked={keep} onChange={e => setKeep(e.target.checked)} /> {T('edit.lock')}</label>
             <button onClick={() => resetOne(sel)}>{T('edit.resetOne')}</button>
+            {/* The agent panel's tools, for the keyboard as much as for the mouse: show or hide each, pick its group, lay the groups out. */}
+            {sel === 'right' && (
+              <>
+                <h4>{T('edit.dock')}</h4>
+                {TOOL_IDS.map(t => (
+                  <div key={t} className="dock-row">
+                    <label className="check">
+                      <input type="checkbox" aria-label={`${T('edit.dockShow')}: ${t.toUpperCase()}`} checked={!value.docks.hidden.includes(t)} onChange={e => docks({ ...value.docks, hidden: e.target.checked ? value.docks.hidden.filter(h => h !== t) : [...value.docks.hidden, t] })} /> {t.toUpperCase()}
+                    </label>
+                    <select aria-label={t.toUpperCase()} value={groupOf(value.docks, t)} onChange={e => docks(moveTool(value.docks, t, Number(e.target.value), Infinity))}>
+                      {[0, 1].map(n => <option key={n} value={n}>{T('edit.dockGroup', { n: n + 1 })}</option>)}
+                    </select>
+                  </div>
+                ))}
+                <div className="dock-dir">
+                  {(['row', 'col'] as const).map(d => <button key={d} aria-pressed={value.docks.dir === d} onClick={() => docks({ ...value.docks, dir: d })}>{T(`edit.dockDir.${d}`)}</button>)}
+                </div>
+              </>
+            )}
           </>
         ) : <p>{T('edit.pick')}</p>}
         <button onClick={() => onChange(EMPTY)}>{T('edit.resetAll')}</button>
@@ -171,6 +193,9 @@ export function LayoutEdit({ value, onChange, ws, cols, top, onSave, onCancel, T
           <input value={name} placeholder={T('edit.presetName')} onChange={e => setName(e.target.value)} />
           <button disabled={!name.trim()} onClick={() => { const p = { ...presets, [name.trim()]: value }; setPresets(p); writePresets(p); setName('') }}>{T('edit.presetSave')}</button>
         </div>
+        {(Object.keys(BUILT_IN) as (keyof typeof BUILT_IN)[]).map(n => (
+          <div key={`built:${n}`} className="preset"><button onClick={() => onChange(BUILT_IN[n])}>{T(`preset.${n}`)}</button></div>
+        ))}
         {Object.keys(presets).map(n => (
           <div key={n} className="preset">
             <button onClick={() => onChange(parseLayout(presets[n]))}>{n}</button>
