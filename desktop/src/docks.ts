@@ -60,6 +60,12 @@ export const pickActive = (d: Docks, active: (ToolId | null)[], visible: ToolId[
     return want && can.includes(want) ? want : can[0] ?? null
   })
 
+// Showing a tool: it becomes the pick of the group it is in under `d` (pass the docks after a move, not before) and that group takes focus.
+export const showIn = (d: Docks, picked: (ToolId | null)[], tool: ToolId): { picked: (ToolId | null)[]; focus: number } => {
+  const focus = groupOf(d, tool)
+  return { picked: Object.assign([...picked], { [focus]: tool }), focus }
+}
+
 const fr = (n: number) => `${Number(n.toFixed(3))}fr`
 // The panel's CSS grid: a head row and a body per shown group, and a divider between two.
 export const dockGrid = (d: Docks, shown: number[]): { columns: string; rows: string; areas: string } => {

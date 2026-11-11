@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert'
-import { DOCKS, dockGrid, dropSide, groupOf, moveBefore, moveTool, parseDocks, pickActive, splitDocks } from './docks.ts'
+import { DOCKS, dockGrid, dropSide, groupOf, moveBefore, moveTool, parseDocks, pickActive, showIn, splitDocks } from './docks.ts'
 
 test('parseDocks repairs whatever storage holds', () => {
   assert.deepStrictEqual(parseDocks(null), DOCKS)
@@ -50,4 +50,11 @@ test('moveBefore drops a tool in front of another, at the end for null, and igno
   assert.deepStrictEqual(moveBefore(d, 'claude', 0, null).groups[0], ['chat', 'codex', 'ssh', 'claude'])
   assert.deepStrictEqual(moveBefore(d, 'codex', 1, 'shell').groups[1], ['codex', 'shell'])
   assert.deepStrictEqual(moveBefore(d, 'chat', 0, 'chat'), d)
+})
+
+test('showIn shows a moved tool in the group it moved to and focuses that group', () => {
+  const two = splitDocks(DOCKS, 'codex', 'row')
+  const next = moveTool(two, 'shell', 1, Infinity)
+  assert.deepStrictEqual(showIn(next, ['claude', 'codex'], 'shell'), { picked: ['claude', 'shell'], focus: 1 })
+  assert.deepStrictEqual(showIn(next, ['claude', 'codex'], 'chat'), { picked: ['chat', 'codex'], focus: 0 })
 })

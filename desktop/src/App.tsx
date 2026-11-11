@@ -13,7 +13,7 @@ import { iconOf, isImage, previewKind, promptVars, stepDate, weekOf } from './te
 import { EMPTY, FLOAT_IDS, fillHidden, fitCols, fitFloat, parseLayout, type Cols, type FloatId, type Layout, type MainId, type Rect } from './layout'
 import { LayoutEdit } from './LayoutEdit'
 import { DockHead, toolOf } from './Dock'
-import { TOOL_IDS, dockGrid, dropSide, groupOf, moveBefore, moveTool, parseDocks, pickActive, splitDocks, type Docks, type ToolId } from './docks'
+import { TOOL_IDS, dockGrid, dropSide, groupOf, moveBefore, moveTool, parseDocks, pickActive, showIn, splitDocks, type Docks, type ToolId } from './docks'
 import { prefs } from './prefs'
 import { baseName, lastUsedOf, projectsOf, rank, rankProjects, samePath } from '../../plugins/evoke/hooks/data'
 
@@ -176,22 +176,25 @@ export function App() {
   const [sessions, setSessions] = useState<{ id: string; title: string; mtime: number }[]>([])
   const [codexes, setCodexes] = useState<string[]>([]) // projects with Codex open; started on first use, like the shell
   const [chatting, setChatting] = useState<string[]>([]) // projects with the chat panel open; started on first use
-  const showPane = (p: ToolId) => {
-    const g = groupOf(docks, p)
-    setPicked(was => Object.assign([...was], { [g]: p }))
-    setFocus(g)
+  // `under` is the dock the tool is shown in; after a drag, pass the docks the drop produced, not the ones on screen.
+  const showPane = (p: ToolId, under: Docks = docks) => {
+    const next = showIn(under, picked, p)
+    setPicked(next.picked)
+    setFocus(next.focus)
     if (p === 'chat' && root) setChatting(was => (was.includes(root) ? was : [...was, root]))
     if (p === 'shell' && root) setShells(was => (was.includes(root) ? was : [...was, root]))
     if (p === 'codex' && root) setCodexes(was => (was.includes(root) ? was : [...was, root]))
   }
   // A tool on screen in any group starts the way a click on it would, so a second group never shows an empty body.
+  // Driven by the saved layout, so trying a preset in edit mode starts nothing that Cancel would leave running.
+  const liveAct = pickActive(layout.docks, picked, visible)
   useEffect(() => {
     if (!root) return
     const start = (on: boolean, set: (f: (was: string[]) => string[]) => void) => on && set(was => (was.includes(root) ? was : [...was, root]))
-    start(act.includes('chat'), setChatting)
-    start(act.includes('shell'), setShells)
-    start(act.includes('codex'), setCodexes)
-  }, [act.join(), root])
+    start(liveAct.includes('chat'), setChatting)
+    start(liveAct.includes('shell'), setShells)
+    start(liveAct.includes('codex'), setCodexes)
+  }, [liveAct.join(), root])
   const calendarOut = Boolean(shown.floats.calendar)
   const [changes, setChanges] = useState<Change[]>([])
   const refreshGit = useCallback(async () => setChanges(root ? await api.status(root) : []), [root])
@@ -785,7 +788,14 @@ export function App() {
             title={t => (t === 'chat' ? T('chat.title') : T('dock.split'))}
             chip={(text, on) => <Cut label={text} ground={on ? 'var(--edge)' : 'var(--mid)'} />}
             onPick={showPane}
-            onDrop={(t, before) => setDocks(moveBefore(docks, t, g, before))}
+            dragging={dragging}
+            onDrop={(t, before) => {
+              const next = moveBefore(docks, t, g, before)
+              setDocks(next)
+              showPane(t, next)
+              setDragging(false) // the dragged chip may have left this head's DOM, so its dragend never reaches React
+              setDropAt(null)
+            }}
             onDragState={on => { setDragging(on); if (!on) setDropAt(null) }}
           >
             <button onClick={() => setTerm({ size: termPrefs.size - 1 })} title={T('term.smaller')} aria-label={T('term.smaller')}><Cut label="A-" ground="var(--mid)" /></button>
@@ -832,8 +842,11 @@ export function App() {
               const t = toolOf(e)
               const b = e.currentTarget.getBoundingClientRect()
               const side = dropSide(e.clientX - b.left, e.clientY - b.top, b.width, b.height)
-              if (t) setDocks(side ? splitDocks(docks, t, side) : moveTool(docks, t, g, Infinity))
-              if (t) showPane(t)
+              if (t) {
+                const next = side ? splitDocks(docks, t, side) : moveTool(docks, t, g, Infinity)
+                setDocks(next)
+                showPane(t, next)
+              }
               setDragging(false)
               setDropAt(null)
             }}

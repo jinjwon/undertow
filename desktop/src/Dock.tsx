@@ -8,11 +8,12 @@ export const toolOf = (e: React.DragEvent): ToolId | null => {
   return TOOL_IDS.includes(t) ? t : null
 }
 
-export function DockHead({ group, tools, active, focused, label, title, chip, onPick, onDrop, onDragState, children }: {
+export function DockHead({ group, tools, active, focused, dragging, label, title, chip, onPick, onDrop, onDragState, children }: {
   group: number
   tools: ToolId[] // this group's visible tools, in order
   active: ToolId | null
   focused: boolean
+  dragging: boolean // the panel's own flag: a chip that moved away never gets its dragend, so this head cannot clear its own state
   label: (t: ToolId) => string
   title: (t: ToolId) => string | undefined
   chip: (text: string, on: boolean) => ReactNode
@@ -52,7 +53,7 @@ export function DockHead({ group, tools, active, focused, label, title, chip, on
           <button
             data-tool={t}
             draggable
-            className={`${active === t ? 'on' : ''} ${held === t ? 'dragging' : ''}`}
+            className={`${active === t ? 'on' : ''} ${dragging && held === t ? 'dragging' : ''}`}
             title={title(t)}
             onClick={() => onPick(t)}
             onDragStart={e => { e.dataTransfer.setData(TOOL_MIME, t); e.dataTransfer.effectAllowed = 'move'; setHeld(t); onDragState(true) }}
