@@ -12,6 +12,7 @@ import { agentsOf, parseAgents, targetOf, type Agent, type Agents } from './agen
 import { iconOf, isImage, previewKind, promptVars, stepDate, weekOf } from './text'
 import { EMPTY, FLOAT_IDS, fillHidden, fitCols, fitFloat, parseLayout, type Cols, type FloatId, type Layout, type MainId, type Rect } from './layout'
 import { LayoutEdit } from './LayoutEdit'
+import { prefs } from './prefs'
 import { baseName, lastUsedOf, projectsOf, rank, rankProjects, samePath } from '../../plugins/evoke/hooks/data'
 
 declare global {
@@ -36,29 +37,29 @@ const langOf = (path: string) => LANGS[path.split('.').pop()?.toLowerCase() ?? '
 const MOD = api.platform === 'darwin' ? '⌘' : 'Ctrl+'
 const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const stored = (): ThemeName => {
-  try { const t = localStorage.getItem('theme') as ThemeName; return THEMES[t] ? t : 'tide' } catch { return 'tide' }
+  try { const t = prefs.getItem('theme') as ThemeName; return THEMES[t] ? t : 'tide' } catch { return 'tide' }
 }
 const storedAgents = (): Agents => {
-  try { return parseAgents(localStorage.getItem('agents')) } catch { return 'both' }
+  try { return parseAgents(prefs.getItem('agents')) } catch { return 'both' }
 }
 const storedLang = (): Lang => {
-  try { return langFrom(localStorage.getItem('lang') ?? navigator.language) } catch { return langFrom(navigator.language) }
+  try { return langFrom(prefs.getItem('lang') ?? navigator.language) } catch { return langFrom(navigator.language) }
 }
 const storedLayout = (): Layout => {
-  try { return parseLayout(JSON.parse(localStorage.getItem('layout') ?? 'null')) } catch { return EMPTY }
+  try { return parseLayout(JSON.parse(prefs.getItem('layout') ?? 'null')) } catch { return EMPTY }
 }
 // The dividers and the collapsed panels of the default split; a saved custom layout draws its own rects instead.
 type Split = Cols & { hidePane?: boolean; hideRight?: boolean }
 const storedSplit = (): Split => {
   try {
-    const v = JSON.parse(localStorage.getItem('split') ?? '{}') ?? {}
+    const v = JSON.parse(prefs.getItem('split') ?? '{}') ?? {}
     const px = (n: unknown) => (typeof n === 'number' && n > 0 && Number.isFinite(n) ? n : undefined)
     return { pane: px(v.pane), right: px(v.right), hidePane: v.hidePane === true, hideRight: v.hideRight === true }
   } catch { return {} }
 }
 type TermPrefs = { size: number; blink: boolean }
 const storedTerm = (): TermPrefs => {
-  try { const v = JSON.parse(localStorage.getItem('terminal') ?? 'null'); return { size: Math.min(22, Math.max(10, Number(v?.size) || 13)), blink: v?.blink !== false } } catch { return { size: 13, blink: true } }
+  try { const v = JSON.parse(prefs.getItem('terminal') ?? 'null'); return { size: Math.min(22, Math.max(10, Number(v?.size) || 13)), blink: v?.blink !== false } } catch { return { size: 13, blink: true } }
 }
 // The live terminals by id, so the toolbar can reach the one on screen.
 const TERMS = new Map<string, Terminal>()
@@ -106,24 +107,24 @@ export function App() {
   const [theme, setTheme] = useState<ThemeName>(stored)
   const [lang, setLang] = useState<Lang>(storedLang)
   const [settings, setSettings] = useState(false)
-  const [calm, setCalm] = useState(() => { try { return localStorage.getItem('motion') === 'reduce' } catch { return false } })
+  const [calm, setCalm] = useState(() => { try { return prefs.getItem('motion') === 'reduce' } catch { return false } })
   useEffect(() => {
     document.documentElement.dataset.motion = calm ? 'reduce' : 'full'
-    try { localStorage.setItem('motion', calm ? 'reduce' : 'full') } catch {}
+    try { prefs.setItem('motion', calm ? 'reduce' : 'full') } catch {}
   }, [calm])
   const [settingsTab, setSettingsTab] = useState<'general' | 'appearance' | 'keys' | 'terminal'>('general')
   const [layout, setLayout] = useState<Layout>(storedLayout)
   const [draft, setDraft] = useState<Layout | null>(null) // set while UI edit mode is open; only Save copies it to layout
   const shown = draft ?? layout
   const [split, setSplit] = useState<Split>(storedSplit)
-  useEffect(() => { try { localStorage.setItem('split', JSON.stringify(split)) } catch {} }, [split])
+  useEffect(() => { try { prefs.setItem('split', JSON.stringify(split)) } catch {} }, [split])
   const splitDrag = useRef<{ which: 'pane' | 'right'; sx: number; start: Required<Cols> } | null>(null)
   const [ws, setWs] = useState({ w: window.innerWidth, h: window.innerHeight, top: 0 })
   const [floatHost, setFloatHost] = useState<HTMLElement | null>(null)
   const [termPrefs, setTermPrefs] = useState<TermPrefs>(storedTerm)
   const setTerm = (p: Partial<TermPrefs>) => setTermPrefs(was => {
     const next = { ...was, ...p, size: Math.min(22, Math.max(10, p.size ?? was.size)) }
-    try { localStorage.setItem('terminal', JSON.stringify(next)) } catch {}
+    try { prefs.setItem('terminal', JSON.stringify(next)) } catch {}
     return next
   })
   const T = (key: Parameters<typeof tr>[1], vars?: Record<string, string | number>) => tr(lang, key, vars)
@@ -186,7 +187,7 @@ export function App() {
     if (next === 'codex') for (const path of chatting) api.chat.stop(`chat:${path}`)
     if (pane === 'chat' ? next === 'codex' : (pane === 'claude' || pane === 'codex') && !agentsOf(next).includes(pane)) setPane(agentsOf(next)[0])
     setAgents(next)
-    try { localStorage.setItem('agents', next) } catch {}
+    try { prefs.setItem('agents', next) } catch {}
   }
   const say = (text: string) => {
     const to = targetOf(agents, pane)
@@ -294,11 +295,11 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     api.setTheme(theme)
-    try { localStorage.setItem('theme', theme) } catch {}
+    try { prefs.setItem('theme', theme) } catch {}
   }, [theme])
   useEffect(() => {
     document.documentElement.lang = lang
-    try { localStorage.setItem('lang', lang) } catch {}
+    try { prefs.setItem('lang', lang) } catch {}
   }, [lang])
   const nextTheme = () => setTheme(t => THEME_NAMES[(THEME_NAMES.indexOf(t) + 1) % THEME_NAMES.length])
 
@@ -466,7 +467,7 @@ export function App() {
   const saveEdit = () => {
     if (!draft) return
     setLayout(draft)
-    try { localStorage.setItem('layout', JSON.stringify(draft)) } catch {}
+    try { prefs.setItem('layout', JSON.stringify(draft)) } catch {}
     setDraft(null)
   }
   // Edit mode shows every panel, so a collapsed one can still be placed.

@@ -2,15 +2,16 @@
 // and when it is closed none of this exists. Changes go to the draft in App, which draws them live; only Save keeps them.
 import { useEffect, useRef, useState, type PointerEvent as PE } from 'react'
 import { EMPTY, FLOAT_IDS, MAIN_IDS, gapsOf, mainDefaults, moveRect, parseLayout, placeRect, resetMain, resizeRect, swapMain, toFrac, toPx, type Cols, type Ctx, type FloatId, type Guides, type Handle, type Id, type Layout, type MainId, type Rect, type Size } from './layout'
+import { prefs } from './prefs'
 
 const HANDLES: Handle[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
 const isMain = (id: Id): id is MainId => (MAIN_IDS as string[]).includes(id)
 const PRESETS = 'layoutPresets'
 const readPresets = (): Record<string, unknown> => {
-  try { return JSON.parse(localStorage.getItem(PRESETS) ?? '{}') ?? {} } catch { return {} }
+  try { return JSON.parse(prefs.getItem(PRESETS) ?? '{}') ?? {} } catch { return {} }
 }
 const writePresets = (p: Record<string, unknown>) => {
-  try { localStorage.setItem(PRESETS, JSON.stringify(p)) } catch {}
+  try { prefs.setItem(PRESETS, JSON.stringify(p)) } catch {}
 }
 type Drag = { id: Id; mode: 'move' | Handle; sx: number; sy: number; start: Rect; live: boolean }
 
