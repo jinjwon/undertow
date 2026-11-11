@@ -19,6 +19,33 @@ const latestUsage = files =>
     })
     .find(Boolean) ?? null
 
+// Without the plugin nothing saves usage, so the HUD reads the context from the end of the newest session transcript.
+// shortcut: the window size is guessed (1M once a turn passes 200k tokens, else 200k); read it from the model name if that guess shows wrong numbers.
+const contextOf = tail => {
+  for (const line of tail.split('\n').reverse()) {
+    try {
+      const row = JSON.parse(line)
+      const u = row.isSidechain ? null : row.message?.usage
+      if (!u) continue
+      const tokens = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0)
+      return Math.min(100, (tokens / (tokens > 200000 ? 1000000 : 200000)) * 100)
+    } catch {}
+  }
+  return null
+}
+
+// How often each slash command was typed, from ~/.claude/history.jsonl: the SKILL ranks without the plugin's own count.
+const usesOf = history => {
+  const uses = {}
+  for (const line of history.split('\n')) {
+    try {
+      const name = /^\/([\w:.-]+)/.exec(JSON.parse(line).display?.trim() ?? '')?.[1]
+      if (name) uses[name] = (uses[name] ?? 0) + 1
+    } catch {}
+  }
+  return uses
+}
+
 // Projects Claude Code already trusts, from ~/.claude.json: the only folders the window may open without the folder dialog.
 const trusted = json => {
   try {
@@ -118,4 +145,4 @@ const codexTrusted = toml => {
   return out
 }
 
-module.exports = { codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }
+module.exports = { contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }

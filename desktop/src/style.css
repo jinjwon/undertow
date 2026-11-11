@@ -65,7 +65,13 @@ body::before {
   animation: sweep 14s linear infinite;
 }
 @keyframes sweep { from { transform: translateX(-30%); } to { transform: translateX(30%); } }
-@media (prefers-reduced-motion: reduce) { body::before { animation: none; } * { transition: none !important; } }
+/* Motion is decoration: the system setting or Settings > Appearance turns all of it off, in every theme. */
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+[data-motion='reduce'] :is(*, *::before, *::after) { animation: none !important; transition: none !important; }
+/* Keyboard focus is the theme's edge colour, on anything that can be picked. */
+button:focus-visible { outline: 2px solid var(--edge); outline-offset: 2px; }
+.entry:focus-visible, .tab:focus-visible { outline: 2px solid var(--edge); outline-offset: -2px; }
+button:disabled { opacity: .4; pointer-events: none; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 .quiet { color: var(--gray); }
 
@@ -281,7 +287,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   .entry.on, .row.on, .row:hover, .row:focus { --hi: #16D9F5; --gray: #FFFFFFD0; --text: #FFFFFF; }
 
   .app { grid-template-rows: 56px 1fr 32px; background: #FFFFFF; }
-  button:focus-visible { outline: 2px solid #16D9F5; outline-offset: 2px; }
   .cut { padding: 3px 16px; font-size: 15px; transition: transform .08s, background .08s, color .08s; }
   button:hover > .cut { background: #16D9F5 !important; color: #06145B !important; transform: skewX(-8deg) translateX(3px); }
   button:active > .cut { background: #06145B !important; color: #FFFFFF !important; transform: scale(.94); }
@@ -393,7 +398,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 @keyframes rise { from { opacity: 0; translate: 14px 0; } }
 @keyframes flood { from { clip-path: polygon(0 0, 0 0, -20% 100%, -20% 100%); } to { clip-path: polygon(0 0, 120% 0, 100% 100%, -20% 100%); } }
 @keyframes drift { to { translate: -14px 0; } }
-@media (prefers-reduced-motion: reduce) { [data-theme='tide'] *, [data-theme='tide'] *::before, [data-theme='tide'] *::after { animation: none !important; } }
 
 /* ---- UI edit mode, floating widgets, calendar views, settings tabs, states ---- */
 .app { --t: 44px; --b: 30px; }
@@ -410,10 +414,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .state { margin: 12px; padding: 8px 18px; font: 900 italic 15px Barlow, Pretendard, sans-serif; color: #FFFFFF; background: var(--sel); clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); position: relative; overflow: hidden; }
 .state::after { content: ''; position: absolute; inset: 0 auto 0 0; width: 60px; background: #FFFFFF44; transform: skewX(-20deg); animation: load .8s linear infinite; }
 @keyframes load { from { translate: -80px 0; } to { translate: 700px 0; } }
-.state-error { position: fixed; inset: 0; display: grid; place-content: center; justify-items: start; gap: 16px; padding: 8vw; color: #FFFFFF; background: var(--sel, #064DE8); }
+.state-error { position: fixed; inset: 0; display: grid; place-content: center; justify-items: start; gap: 16px; padding: 8vw; color: #FFFFFF; background: var(--sel); }
 .state-error h1 { margin: 0; font: 900 italic clamp(40px, 7vw, 96px)/1 Barlow, Pretendard, sans-serif; }
 .state-error pre { margin: 0; max-width: 80vw; white-space: pre-wrap; font: 13px Iosevka, Menlo, monospace; }
-.state-error button { padding: 10px 28px; font: 900 italic 18px Barlow, Pretendard, sans-serif; color: #06145B; background: #16D9F5; clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
+.state-error button { padding: 10px 28px; font: 900 italic 18px Barlow, Pretendard, sans-serif; color: var(--ink); background: var(--edge); clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
 
 .cal-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 12px; }
 .cal-bar > b { font: 900 italic 15px Barlow, sans-serif; }
@@ -432,45 +436,45 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 .set-tabs { display: flex; gap: 2px; padding: 8px 12px 0; }
 .set-tabs button { padding: 5px 16px; font: 900 italic 14px Barlow, Pretendard, sans-serif; color: var(--gray); clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); transition: background .09s, color .09s; }
-.set-tabs button:hover { color: var(--text); background: #16D9F540; }
+.set-tabs button:hover { color: var(--text); background: color-mix(in srgb, var(--edge) 25%, transparent); }
 .set-tabs button.on { color: var(--sel-ink); background: var(--sel); }
 .row .key { min-width: 56px; }
 .stepper { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; }
 .stepper button { width: 28px; font-weight: 900; background: var(--sel); color: var(--sel-ink); clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%); }
 
-.edit { position: fixed; inset: 0; z-index: 60; -webkit-app-region: no-drag; user-select: none; background: linear-gradient(#16D9F52E 1px, transparent 1px) 0 0 / 16px 16px, linear-gradient(90deg, #16D9F52E 1px, transparent 1px) 0 0 / 16px 16px, #06145B33; animation: flood .14s ease-out; }
+.edit { position: fixed; inset: 0; z-index: 60; -webkit-app-region: no-drag; user-select: none; background: linear-gradient(color-mix(in srgb, var(--edge) 18%, transparent) 1px, transparent 1px) 0 0 / 16px 16px, linear-gradient(90deg, color-mix(in srgb, var(--edge) 18%, transparent) 1px, transparent 1px) 0 0 / 16px 16px, color-mix(in srgb, var(--ink) 20%, transparent); animation: flood .14s ease-out; }
 .edit.previewing { background: none; pointer-events: none; }
-.edit-bar { position: fixed; left: 50%; bottom: 44px; translate: -50% 0; display: flex; gap: 16px; align-items: center; padding: 8px 20px; color: #FFFFFF; background: #06145B; box-shadow: 6px 6px 0 #16D9F5; pointer-events: auto; font: 900 italic 15px Barlow, Pretendard, sans-serif; }
-.edit-bar button { color: #16D9F5; }
+.edit-bar { position: fixed; left: 50%; bottom: 44px; translate: -50% 0; display: flex; gap: 16px; align-items: center; padding: 8px 20px; color: #FFFFFF; background: var(--ink); box-shadow: 6px 6px 0 var(--edge); pointer-events: auto; font: 900 italic 15px Barlow, Pretendard, sans-serif; }
+.edit-bar button { color: var(--edge); }
 .edit-ws { position: absolute; left: 0; right: 0; }
-.box { position: absolute; cursor: move; touch-action: none; color: #FFFFFF; background: #064DE81F; border: 2px solid #064DE8; transition: left .05s linear, top .05s linear, width .05s linear, height .05s linear, background .1s; }
-.box:hover { background: #16D9F52E; }
+.box { position: absolute; cursor: move; touch-action: none; color: #FFFFFF; background: color-mix(in srgb, var(--sel) 12%, transparent); border: 2px solid var(--sel); transition: left .05s linear, top .05s linear, width .05s linear, height .05s linear, background .1s; }
+.box:hover { background: color-mix(in srgb, var(--edge) 18%, transparent); }
 .box.docked { border-style: dashed; }
-.box.on { z-index: 2; background: #16D9F538; border-color: #16D9F5; box-shadow: 0 0 0 1px #06145B; }
-.box.swap { background: #16D9F599; }
-.box > b { position: absolute; left: 0; top: 0; padding: 2px 14px 2px 8px; font: 900 italic 13px Barlow, Pretendard, sans-serif; white-space: nowrap; background: #06145B; clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
-.box > i { position: absolute; right: 4px; bottom: 2px; padding: 0 6px; font: 11px Iosevka, Menlo, monospace; background: #06145BCC; }
-.hd { position: absolute; width: 12px; height: 12px; background: #FFFFFF; border: 2px solid #064DE8; translate: -50% -50%; touch-action: none; transition: scale .08s; }
-.hd:hover { scale: 1.35; background: #16D9F5; }
+.box.on { z-index: 2; background: color-mix(in srgb, var(--edge) 22%, transparent); border-color: var(--edge); box-shadow: 0 0 0 1px var(--ink); }
+.box.swap { background: color-mix(in srgb, var(--edge) 60%, transparent); }
+.box > b { position: absolute; left: 0; top: 0; padding: 2px 14px 2px 8px; font: 900 italic 13px Barlow, Pretendard, sans-serif; white-space: nowrap; background: var(--ink); clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+.box > i { position: absolute; right: 4px; bottom: 2px; padding: 0 6px; font: 11px Iosevka, Menlo, monospace; background: color-mix(in srgb, var(--ink) 80%, transparent); }
+.hd { position: absolute; width: 12px; height: 12px; background: #FFFFFF; border: 2px solid var(--sel); translate: -50% -50%; touch-action: none; transition: scale .08s; }
+.hd:hover { scale: 1.35; background: var(--edge); }
 .hd-n, .hd-s { left: 50%; cursor: ns-resize; } .hd-e, .hd-w { top: 50%; cursor: ew-resize; }
 .hd-n, .hd-ne, .hd-nw { top: 0; } .hd-s, .hd-se, .hd-sw { top: 100%; } .hd-e, .hd-ne, .hd-se { left: 100%; } .hd-w, .hd-nw, .hd-sw { left: 0; }
 .hd-ne, .hd-sw { cursor: nesw-resize; } .hd-nw, .hd-se { cursor: nwse-resize; }
-.gap { position: absolute; padding: 0 4px; font: normal 10px Iosevka, Menlo, monospace; color: #06145B; background: #16D9F5; pointer-events: none; }
+.gap { position: absolute; padding: 0 4px; font: normal 10px Iosevka, Menlo, monospace; color: var(--ink); background: var(--edge); pointer-events: none; }
 .gap-l { left: 6px; top: calc(50% + 12px); } .gap-r { right: 6px; top: calc(50% + 12px); } .gap-t { top: 26px; left: calc(50% + 12px); } .gap-b { bottom: 20px; left: calc(50% + 12px); }
-.guide { position: absolute; z-index: 3; background: #16D9F5; pointer-events: none; }
+.guide { position: absolute; z-index: 3; background: var(--edge); pointer-events: none; }
 .guide.v { top: 0; bottom: 0; width: 1px; } .guide.h { left: 0; right: 0; height: 1px; }
-.inspector { position: fixed; right: 20px; bottom: 44px; z-index: 4; width: 270px; max-height: calc(100vh - 110px); overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 10px 14px 12px; color: #06145B; background: #FFFFFF; border-left: 8px solid #16D9F5; box-shadow: 8px 8px 0 #06145B; font-size: 12px; }
+.inspector { position: fixed; right: 20px; bottom: 44px; z-index: 4; width: 270px; max-height: calc(100vh - 110px); overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 10px 14px 12px; color: var(--ink); background: #FFFFFF; border-left: 8px solid var(--edge); box-shadow: 8px 8px 0 var(--ink); font-size: 12px; }
 .inspector.left { right: auto; left: 20px; }
-.inspector h3 { margin: 0; font: 900 italic 20px Barlow, Pretendard, sans-serif; color: #064DE8; }
-.inspector h4 { margin: 4px 0 0; font: 900 italic 13px Barlow, Pretendard, sans-serif; border-bottom: 2px solid #06145B; }
+.inspector h3 { margin: 0; font: 900 italic 20px Barlow, Pretendard, sans-serif; color: var(--sel); }
+.inspector h4 { margin: 4px 0 0; font: 900 italic 13px Barlow, Pretendard, sans-serif; border-bottom: 2px solid var(--ink); }
 .inspector p { margin: 0; }
-.inspector small { color: #06145BB0; line-height: 1.35; }
-.inspector button { padding: 4px 10px; text-align: left; font-weight: 700; background: #06145B14; transition: background .08s, color .08s; }
-.inspector button:hover { background: #064DE8; color: #FFFFFF; }
-.inspector button:active { background: #16D9F5; color: #06145B; }
+.inspector small { color: color-mix(in srgb, var(--ink) 69%, transparent); line-height: 1.35; }
+.inspector button { padding: 4px 10px; text-align: left; font-weight: 700; background: color-mix(in srgb, var(--ink) 8%, transparent); transition: background .08s, color .08s; }
+.inspector button:hover { background: var(--sel); color: #FFFFFF; }
+.inspector button:active { background: var(--edge); color: var(--ink); }
 .inspector button:disabled { opacity: .4; pointer-events: none; }
-.inspector button:focus-visible, .inspector input:focus-visible { outline: 2px solid #16D9F5; }
-.inspector input:not([type='checkbox']) { width: 100%; min-width: 0; padding: 3px 5px; color: #06145B; background: #FFFFFF; border: 2px solid #BFC4D0; font: 12px Iosevka, Menlo, monospace; }
+.inspector button:focus-visible, .inspector input:focus-visible { outline: 2px solid var(--edge); }
+.inspector input:not([type='checkbox']) { width: 100%; min-width: 0; padding: 3px 5px; color: var(--ink); background: #FFFFFF; border: 2px solid #BFC4D0; font: 12px Iosevka, Menlo, monospace; }
 .nums { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 10px; }
 .nums label { display: flex; align-items: center; gap: 6px; font: 900 italic 14px Barlow, sans-serif; }
 .check { display: flex; align-items: center; gap: 6px; }
@@ -478,7 +482,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .preset button:first-child { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .actions { display: flex; gap: 4px; margin-top: 4px; }
 .actions button { flex: 1; text-align: center; }
-.actions .save { color: #FFFFFF; background: #064DE8; }
+.actions .save { color: #FFFFFF; background: var(--sel); }
 
 [data-theme='tide'] {
   .float { --text: #FFFFFF; --hi: #16D9F5; --gray: #BFC4D0; --hot: #16D9F5; --line: #FFFFFF44; position: relative; color: #FFFFFF; background: #06145BCC; border: 2px solid #FFFFFF; box-shadow: 6px 6px 0 #16D9F5; backdrop-filter: blur(6px); }
@@ -507,7 +511,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 /* The dividers of the default split and the fold buttons: resize or collapse a panel without opening edit mode. */
 .split { position: absolute; z-index: 4; top: var(--t); bottom: var(--b); width: 8px; translate: -50% 0; cursor: col-resize; touch-action: none; -webkit-app-region: no-drag; transition: background .1s; }
-.split:hover, .split:active { background: #16D9F580; }
+.split:hover, .split:active { background: color-mix(in srgb, var(--edge) 50%, transparent); }
 .gear.fold:hover { transform: none; }
 .gear.fold[aria-pressed='false'] { opacity: .45; }
 
@@ -528,3 +532,19 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 /* A selected row is a white bar in REBEL: the pane's dark text shadow smeared its second line there. */
 [data-theme='rebel'] .pane .entry.on, [data-theme='rebel'] .pane .entry.on .desc { text-shadow: none; }
 [data-theme='rebel'] .pane .entry.on .desc { color: #3A3A3A; }
+
+/* REBEL keeps its three colours in every state: git codes, edit mode and the error page carry no blue, yellow or green. */
+[data-theme='rebel'] {
+  .c-M, .c-A, .c-U { color: #FFFFFF; } .c-D { color: var(--blood); } .c-R { color: var(--gray); }
+  .entry.on .code { color: #000000; }
+  .edit-bar { transform: rotate(-1.5deg); outline: 3px solid #FFFFFF; box-shadow: 8px 8px 0 var(--blood); }
+  .inspector { border-left: 0; outline: 3px solid #000000; box-shadow: 10px 10px 0 var(--blood); transform: rotate(1deg); }
+  .inspector h3, .box.on { color: var(--blood); }
+  .box { border-color: #FFFFFF; } .box.on { border-color: var(--blood); background: #FFFFFF38; }
+  .hd { border-color: var(--blood); } .actions .save { background: var(--blood); }
+  .state-error { background: #000000; }
+  .state-error h1 { margin-bottom: 28px; padding: 0 16px; color: #000000; background: #FFFFFF; box-shadow: 10px 10px 0 var(--blood); transform: rotate(-3deg); }
+  .state-error button { clip-path: none; box-shadow: 5px 5px 0 var(--blood); transform: rotate(2deg); }
+  .state { color: #000000; background: #FFFFFF; box-shadow: 4px 4px 0 var(--blood); clip-path: none; transform: rotate(-1.5deg); }
+  .state::after { background: var(--blood); opacity: .5; }
+}

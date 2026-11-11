@@ -102,6 +102,11 @@ export function App() {
   const [theme, setTheme] = useState<ThemeName>(stored)
   const [lang, setLang] = useState<Lang>(storedLang)
   const [settings, setSettings] = useState(false)
+  const [calm, setCalm] = useState(() => { try { return localStorage.getItem('motion') === 'reduce' } catch { return false } })
+  useEffect(() => {
+    document.documentElement.dataset.motion = calm ? 'reduce' : 'full'
+    try { localStorage.setItem('motion', calm ? 'reduce' : 'full') } catch {}
+  }, [calm])
   const [settingsTab, setSettingsTab] = useState<'general' | 'appearance' | 'keys' | 'terminal'>('general')
   const [layout, setLayout] = useState<Layout>(storedLayout)
   const [draft, setDraft] = useState<Layout | null>(null) // set while UI edit mode is open; only Save copies it to layout
@@ -253,13 +258,13 @@ export function App() {
 
   useEffect(() => {
     const tick = async () => {
-      setUsage(await api.usage())
+      setUsage(await api.usage(root).catch(() => null))
       setNow(Date.now())
     }
     tick()
     const id = setInterval(tick, 5000)
     return () => clearInterval(id)
-  }, [])
+  }, [root])
 
   // A single click previews (the tab is replaced by the next preview); a double click, an edit or a jump keeps it.
   const openFile = async (path: string, line?: number, col = 1, keep = Boolean(line)) => {
@@ -347,6 +352,9 @@ export function App() {
       } else if (mod && e.key === 'o') {
         e.preventDefault()
         setPicker(p => !p)
+      } else if ((e.key === 'Enter' || e.key === ' ') && (e.target as HTMLElement).matches?.('.entry, .tab')) {
+        e.preventDefault()
+        ;(e.target as HTMLElement).click() // rows and tabs are not buttons: the keyboard picks them as a click does
       } else if (picker) {
         const n = e.key === 'Enter' ? 1 : Number(e.key)
         if (e.key === 'Escape') setPicker(false)
@@ -500,7 +508,7 @@ export function App() {
         {menu === 'ITEM' && root && <Tree key={root} dir={root} depth={0} onOpen={openFile} active={active} />}
         {menu === 'STATUS' && <div className="group">CHANGES <span>{changes.length}</span></div>}
         {menu === 'STATUS' && (changes.length ? changes.map(c => (
-          <div key={c.path} className={`entry change ${active === `diff:${c.path}` ? 'on' : ''}`} onClick={() => openDiff(c.path)} title={relative(root, c.path)}>
+          <div tabIndex={0} key={c.path} className={`entry change ${active === `diff:${c.path}` ? 'on' : ''}`} onClick={() => openDiff(c.path)} title={relative(root, c.path)}>
             <b className={`code c-${c.code.replace('??', 'U')[0]}`}>{c.code.replace('??', 'U')}</b> {baseName(c.path)} <span className="quiet">{relative(root, c.path).slice(0, -baseName(c.path).length)}</span>
           </div>
         )) : <div className="entry quiet">{branch ? T('noChanges', { branch }) : T('noGit')}</div>)}
@@ -509,7 +517,7 @@ export function App() {
           return [
             <div key={`group:${group}`} className="group">{group} <span>{own.length}</span></div>,
             ...own.map(s => (
-              <div key={s.name} className="entry skill" onClick={() => say(`/${s.name} `)} title={s.description}>
+              <div tabIndex={0} key={s.name} className="entry skill" onClick={() => say(`/${s.name} `)} title={s.description}>
                 <span>▸ {s.name}</span> {s.uses > 0 && <b className="rank">{rank(s.uses)}</b>}
                 <div className="desc">{s.description}</div>
               </div>
@@ -529,25 +537,25 @@ export function App() {
           <>
             <div className="group">SESSIONS <span>{sessions.length}</span></div>
             {sessions.slice(0, 10).map(s => (
-              <div key={s.id} className="entry" onClick={() => resume(s.id)}>▸ {s.title || T('untitled')} <div className="desc">{new Date(s.mtime).toLocaleString()}</div></div>
+              <div tabIndex={0} key={s.id} className="entry" onClick={() => resume(s.id)}>▸ {s.title || T('untitled')} <div className="desc">{new Date(s.mtime).toLocaleString()}</div></div>
             ))}
             {!sessions.length && <div className="entry quiet">{T('noSessions')}</div>}
           </>
         )}
         {menu === 'QUEST' && <div className="group">TODO <span>{quests?.length}</span></div>}
         {menu === 'QUEST' && (quests === null ? <div className="entry quiet">{T('searching')}</div> : quests.length ? quests.map(q => (
-          <div key={`${q.path}:${q.line}`} className="entry" onClick={() => openFile(q.path, q.line, q.col)}>▸ {q.preview} <div className="desc">{q.rel}:{q.line}</div></div>
+          <div tabIndex={0} key={`${q.path}:${q.line}`} className="entry" onClick={() => openFile(q.path, q.line, q.col)}>▸ {q.preview} <div className="desc">{q.rel}:{q.line}</div></div>
         )) : <div className="entry quiet">{T('noTodo')}</div>)}
         {menu === 'LINK' && (
           <>
             <div className="group">PROJECTS <span>{projects.length}</span></div>
             {projects.map((p, i) => (
-              <div key={p.path} className={`entry ${p.path === root ? 'on' : ''}`} onClick={() => open(p.path)}><b className="rank">{i + 1}</b> {p.name} <div className="desc">{p.path}</div></div>
+              <div tabIndex={0} key={p.path} className={`entry ${p.path === root ? 'on' : ''}`} onClick={() => open(p.path)}><b className="rank">{i + 1}</b> {p.name} <div className="desc">{p.path}</div></div>
             ))}
-            <div className="entry" onClick={openFolder}>{T('openOther')}</div>
+            <div tabIndex={0} className="entry" onClick={openFolder}>{T('openOther')}</div>
             <div className="group">{T('servers')} <span>{hosts.length}</span></div>
             {hosts.length ? hosts.map(h => (
-              <div key={h} className={`entry ${pane === 'ssh' && h === remote ? 'on' : ''}`} onClick={() => connect(h)}>▸ {h} <div className="desc">ssh {h}</div></div>
+              <div tabIndex={0} key={h} className={`entry ${pane === 'ssh' && h === remote ? 'on' : ''}`} onClick={() => connect(h)}>▸ {h} <div className="desc">ssh {h}</div></div>
             )) : <div className="entry quiet">{T('noServers')}</div>}
           </>
         )}
@@ -555,9 +563,9 @@ export function App() {
         {menu === 'SYSTEM' && (
           <>
             <div className="group">{T('theme')}</div>
-            {THEME_NAMES.map(t => <div key={t} className={`entry ${t === theme ? 'on' : ''}`} onClick={() => setTheme(t)}>◆ {THEMES[t].label}</div>)}
+            {THEME_NAMES.map(t => <div tabIndex={0} key={t} className={`entry ${t === theme ? 'on' : ''}`} onClick={() => setTheme(t)}>◆ {THEMES[t].label}</div>)}
             <div className="group">{T('language')}</div>
-            {UI_LANGS.map(l => <div key={l.id} className={`entry ${l.id === lang ? 'on' : ''}`} onClick={() => setLang(l.id)}>◆ {l.label}</div>)}
+            {UI_LANGS.map(l => <div tabIndex={0} key={l.id} className={`entry ${l.id === lang ? 'on' : ''}`} onClick={() => setLang(l.id)}>◆ {l.label}</div>)}
             <div className="group">{T('keys')}</div>
             {(['P', 'F', 'S', 'L', 'O', 'B', 'J'] as const).map(k => <div key={k} className="entry"><b className="rank">{MOD}{k === 'F' ? '⇧F' : k}</b> {T(`key.${k}`)}</div>)}
           </>
@@ -567,7 +575,7 @@ export function App() {
       <main className="center" style={mainStyle('center')}>
         <nav className="tabs">
           {tabs.map(t => (
-            <div key={t.path} className={`tab ${t.path === active ? 'on' : ''} ${t.preview ? 'preview' : ''}`} onClick={() => setActive(t.path)} onDoubleClick={() => openFile(t.path, undefined, 1, true)} title={t.preview ? `${T('preview')}: ${t.path}` : t.path}>
+            <div tabIndex={0} key={t.path} className={`tab ${t.path === active ? 'on' : ''} ${t.preview ? 'preview' : ''}`} onClick={() => setActive(t.path)} onDoubleClick={() => openFile(t.path, undefined, 1, true)} title={t.preview ? `${T('preview')}: ${t.path}` : t.path}>
               <FileIcon name={t.path} />{t.head !== undefined && 'Δ '}{t.path.startsWith('live:') && '◉ '}{baseName(t.path)}{t.text !== t.saved && ' ●'}
               <span className="x" onClick={e => (e.stopPropagation(), closeTab(t.path))}>×</span>
             </div>
@@ -711,6 +719,7 @@ export function App() {
               <>
                 <div className="group">{T('theme')}</div>
                 {THEME_NAMES.map(t => <button key={t} className={`row ${t === theme ? 'on' : ''}`} onClick={() => setTheme(t)}><b>◆</b> {THEMES[t].label}</button>)}
+                <button className={`row ${calm ? 'on' : ''}`} aria-pressed={calm} onClick={() => setCalm(c => !c)}><b>◆</b> {T('motion.reduce')}</button>
                 <div className="group">{T('edit.title')}</div>
                 <button className="row" onClick={startEdit}><b>▸</b> {T('edit.open')}</button>
               </>
@@ -765,6 +774,8 @@ function Tree({ dir, depth, onOpen, active }: { dir: string; depth: number; onOp
       {items.map(e => (
         <div key={e.path}>
           <div
+            tabIndex={0}
+            aria-expanded={e.dir ? Boolean(openDirs[e.path]) : undefined}
             className={`entry ${e.path === active ? 'on' : ''}`}
             style={{ paddingLeft: 12 + depth * 12 }}
             onClick={() => (e.dir ? setOpenDirs(o => ({ ...o, [e.path]: !o[e.path] })) : onOpen(e.path))}
@@ -918,7 +929,7 @@ function Calendar({ now, sessions, day, onDay, onPick, T }: { now: number; sessi
           })}
         </div>
       )}
-      {picked.map(s => <div key={s.id} className="entry" onClick={() => onPick(s.id)}>▸ {new Date(s.mtime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {s.title || T('untitled')}</div>)}
+      {picked.map(s => <div tabIndex={0} key={s.id} className="entry" onClick={() => onPick(s.id)}>▸ {new Date(s.mtime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {s.title || T('untitled')}</div>)}
       {view === 'day' && !picked.length && <div className="entry quiet">{T('noSessions')}</div>}
     </div>
   )

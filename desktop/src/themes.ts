@@ -61,6 +61,7 @@ export const defineThemes = (monaco: any) => {
         'editor.lineHighlightBackground': c.line,
         'editor.selectionBackground': c.select,
         'editorCursor.foreground': c.cursor,
+        focusBorder: c.cursor, // Monaco's own focus ring is blue: keep it in the theme's colour
         'editorLineNumber.foreground': c.num,
         'editorLineNumber.activeForeground': c.numOn,
       },
