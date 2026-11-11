@@ -184,6 +184,14 @@ export function App() {
     if (p === 'shell' && root) setShells(was => (was.includes(root) ? was : [...was, root]))
     if (p === 'codex' && root) setCodexes(was => (was.includes(root) ? was : [...was, root]))
   }
+  // A tool on screen in any group starts the way a click on it would, so a second group never shows an empty body.
+  useEffect(() => {
+    if (!root) return
+    const start = (on: boolean, set: (f: (was: string[]) => string[]) => void) => on && set(was => (was.includes(root) ? was : [...was, root]))
+    start(act.includes('chat'), setChatting)
+    start(act.includes('shell'), setShells)
+    start(act.includes('codex'), setCodexes)
+  }, [act.join(), root])
   const calendarOut = Boolean(shown.floats.calendar)
   const [changes, setChanges] = useState<Change[]>([])
   const refreshGit = useCallback(async () => setChanges(root ? await api.status(root) : []), [root])
