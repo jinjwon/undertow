@@ -1,6 +1,6 @@
 {
   "name": "evoke",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "An underwater, slanted menu for Claude Code: live tool menu, project switcher, AI usage, session status",
   "license": "MIT",
   "types": "./types/index.d.ts"
