@@ -209,6 +209,24 @@ test('with no picture the pane is sections: the menu in its column, the content,
   }
 })
 
+test('a pane drawn before any session start asks the terminal, and draws rows where there are no pictures', async ($: any, on: any) => {
+  on('clock.now', () => ({ value: Date.UTC(2026, 10, 6) }))
+  let terminal: string | undefined
+  on('env.get', () => ({ value: terminal }))
+  for (const isPlain of [true, false]) {
+    terminal = isPlain ? undefined : 'ghostty'
+    const ui = await $.ui.mount({
+      plugin: 'evoke',
+      surface: 'terminal',
+      component: 'Pane',
+      requestId: 'evoke',
+      props: { title: 'EVOKE', isFocused: true, bodyColumns: 56, placement: 'dock', scroll: { offset: 0, bodyRows: 41 }, view: {} },
+    })
+    expect(Boolean(await ui.find({ type: 'Text', text: /^MENU$/ }))).toBe(isPlain)
+    await ui.unmount()
+  }
+})
+
 test('the keys still move the menu, fill the prompt and turn the page', async ($, on) => {
   const filled: string[] = []
   on('ui.blit', () => ({ value: {} }))

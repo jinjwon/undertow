@@ -104,17 +104,30 @@ const openProjects = async ($: EngineInterface) => {
   await $.ui.open({ id: PROJECTS, title: 'PROJECT', columns: 56, backgroundColor: K.NAVY, focus: true, closeOnEscape: true })
 }
 
+// Where the session is and what its terminal can draw. A pane drawn in a session whose start never got here
+// (or failed part way) would otherwise keep the defaults: picture mode with no picture, and no skills.
+// So the next event that may write state sets it up instead.
+let isSetUp = false
+const setUp = async ($: EngineInterface, cwd?: string) => {
+  isSetUp = true
+  await loadSkills($).catch(() => {})
+  const at = cwd ?? (await $.env.get('PWD').catch(() => undefined)) ?? ''
+  // No git on the machine only costs the branch name.
+  const git = at ? await $.process.run(['git', '-C', at, 'rev-parse', '--abbrev-ref', 'HEAD']).catch(() => null) : null
+  const terminal = await $.env.get('TERM_PROGRAM').catch(() => undefined)
+  const cell = cellOf(await $.env.get('EVOKE_CELL').catch(() => undefined))
+  await update($, place, () => ({ cwd: at, branch: git?.exitCode === 0 ? git.stdout.trim() : '', art: ART_TERMINALS.includes(terminal ?? ''), cell }))
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'menu', description: 'Open the MENU pane' })
-    await $.command.register({ name: 'projects', description: 'Pick a project and open it in a new window' })
-    await $.command.register({ name: 'skillbook', description: 'Browse skills, most used first, and pick one' })
-    await loadSkills($)
-    // No git on the machine only costs the branch name.
-    const git = await $.process.run(['git', '-C', e.cwd, 'rev-parse', '--abbrev-ref', 'HEAD']).catch(() => null)
-    const terminal = await $.env.get('TERM_PROGRAM')
-    const cell = cellOf(await $.env.get('EVOKE_CELL'))
-    await update($, place, () => ({ cwd: e.cwd, branch: git?.exitCode === 0 ? git.stdout.trim() : '', art: ART_TERMINALS.includes(terminal ?? ''), cell }))
+    // One command that cannot register must not cost the others or the setup below.
+    for (const c of [
+      { name: 'menu', description: 'Open the MENU pane' },
+      { name: 'projects', description: 'Pick a project and open it in a new window' },
+      { name: 'skillbook', description: 'Browse skills, most used first, and pick one' },
+    ]) await $.command.register(c).catch(() => {})
+    await setUp($, e.cwd)
     const seen = await $.session.usage()
     await update($, usage, () => usageOf(seen))
     void $.ui.open(PANE_ARGS)
@@ -127,6 +140,7 @@ export const register: Register = on => {
   })
 
   on('session.measure', async ($, e, next) => {
+    if (!isSetUp) await setUp($)
     const seen = usageOf(e)
     await update($, usage, () => seen)
     await $.store.set('usage', seen) // the Evoke desktop app reads the newest saved usage for its HUD
@@ -231,6 +245,7 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'menu' }, async $ => {
+    if (!isSetUp) await setUp($)
     const { isPlaced } = await $.ui.open(PANE_ARGS)
     return { text: isPlaced ? 'MENU opened.' : 'MENU is waiting for room: widen the terminal.' }
   })
@@ -338,7 +353,8 @@ export const register: Register = on => {
     await read($, day)
     const on_ = (now?.menu ?? 'SKILL') as keyof typeof MENU
     const ms = await $.clock.now()
-    const where = await read($, place)
+    // Drawing cannot write state: until an event has set the place up, ask the terminal directly whether it draws pictures.
+    const where = isSetUp ? await read($, place) : { ...(await read($, place)), art: ART_TERMINALS.includes((await $.env.get('TERM_PROGRAM').catch(() => undefined)) ?? '') }
     const history = await read($, log)
     const layout = e.surface !== 'terminal' || where.art === false ? null : layoutOf(e.props.bodyColumns, e.props.scroll.bodyRows, ART, GRID, where.cell)
     const width = e.props.bodyColumns - 2

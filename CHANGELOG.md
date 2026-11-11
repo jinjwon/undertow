@@ -15,6 +15,7 @@
 ### Fixed
 
 - Terminal pane in plain rows (under 110 columns, or a terminal with no pictures): the key row stands above the content, so a short pane cuts the log and not the controls.
+- Terminal pane in a session whose start never reached the plugin (a resumed session, a start that failed part way): it drew picture mode with no picture (keys `1:`-`9:` with no names) and listed no skills. The pane now asks the terminal when it draws, and the next event sets the session up.
 
 ## 2.4.0 - 2026-11-10
 
