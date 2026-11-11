@@ -6,6 +6,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
 import { Pane } from './Pane'
+import { Chat } from './ChatPanel'
 import { LANGS as UI_LANGS, langFrom, tr, type Lang } from './i18n'
 import { agentsOf, parseAgents, targetOf, type Agent, type Agents } from './agents'
 import { iconOf, isImage, previewKind, promptVars, stepDate, weekOf } from './text'
@@ -22,7 +23,8 @@ type Project = { name: string; path: string }
 type Entry = { name: string; path: string; dir: boolean }
 // web: a preview page's address on the preview server (a PDF, a video, or the live view of an HTML or Markdown file, whose tab is named live:<path>);
 // head: a diff tab against the last commit; image: a picture shown instead of text; preview: replaced by the next single click, as in VS Code
-type Tab = { path: string; text: string; saved: string; head?: string; image?: string; web?: string; preview?: boolean }
+// proposal: an edit Claude Code offers through the IDE link, shown as a diff of this file until it is accepted or rejected
+type Tab = { path: string; text: string; saved: string; head?: string; image?: string; web?: string; preview?: boolean; proposal?: string }
 type Change = { path: string; code: string }
 type Hit = { path: string; rel: string; line?: number; col?: number; preview?: string }
 type Finder = { mode: 'files' | 'search'; query: string; hits: Hit[]; at: number }
@@ -82,6 +84,8 @@ const Mask = () => (
 )
 // Text typed into a terminal for you: no control characters, so a file or skill name can never press Enter or send keys.
 const typed = (text: string) => text.replace(/[\x00-\x1f\x7f]/g, '')
+const fileUrl = (path: string) => encodeURI(`file://${path.startsWith('/') ? '' : '/'}${path.replace(/\\/g, '/')}`)
+const isFile = (t: { path: string; head?: string; web?: string; image?: string }) => t.head === undefined && t.web === undefined && t.image === undefined
 const relative = (root: string, path: string) => path.slice(root.length).replace(/^[\\/]/, '')
 
 const Cut = ({ label, ground = 'var(--chip)', ink = 'var(--chip-ink)' }: { label: string; ground?: string; ink?: string }) => (
@@ -132,7 +136,7 @@ export function App() {
   const [toast, setToast] = useState('')
   const warned = useRef(new Set<string>())
   const [agents, setAgents] = useState<Agents>(storedAgents)
-  const [pane, setPane] = useState<'claude' | 'codex' | 'shell' | 'ssh'>(() => agentsOf(storedAgents())[0])
+  const [pane, setPane] = useState<'claude' | 'codex' | 'shell' | 'ssh' | 'chat'>(() => agentsOf(storedAgents())[0])
   const [hosts, setHosts] = useState<string[]>([]) // LINK: the hosts of ~/.ssh/config
   const [remotes, setRemotes] = useState<string[]>([]) // hosts with an ssh terminal open
   const [remote, setRemote] = useState('')
@@ -146,8 +150,10 @@ export function App() {
   const [resumes, setResumes] = useState<Record<string, string>>({}) // project -> the session its Claude pane resumed
   const [sessions, setSessions] = useState<{ id: string; title: string; mtime: number }[]>([])
   const [codexes, setCodexes] = useState<string[]>([]) // projects with Codex open; started on first use, like the shell
-  const showPane = (p: 'claude' | 'codex' | 'shell') => {
+  const [chatting, setChatting] = useState<string[]>([]) // projects with the chat panel open; started on first use
+  const showPane = (p: 'claude' | 'codex' | 'shell' | 'chat') => {
     setPane(p)
+    if (p === 'chat' && root) setChatting(was => (was.includes(root) ? was : [...was, root]))
     if (p === 'shell' && root) setShells(was => (was.includes(root) ? was : [...was, root]))
     if (p === 'codex' && root) setCodexes(was => (was.includes(root) ? was : [...was, root]))
   }
@@ -177,7 +183,8 @@ export function App() {
     const live: Record<Agent, string[]> = { claude: claudeOn, codex: codexOn }
     for (const a of agentsOf(agents)) if (!agentsOf(next).includes(a)) for (const path of live[a]) api.pty.kill(`${a}:${path}`)
     if (next !== 'both') setCodexes([])
-    if ((pane === 'claude' || pane === 'codex') && !agentsOf(next).includes(pane)) setPane(agentsOf(next)[0])
+    if (next === 'codex') for (const path of chatting) api.chat.stop(`chat:${path}`)
+    if (pane === 'chat' ? next === 'codex' : (pane === 'claude' || pane === 'codex') && !agentsOf(next).includes(pane)) setPane(agentsOf(next)[0])
     setAgents(next)
     try { localStorage.setItem('agents', next) } catch {}
   }
@@ -209,6 +216,79 @@ export function App() {
     setActive(id)
   }
   const editorRef = useRef<any>(null)
+  const monacoRef = useRef<any>(null)
+  // Claude Code's open proposals by tab name: answering one lets its edit go ahead or stops it.
+  const proposals = useRef(new Map<string, (answer: string[]) => void>())
+  const settle = (name: string, accept: boolean) => {
+    const id = `claude:${name}`
+    const tab = live.current.tabs.find(t => t.path === id)
+    proposals.current.get(name)?.(accept && tab ? ['FILE_SAVED', tab.text] : ['DIFF_REJECTED', name])
+    proposals.current.delete(name)
+    setTabs(ts => ts.filter(t => t.path !== id))
+    setActive(a => (a === id ? tab?.proposal ?? '' : a))
+  }
+  // The selection as the IDE link reports it: 0-based lines, the end just after the last character.
+  const selectionOf = () => {
+    const e = editorRef.current
+    const s = e?.getSelection()
+    const at = live.current.tabs.find(t => t.path === live.current.active)
+    if (!e || !s || !at || !isFile(at)) return null
+    return {
+      success: true, text: e.getModel()?.getValueInRange(s) ?? '', filePath: at.path, fileUrl: fileUrl(at.path),
+      selection: { start: { line: s.startLineNumber - 1, character: s.startColumn - 1 }, end: { line: s.endLineNumber - 1, character: s.endColumn - 1 }, isEmpty: s.isEmpty() },
+    }
+  }
+  // What Claude Code may ask of the editor. File access still goes through the main process, which keeps it inside the open projects.
+  const ideTools: Record<string, (a: any) => unknown> = {
+    openFile: async a => { await api.read(String(a.filePath)); await openFile(String(a.filePath), undefined, 1, !a.preview); return `Opened file: ${a.filePath}` },
+    openDiff: async a => {
+      const name = String(a.tab_name)
+      const head = await api.read(String(a.old_file_path)).catch(() => '')
+      const text = String(a.new_file_contents)
+      proposals.current.get(name)?.(['DIFF_REJECTED', name]) // the same name again replaces the diff
+      setTabs(ts => [...ts.filter(t => t.path !== `claude:${name}`), { path: `claude:${name}`, text, saved: text, head, proposal: String(a.new_file_path) }])
+      setActive(`claude:${name}`)
+      return new Promise<string[]>(done => proposals.current.set(name, done))
+    },
+    close_tab: a => { proposals.current.delete(String(a.tab_name)); setTabs(ts => ts.filter(t => t.path !== `claude:${a.tab_name}`)); setActive(x => (x === `claude:${a.tab_name}` ? '' : x)); return 'TAB_CLOSED' },
+    closeAllDiffTabs: () => {
+      const n = live.current.tabs.filter(t => t.head !== undefined).length
+      for (const done of proposals.current.values()) done(['DIFF_REJECTED', ''])
+      proposals.current.clear()
+      setTabs(ts => ts.filter(t => t.head === undefined))
+      setActive(x => (/^(claude|diff):/.test(x) ? '' : x))
+      return `CLOSED_${n}_DIFF_TABS`
+    },
+    getCurrentSelection: () => selectionOf() ?? { success: false, message: 'No active editor found' },
+    getLatestSelection: () => selectionOf() ?? { success: false, message: 'No selection available' },
+    getOpenEditors: () => ({ tabs: live.current.tabs.filter(isFile).map(t => ({ uri: fileUrl(t.path), isActive: t.path === live.current.active, label: baseName(t.path), languageId: langOf(t.path), isDirty: t.text !== t.saved })) }),
+    getDiagnostics: a => {
+      const marks: any[] = monacoRef.current?.editor.getModelMarkers({}) ?? []
+      const byFile = new Map<string, any[]>()
+      for (const m of marks) {
+        const uri = fileUrl(m.resource.path)
+        if (a.uri && a.uri !== uri) continue
+        byFile.set(uri, [...(byFile.get(uri) ?? []), { message: m.message, severity: ({ 8: 'Error', 4: 'Warning', 2: 'Information', 1: 'Hint' } as Record<number, string>)[m.severity], range: { start: { line: m.startLineNumber - 1, character: m.startColumn - 1 }, end: { line: m.endLineNumber - 1, character: m.endColumn - 1 } }, source: m.source ?? m.owner }])
+      }
+      return [...byFile].map(([uri, diagnostics]) => ({ uri, diagnostics }))
+    },
+    checkDocumentDirty: a => {
+      const t = live.current.tabs.find(t => t.path === a.filePath)
+      return t ? { success: true, filePath: t.path, isDirty: t.text !== t.saved, isUntitled: false } : { success: false, message: `Document not open: ${a.filePath}` }
+    },
+    saveDocument: async a => {
+      const t = live.current.tabs.find(t => t.path === a.filePath)
+      if (!t) return { success: false, message: `Document not open: ${a.filePath}` }
+      await live.current.save(t.path, t.text)
+      return { success: true, filePath: t.path, saved: true, message: 'Document saved successfully' }
+    },
+  }
+  const ideRef = useRef(ideTools)
+  ideRef.current = ideTools
+  useEffect(() => api.ide.onCall(async (id: number, name: string, args: any) => {
+    try { api.ide.reply(id, await ideRef.current[name]?.(args ?? {}) ?? { success: false, message: `Not supported: ${name}` }) }
+    catch (e) { api.ide.reply(id, null, String((e as Error)?.message ?? e)) }
+  }), [])
   const jump = useRef<{ path: string; line: number; col: number } | null>(null)
 
   useEffect(() => {
@@ -302,6 +382,7 @@ export function App() {
   const closeTab = (path: string) => {
     const tab = tabs.find(t => t.path === path)
     if (tab && tab.text !== tab.saved && !confirm(T('discard', { name: baseName(path) }))) return
+    if (tab?.proposal) return settle(path.slice('claude:'.length), false)
     const rest = tabs.filter(t => t.path !== path)
     setTabs(rest)
     if (active === path) setActive(rest.at(-1)?.path ?? '')
@@ -443,13 +524,20 @@ export function App() {
     setTabs(ts => ts.map(t => (t.path === path ? { ...t, saved: text } : t)))
     refreshGit()
   }
-  const live = useRef({ save, root, active, pane, agents })
-  live.current = { save, root, active, pane, agents }
+  const live = useRef({ save, root, active, pane, agents, tabs })
+  live.current = { save, root, active, pane, agents, tabs }
 
   // ⌘S saves; ⌘L hands the selection to Claude Code as an @file reference with its lines.
   const onMount: OnMount = (editor, monaco) => {
     editorRef.current = editor
+    monacoRef.current = monaco
     requestAnimationFrame(reveal)
+    // Claude Code follows the selection, as it does in VS Code: told once the cursor has rested.
+    let told: ReturnType<typeof setTimeout>
+    editor.onDidChangeCursorSelection(() => {
+      clearTimeout(told)
+      told = setTimeout(() => { const s = selectionOf(); if (s) api.ide.notify('selection_changed', s) }, 150)
+    })
     // Prompt variables ({{name}}) get one decoration per letter, so REBEL can cut each from a different page.
     const vars = editor.createDecorationsCollection()
     const mark = () => {
@@ -576,7 +664,7 @@ export function App() {
         <nav className="tabs">
           {tabs.map(t => (
             <div tabIndex={0} key={t.path} className={`tab ${t.path === active ? 'on' : ''} ${t.preview ? 'preview' : ''}`} onClick={() => setActive(t.path)} onDoubleClick={() => openFile(t.path, undefined, 1, true)} title={t.preview ? `${T('preview')}: ${t.path}` : t.path}>
-              <FileIcon name={t.path} />{t.head !== undefined && 'Δ '}{t.path.startsWith('live:') && '◉ '}{baseName(t.path)}{t.text !== t.saved && ' ●'}
+              <FileIcon name={t.proposal ?? t.path} />{t.head !== undefined && 'Δ '}{t.path.startsWith('live:') && '◉ '}{baseName(t.proposal ?? t.path)}{t.text !== t.saved && ' ●'}
               <span className="x" onClick={e => (e.stopPropagation(), closeTab(t.path))}>×</span>
             </div>
           ))}
@@ -586,16 +674,24 @@ export function App() {
         </nav>
         {tab?.web !== undefined ? (
           <WebView key={tab.path} url={tab.web} T={T} />
-        ) : tab?.head !== undefined ? (
+        ) : tab?.head !== undefined ? (<>
+          {tab.proposal && (
+            <div className="web-bar proposal" role="group" aria-label={T('ide.proposal')}>
+              <span>{T('ide.proposal')}: {relative(root, tab.proposal)}</span>
+              <button onClick={() => settle(tab.path.slice('claude:'.length), true)}><Cut label={T('ide.accept')} ground="var(--sel)" ink="var(--sel-ink)" /></button>
+              <button onClick={() => settle(tab.path.slice('claude:'.length), false)}><Cut label={T('ide.reject')} /></button>
+            </div>
+          )}
           <DiffEditor
             original={tab.head}
             modified={tab.text}
-            language={langOf(tab.path)}
+            language={langOf(tab.proposal ?? tab.path)}
             theme={`evoke-${theme}`}
             beforeMount={defineThemes}
             loading={<div className="state">{T('loading')}</div>}
             options={{ readOnly: true, renderSideBySide: true, fontFamily: 'Iosevka, Menlo, Consolas, monospace', fontSize: 13, minimap: { enabled: false } }}
           />
+        </>
         ) : tab?.image !== undefined ? (
           <div className="image-view">{tab.image ? <img src={tab.image} alt={baseName(tab.path)} /> : <p className="quiet">{T('binary')}</p>}</div>
         ) : tab ? (
@@ -637,6 +733,7 @@ export function App() {
       <section className="right" style={mainStyle('right')}>
         <div className="head sides">
           {agents !== 'codex' && <button onClick={() => showPane('claude')} className={pane === 'claude' ? 'on' : ''}><Cut label="CLAUDE" ground={pane === 'claude' ? 'var(--edge)' : 'var(--mid)'} /></button>}
+          {agents !== 'codex' && <button onClick={() => showPane('chat')} className={pane === 'chat' ? 'on' : ''} title={T('chat.title')}><Cut label="CHAT" ground={pane === 'chat' ? 'var(--edge)' : 'var(--mid)'} /></button>}
           {agents !== 'claude' && <button onClick={() => showPane('codex')} className={pane === 'codex' ? 'on' : ''}><Cut label="CODEX" ground={pane === 'codex' ? 'var(--edge)' : 'var(--mid)'} /></button>}
           <button onClick={() => showPane('shell')} className={pane === 'shell' ? 'on' : ''}><Cut label="SHELL" ground={pane === 'shell' ? 'var(--edge)' : 'var(--mid)'} /></button>
           {remotes.length > 0 && <button onClick={() => setPane('ssh')} className={pane === 'ssh' ? 'on' : ''}><Cut label={`SSH ${remote}`} ground={pane === 'ssh' ? 'var(--edge)' : 'var(--mid)'} /></button>}
@@ -649,6 +746,7 @@ export function App() {
         {claudeOn.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
         {remotes.map(host => <Claude key={`ssh:${host}`} kind="ssh" cwd={host} on={pane === 'ssh' && host === remote} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
         {codexOn.map(path => <Claude key={`codex:${path}`} kind="codex" cwd={path} on={pane === 'codex' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+        {agents !== 'codex' && chatting.map(path => <Chat key={`chat:${path}`} cwd={path} on={pane === 'chat' && path === root} T={T} />)}
         {shells.map(path => <Claude key={`shell:${path}`} kind="shell" cwd={path} on={pane === 'shell' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
       </section>
 

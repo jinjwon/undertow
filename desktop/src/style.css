@@ -548,3 +548,33 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   .state { color: #000000; background: #FFFFFF; box-shadow: 4px 4px 0 var(--blood); clip-path: none; transform: rotate(-1.5deg); }
   .state::after { background: var(--blood); opacity: .5; }
 }
+
+/* A proposed edit from Claude Code: the answer buttons sit on the bar above the diff. */
+.web-bar.proposal { padding: 6px 10px; font: 700 13px Pretendard, sans-serif; color: var(--text); }
+.web-bar.proposal .cut { margin-right: 0; }
+
+/* The chat panel: Claude Code's answers as plain rows, your messages as selection-coloured plates, questions as cards. */
+.claude.chat { flex-direction: column; padding: 0; color: var(--text); }
+.chat-log { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; user-select: text; }
+.said { max-width: 92%; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.said.mine { align-self: flex-end; padding: 6px 18px; font-weight: 700; color: var(--sel-ink); background: var(--sel); clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
+.said.error { padding: 6px 12px; border-left: 4px solid var(--hot); background: color-mix(in srgb, var(--hot) 15%, transparent); }
+.used { font: 12px Iosevka, Menlo, Consolas, monospace; color: var(--gray); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.used b { margin-right: 6px; padding: 0 8px; font: 900 italic 11px Barlow, sans-serif; color: var(--chip-ink); background: var(--chip); }
+.used.failed { text-decoration: line-through; }
+.ask { padding: 10px 14px; border: 2px solid var(--edge); box-shadow: 6px 6px 0 var(--sel); }
+.ask p { margin: 0 0 6px; font: 900 italic 15px Barlow, Pretendard, sans-serif; }
+.ask pre { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px Iosevka, Menlo, Consolas, monospace; }
+.ask.allow, .ask.deny { box-shadow: none; opacity: .7; }
+.answers { display: flex; gap: 8px; }
+.answers button, .chat-box button { padding: 4px 18px; font: 900 italic 14px Barlow, Pretendard, sans-serif; color: var(--text); border: 2px solid var(--edge); clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); transition: transform .08s; }
+.answers button:hover, .chat-box button:hover { transform: translateX(3px); }
+.answers .yes, .chat-box button[type='submit'] { color: var(--sel-ink); background: var(--sel); }
+.chat-box { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px; border-top: 2px solid var(--edge); }
+.chat-box textarea { flex: 1; min-width: 0; resize: none; padding: 6px 8px; color: var(--text); background: transparent; border: 0; outline: none; font: 14px Pretendard, sans-serif; user-select: text; }
+.chat-box textarea:focus-visible { box-shadow: inset 0 -2px var(--edge); }
+.chat .state { margin: 0; align-self: flex-start; }
+[data-theme='rebel'] .said.mine { color: #000000; background: #FFFFFF; clip-path: none; box-shadow: 4px 4px 0 var(--blood); transform: rotate(-1deg); }
+[data-theme='rebel'] .ask { box-shadow: 6px 6px 0 var(--blood); transform: rotate(-.6deg); }
+[data-theme='rebel'] .answers button, [data-theme='rebel'] .chat-box button { clip-path: none; }
+[data-theme='rebel'] .answers .yes, [data-theme='rebel'] .chat-box button[type='submit'] { color: #000000; background: #FFFFFF; box-shadow: 3px 3px 0 var(--blood); }

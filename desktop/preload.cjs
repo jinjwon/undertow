@@ -30,6 +30,18 @@ contextBridge.exposeInMainWorld('evoke', {
   previewUrl: file => ipcRenderer.invoke('preview:url', file),
   previewOpen: url => ipcRenderer.send('preview:open', url),
   sshHosts: () => ipcRenderer.invoke('ssh:hosts'),
+  ide: {
+    onCall: fn => listen('ide:call', fn),
+    reply: (id, result, error) => ipcRenderer.send('ide:reply', id, result, error),
+    notify: (method, params) => ipcRenderer.send('ide:notify', method, params),
+    connected: () => ipcRenderer.invoke('ide:connected'),
+  },
+  chat: {
+    send: (id, cwd, text, session) => ipcRenderer.invoke('chat:send', id, cwd, text, session),
+    answer: (id, requestId, allow, input) => ipcRenderer.send('chat:answer', id, requestId, allow, input),
+    stop: id => ipcRenderer.send('chat:stop', id),
+    on: (id, fn) => listen(`chat:event:${id}`, fn),
+  },
   pty: {
     spawn: (id, cwd, cols, rows, kind, resume) => ipcRenderer.invoke('pty:spawn', id, cwd, cols, rows, kind, resume),
     write: (id, data) => ipcRenderer.send('pty:write', id, data),

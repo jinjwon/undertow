@@ -5,6 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { execFile } = require('node:child_process')
 const pty = require('node-pty')
+const { startIde } = require('./ide.cjs')
 const { contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 const { start: startPreview } = require('./serve.cjs')
 const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
@@ -45,6 +46,7 @@ ipcMain.handle('project:open', async (_, root) => {
   const known = picked.has(at) || trusted(await claudeJson()).has(at.normalize('NFC')) || codexTrusted(await codexToml()).has(at.normalize('NFC'))
   if (!known) throw new Error(`Not a known project: ${at}`)
   roots.add(await fs.realpath(at))
+  ide?.refresh().catch(() => {}) // Claude Code matches its folder against the lock file's
   return at
 })
 
@@ -257,6 +259,8 @@ ipcMain.handle('pty:spawn', async (_, id, cwd, cols, rows, kind, resume) => {
       ? windows ? ['powershell.exe', ['-NoLogo']] : [process.env.SHELL || '/bin/zsh', ['-il']]
       : windows ? ['cmd.exe', ['/c', ...claude.split(' ')]] : [process.env.SHELL || '/bin/zsh', ['-ilc', claude]]
   const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }
+  // Claude Code connects to the editor through these, as it does in VS Code's terminal.
+  if (kind === 'claude' && ide) Object.assign(env, { CLAUDE_CODE_SSE_PORT: String(ide.port), ENABLE_IDE_INTEGRATION: 'true' })
   delete env.TERM_PROGRAM // xterm.js draws no images: the Evoke pane falls back to plain rows
   const term = pty.spawn(file, args, { name: 'xterm-256color', cwd: remote ? home : cwd, cols, rows, env })
   terms.set(id, term)
@@ -267,6 +271,44 @@ ipcMain.handle('pty:spawn', async (_, id, cwd, cols, rows, kind, resume) => {
     sendTo(win, `pty:exit:${id}`, exitCode)
   })
 })
+// The chat panel: Claude Code in print mode, one process per project. It prints one JSON event per line and reads the same;
+// a tool that needs permission arrives as a question, and the window's answer goes back on stdin.
+const chats = new Map()
+ipcMain.handle('chat:send', async (_, id, cwd, text, session) => {
+  await guard(cwd)
+  let chat = chats.get(id)
+  if (!chat) {
+    const again = isSessionId(session) ? ` --resume ${session}` : '' // only a UUID reaches the command line
+    const line = `claude -p --output-format stream-json --input-format stream-json --verbose --permission-prompt-tool stdio${again}`
+    const [file, args] = process.platform === 'win32' ? ['cmd.exe', ['/c', ...line.split(' ')]] : [process.env.SHELL || '/bin/zsh', ['-ilc', line]]
+    chat = require('node:child_process').spawn(file, args, { cwd, env: process.env, stdio: ['pipe', 'pipe', 'ignore'] })
+    chats.set(id, chat)
+    let rest = ''
+    chat.stdout.on('data', data => {
+      const lines = (rest + data).split('\n')
+      rest = lines.pop()
+      for (const l of lines) {
+        try { sendTo(win, `chat:event:${id}`, JSON.parse(l)) } catch {} // a login shell may print lines of its own
+      }
+    })
+    const ended = code => {
+      if (chats.get(id) !== chat) return
+      chats.delete(id)
+      sendTo(win, `chat:event:${id}`, { type: 'exit', code: code ?? 1 })
+    }
+    chat.on('exit', ended)
+    chat.on('error', () => ended(1))
+    chat.stdin.on('error', () => {})
+  }
+  chat.stdin.write(JSON.stringify({ type: 'user', message: { role: 'user', content: String(text) } }) + '\n')
+})
+ipcMain.on('chat:answer', (_, id, requestId, allow, input) => {
+  const response = allow ? { behavior: 'allow', updatedInput: input ?? {} } : { behavior: 'deny', message: 'The user refused this.' }
+  chats.get(id)?.stdin.write(JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: String(requestId), response } }) + '\n')
+})
+// Stop ends the process; the next message resumes the same session.
+ipcMain.on('chat:stop', (_, id) => chats.get(id)?.kill())
+
 ipcMain.on('pty:write', (_, id, data) => terms.get(id)?.write(data))
 ipcMain.on('pty:resize', (_, id, cols, rows) => terms.get(id)?.resize(Math.max(cols, 2), Math.max(rows, 2)))
 ipcMain.on('pty:kill', (_, id) => terms.get(id)?.kill())
@@ -281,7 +323,34 @@ ipcMain.on('theme:set', (_, theme) => {
   else win?.setIcon(iconOf(theme))
 })
 
-app.whenReady().then(() => {
+// The IDE link: Claude Code's tool calls go to the window, which owns the editor, and come back as its answers.
+let ide
+const asked = new Map()
+let askId = 0
+const askWindow = (name, args) => {
+  if (name === 'getWorkspaceFolders') {
+    const folders = [...roots].map(p => ({ name: path.basename(p), uri: require('node:url').pathToFileURL(p).href, path: p }))
+    return { success: true, folders, rootPath: folders[0]?.path ?? '' }
+  }
+  if (!win || win.isDestroyed()) throw new Error('The editor window is closed')
+  return new Promise((done, fail) => {
+    const id = ++askId
+    asked.set(id, { done, fail })
+    sendTo(win, 'ide:call', id, name, args)
+  })
+}
+ipcMain.on('ide:reply', (_, id, result, error) => {
+  const waiting = asked.get(id)
+  asked.delete(id)
+  if (waiting) error ? waiting.fail(new Error(String(error))) : waiting.done(result)
+})
+ipcMain.on('ide:notify', (_, method, params) => {
+  if (method === 'selection_changed' || method === 'at_mentioned') ide?.notify(method, params)
+})
+ipcMain.handle('ide:connected', () => ide?.connected() ?? 0)
+
+app.whenReady().then(async () => {
+  ide = await startIde({ call: askWindow, folders: () => [...roots], dir: path.join(home, '.claude', 'ide') }).catch(() => undefined) // without it Claude Code still runs, only unlinked
   win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -300,10 +369,12 @@ app.whenReady().then(() => {
   win.loadFile(path.join(__dirname, 'dist', 'index.html'))
 })
 app.on('before-quit', () => {
+  ide?.close().catch(() => {}) // takes the lock file with it
   for (const w of watchers.values()) w.close()
   preview?.then(p => p.close())
   for (const term of terms.values()) term.kill()
   terms.clear()
+  for (const chat of chats.values()) chat.kill()
 })
 app.on('window-all-closed', () => {
   for (const term of terms.values()) term.kill()
