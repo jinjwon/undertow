@@ -145,4 +145,24 @@ const codexTrusted = toml => {
   return out
 }
 
-module.exports = { contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }
+// Claude Code hands its status line command the session's usage as JSON (context, 5-hour and 7-day limits, cost).
+// Sessions Evoke starts get a status line that copies that JSON to $EVOKE_USAGE_FILE and then runs your own status line, if you have one.
+const statusLineOf = settingsJson => {
+  let own = ''
+  try { own = JSON.parse(settingsJson)?.statusLine?.command ?? '' } catch {}
+  return typeof own === 'string' && own.trim() ? `tee "$EVOKE_USAGE_FILE" | { ${own.trim()}; }` : 'cat > "$EVOKE_USAGE_FILE"'
+}
+
+// The HUD's usage from one status line JSON; null while Claude Code is half way through writing it.
+const usageFromStatus = text => {
+  let s
+  try { s = JSON.parse(text) } catch { return null }
+  if (!s || typeof s !== 'object') return null
+  const num = n => (Number.isFinite(n) ? n : null)
+  const limits = Object.entries(s.rate_limits ?? {})
+    .filter(([, l]) => Number.isFinite(l?.used_percentage))
+    .map(([kind, l]) => ({ kind, percent: l.used_percentage, ...(Number.isFinite(l.resets_at) ? { resetsAt: new Date(l.resets_at * 1000).toISOString() } : {}) }))
+  return { project: String(s.workspace?.project_dir ?? s.cwd ?? ''), context: num(s.context_window?.used_percentage) ?? (s.context_window?.total_input_tokens === 0 ? 0 : null), usd: num(s.cost?.total_cost_usd), limits }
+}
+
+module.exports = { statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }

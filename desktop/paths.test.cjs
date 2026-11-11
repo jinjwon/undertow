@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert')
 const path = require('node:path')
-const { contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 
 test('inside keeps paths within the project', () => {
   assert.ok(inside('/a/proj', '/a/proj'))
@@ -104,4 +104,27 @@ test('sendTo drops messages for a closed window instead of throwing', () => {
   assert.doesNotThrow(() => sendTo(closing, 'pty:exit:x', 0))
   assert.doesNotThrow(() => sendTo(undefined, 'pty:exit:x', 0))
   assert.deepStrictEqual(sent, [['pty:data:x', 'hi']])
+})
+
+test('statusLineOf copies the status JSON for Evoke and still feeds your own status line', () => {
+  assert.strictEqual(statusLineOf('{}'), 'cat > "$EVOKE_USAGE_FILE"')
+  assert.strictEqual(statusLineOf('not json'), 'cat > "$EVOKE_USAGE_FILE"')
+  assert.strictEqual(statusLineOf(JSON.stringify({ statusLine: { type: 'command', command: 'cat > ~/.figmon/claude_status.json' } })), 'tee "$EVOKE_USAGE_FILE" | { cat > ~/.figmon/claude_status.json; }')
+})
+
+test('usageFromStatus reads context, every limit and cost from the status line JSON', () => {
+  const status = {
+    cwd: '/p', workspace: { project_dir: '/p' },
+    context_window: { used_percentage: 8 },
+    cost: { total_cost_usd: 0.5 },
+    rate_limits: { five_hour: { used_percentage: 23.5, resets_at: 1738425600 }, seven_day: { used_percentage: 41.2, resets_at: 1738857600 } },
+  }
+  assert.deepStrictEqual(usageFromStatus(JSON.stringify(status)), {
+    project: '/p', context: 8, usd: 0.5,
+    limits: [{ kind: 'five_hour', percent: 23.5, resetsAt: '2025-02-01T16:00:00.000Z' }, { kind: 'seven_day', percent: 41.2, resetsAt: '2025-02-06T16:00:00.000Z' }],
+  })
+  assert.strictEqual(usageFromStatus('{"cwd": "/p", "context'), null) // read while Claude Code was still writing it
+  assert.deepStrictEqual(usageFromStatus('{"cwd":"/q"}'), { project: '/q', context: null, usd: null, limits: [] })
+  // A session that has not sent anything yet has used none of its window, not an unknown amount.
+  assert.strictEqual(usageFromStatus(JSON.stringify({ cwd: '/q', context_window: { total_input_tokens: 0, used_percentage: null } })).context, 0)
 })
