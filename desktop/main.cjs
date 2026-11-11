@@ -5,6 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { execFile } = require('node:child_process')
 const pty = require('node-pty')
+const { startIde } = require('./ide.cjs')
 const { contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 const { start: startPreview } = require('./serve.cjs')
 const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
@@ -45,6 +46,7 @@ ipcMain.handle('project:open', async (_, root) => {
   const known = picked.has(at) || trusted(await claudeJson()).has(at.normalize('NFC')) || codexTrusted(await codexToml()).has(at.normalize('NFC'))
   if (!known) throw new Error(`Not a known project: ${at}`)
   roots.add(await fs.realpath(at))
+  ide?.refresh().catch(() => {}) // Claude Code matches its folder against the lock file's
   return at
 })
 
@@ -257,6 +259,8 @@ ipcMain.handle('pty:spawn', async (_, id, cwd, cols, rows, kind, resume) => {
       ? windows ? ['powershell.exe', ['-NoLogo']] : [process.env.SHELL || '/bin/zsh', ['-il']]
       : windows ? ['cmd.exe', ['/c', ...claude.split(' ')]] : [process.env.SHELL || '/bin/zsh', ['-ilc', claude]]
   const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }
+  // Claude Code connects to the editor through these, as it does in VS Code's terminal.
+  if (kind === 'claude' && ide) Object.assign(env, { CLAUDE_CODE_SSE_PORT: String(ide.port), ENABLE_IDE_INTEGRATION: 'true' })
   delete env.TERM_PROGRAM // xterm.js draws no images: the Evoke pane falls back to plain rows
   const term = pty.spawn(file, args, { name: 'xterm-256color', cwd: remote ? home : cwd, cols, rows, env })
   terms.set(id, term)
@@ -281,7 +285,34 @@ ipcMain.on('theme:set', (_, theme) => {
   else win?.setIcon(iconOf(theme))
 })
 
-app.whenReady().then(() => {
+// The IDE link: Claude Code's tool calls go to the window, which owns the editor, and come back as its answers.
+let ide
+const asked = new Map()
+let askId = 0
+const askWindow = (name, args) => {
+  if (name === 'getWorkspaceFolders') {
+    const folders = [...roots].map(p => ({ name: path.basename(p), uri: require('node:url').pathToFileURL(p).href, path: p }))
+    return { success: true, folders, rootPath: folders[0]?.path ?? '' }
+  }
+  if (!win || win.isDestroyed()) throw new Error('The editor window is closed')
+  return new Promise((done, fail) => {
+    const id = ++askId
+    asked.set(id, { done, fail })
+    sendTo(win, 'ide:call', id, name, args)
+  })
+}
+ipcMain.on('ide:reply', (_, id, result, error) => {
+  const waiting = asked.get(id)
+  asked.delete(id)
+  if (waiting) error ? waiting.fail(new Error(String(error))) : waiting.done(result)
+})
+ipcMain.on('ide:notify', (_, method, params) => {
+  if (method === 'selection_changed' || method === 'at_mentioned') ide?.notify(method, params)
+})
+ipcMain.handle('ide:connected', () => ide?.connected() ?? 0)
+
+app.whenReady().then(async () => {
+  ide = await startIde({ call: askWindow, folders: () => [...roots], dir: path.join(home, '.claude', 'ide') }).catch(() => undefined) // without it Claude Code still runs, only unlinked
   win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -300,6 +331,7 @@ app.whenReady().then(() => {
   win.loadFile(path.join(__dirname, 'dist', 'index.html'))
 })
 app.on('before-quit', () => {
+  ide?.close().catch(() => {}) // takes the lock file with it
   for (const w of watchers.values()) w.close()
   preview?.then(p => p.close())
   for (const term of terms.values()) term.kill()

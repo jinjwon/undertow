@@ -548,3 +548,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   .state { color: #000000; background: #FFFFFF; box-shadow: 4px 4px 0 var(--blood); clip-path: none; transform: rotate(-1.5deg); }
   .state::after { background: var(--blood); opacity: .5; }
 }
+
+/* A proposed edit from Claude Code: the answer buttons sit on the bar above the diff. */
+.web-bar.proposal { padding: 6px 10px; font: 700 13px Pretendard, sans-serif; color: var(--text); }
+.web-bar.proposal .cut { margin-right: 0; }

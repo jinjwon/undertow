@@ -145,6 +145,14 @@ Rules:
 - Edit mode, the error page and git codes follow the theme too. REBEL shows no blue, cyan, yellow or green anywhere.
 - Decoration (dots, wedges, the big word) sits behind content and never under body text.
 
+## Claude Code in the editor
+
+Evoke links to Claude Code the way the VS Code extension does (`desktop/ide.cjs`): a WebSocket server on `127.0.0.1` speaking MCP, announced by a lock file in `~/.claude/ide` and by `CLAUDE_CODE_SSE_PORT` in the Claude terminal's environment. The lock file holds a token that every connection must present.
+
+- Claude Code sees the open file and the selection without `⌘L`.
+- An edit that needs approval opens as a diff tab with ACCEPT and REJECT on a bar above it. Closing the tab rejects.
+- Claude can ask for the open tabs, diagnostics and unsaved state, and can open a file. Files stay inside the open projects: the main process refuses any other path.
+
 ## Usage without the plugin
 
 The HUD and the SKILL ranks work whether or not the Evoke plugin is installed in Claude Code.
