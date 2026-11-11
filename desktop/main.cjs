@@ -5,7 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { execFile } = require('node:child_process')
 const pty = require('node-pty')
-const { codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 const { start: startPreview } = require('./serve.cjs')
 const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
 
@@ -171,7 +171,7 @@ ipcMain.handle('skills:list', async () => {
   const plugins = pluginsOf(await readFrom(path.join(home, '.claude', 'plugins', 'installed_plugins.json')), await readFrom(path.join(home, '.claude', 'settings.json')))
   const lists = await Promise.all([skillsIn(path.join(home, '.claude', 'skills'), ''), ...plugins.map(p => skillsIn(path.join(p.path, 'skills'), p.name))])
   const store = path.join(home, '.claude', 'plugins', 'store')
-  const uses = {}
+  const uses = usesOf(await readFrom(path.join(home, '.claude', 'history.jsonl')))
   for (const n of (await fs.readdir(store).catch(() => [])).filter(n => n.startsWith('evoke_'))) {
     try {
       for (const [k, v] of Object.entries(JSON.parse(await readFrom(path.join(store, n))).uses ?? {})) uses[k] = Math.max(uses[k] ?? 0, Number(v) || 0)
@@ -185,18 +185,37 @@ ipcMain.handle('equip:list', async (_, root) => ({
   plugins: pluginsOf(await readFrom(path.join(home, '.claude', 'plugins', 'installed_plugins.json')), await readFrom(path.join(home, '.claude', 'settings.json'))).map(p => p.name),
 }))
 
-// The Evoke plugin saves its last usage in its store file; the newest one wins.
-ipcMain.handle('usage:get', async () => {
-  const dir = path.join(home, '.claude', 'plugins', 'store')
-  const names = (await fs.readdir(dir).catch(() => [])).filter(n => n.startsWith('evoke_') && n.endsWith('.json'))
-  const files = await Promise.all(
-    names.map(async n => {
-      const file = path.join(dir, n)
-      const [stat, text] = await Promise.all([fs.stat(file), fs.readFile(file, 'utf8')])
-      return { mtime: stat.mtimeMs, text }
-    }),
-  )
-  return latestUsage(files)
+// With the Evoke plugin on, its store file holds the last usage a session measured (context, limits, cost); the newest one wins.
+// Without it that file only goes stale, so the context comes from the project's newest transcript and the limits stay empty.
+ipcMain.handle('usage:get', async (_, root) => {
+  const plugins = pluginsOf(await readFrom(path.join(home, '.claude', 'plugins', 'installed_plugins.json')), await readFrom(path.join(home, '.claude', 'settings.json')))
+  if (plugins.some(p => p.name === 'evoke')) {
+    const dir = path.join(home, '.claude', 'plugins', 'store')
+    const names = (await fs.readdir(dir).catch(() => [])).filter(n => n.startsWith('evoke_') && n.endsWith('.json'))
+    const files = await Promise.all(
+      names.map(async n => {
+        const file = path.join(dir, n)
+        const [stat, text] = await Promise.all([fs.stat(file), fs.readFile(file, 'utf8')])
+        return { mtime: stat.mtimeMs, text }
+      }),
+    )
+    return latestUsage(files)
+  }
+  if (!root) return null
+  await guard(root)
+  const dir = path.join(home, '.claude', 'projects', slugOf(path.resolve(root)))
+  const names = (await fs.readdir(dir).catch(() => [])).filter(n => n.endsWith('.jsonl') && isSessionId(n.slice(0, -6)))
+  const found = await Promise.all(names.map(async n => ({ file: path.join(dir, n), mtime: (await fs.stat(path.join(dir, n))).mtimeMs })))
+  const newest = found.sort((a, b) => b.mtime - a.mtime)[0]
+  if (!newest) return null
+  const handle = await fs.open(newest.file)
+  try {
+    const { size } = await handle.stat()
+    const length = Math.min(size, 262144)
+    const { buffer } = await handle.read(Buffer.alloc(length), 0, length, size - length)
+    const context = contextOf(buffer.toString('utf8'))
+    return context === null ? null : { context, limits: [], usd: null }
+  } finally { await handle.close() }
 })
 
 // Past Claude Code sessions of a project, newest first, named by their first prompt.

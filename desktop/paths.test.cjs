@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert')
 const path = require('node:path')
-const { codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 
 test('inside keeps paths within the project', () => {
   assert.ok(inside('/a/proj', '/a/proj'))
@@ -20,6 +20,18 @@ test('latestUsage takes the newest file that has usage', () => {
   ]
   assert.deepStrictEqual(latestUsage(files), { context: 40 })
   assert.strictEqual(latestUsage([]), null)
+})
+
+test('contextOf reads the last main-thread turn of a transcript', () => {
+  const row = (tokens, side = false) => JSON.stringify({ isSidechain: side, message: { usage: { input_tokens: 2, cache_creation_input_tokens: 0, cache_read_input_tokens: tokens - 2 } } })
+  assert.strictEqual(contextOf([row(50000), '{"type":"user"}', row(100000), row(9, true), 'cut off {'].join('\n')), 50)
+  assert.strictEqual(contextOf(row(250000)), 25)
+  assert.strictEqual(contextOf('{"type":"user"}\n'), null)
+})
+
+test('usesOf counts typed slash commands', () => {
+  const line = display => JSON.stringify({ display })
+  assert.deepStrictEqual(usesOf([line('/caveman'), line(' /caveman ultra'), line('/figma:figma-use x'), line('fix /this'), 'bad'].join('\n')), { caveman: 2, 'figma:figma-use': 1 })
 })
 
 test('sshHosts lists named hosts only, never a pattern or an option', () => {
