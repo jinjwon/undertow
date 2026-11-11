@@ -153,6 +153,15 @@ Evoke links to Claude Code the way the VS Code extension does (`desktop/ide.cjs`
 - An edit that needs approval opens as a diff tab with ACCEPT and REJECT on a bar above it. Closing the tab rejects.
 - Claude can ask for the open tabs, diagnostics and unsaved state, and can open a file. Files stay inside the open projects: the main process refuses any other path.
 
+### Chat panel
+
+The CHAT chip beside CLAUDE shows Claude Code as a conversation (`desktop/src/ChatPanel.tsx`, `chat.ts`). It runs one `claude -p` process per project in stream-json mode.
+
+- Your messages are selection-coloured plates on the right; answers are plain rows; each tool is one line with its name on a chip.
+- A tool that needs permission stops as a card with ALLOW and DENY. Nothing runs until one is pressed; a process that ends counts as DENY.
+- STOP ends the process. The next message resumes the same session.
+- Answers are plain text, not rendered Markdown, so nothing Claude writes becomes HTML in the window.
+
 ## Usage without the plugin
 
 The HUD and the SKILL ranks work whether or not the Evoke plugin is installed in Claude Code.

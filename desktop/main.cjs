@@ -271,6 +271,44 @@ ipcMain.handle('pty:spawn', async (_, id, cwd, cols, rows, kind, resume) => {
     sendTo(win, `pty:exit:${id}`, exitCode)
   })
 })
+// The chat panel: Claude Code in print mode, one process per project. It prints one JSON event per line and reads the same;
+// a tool that needs permission arrives as a question, and the window's answer goes back on stdin.
+const chats = new Map()
+ipcMain.handle('chat:send', async (_, id, cwd, text, session) => {
+  await guard(cwd)
+  let chat = chats.get(id)
+  if (!chat) {
+    const again = isSessionId(session) ? ` --resume ${session}` : '' // only a UUID reaches the command line
+    const line = `claude -p --output-format stream-json --input-format stream-json --verbose --permission-prompt-tool stdio${again}`
+    const [file, args] = process.platform === 'win32' ? ['cmd.exe', ['/c', ...line.split(' ')]] : [process.env.SHELL || '/bin/zsh', ['-ilc', line]]
+    chat = require('node:child_process').spawn(file, args, { cwd, env: process.env, stdio: ['pipe', 'pipe', 'ignore'] })
+    chats.set(id, chat)
+    let rest = ''
+    chat.stdout.on('data', data => {
+      const lines = (rest + data).split('\n')
+      rest = lines.pop()
+      for (const l of lines) {
+        try { sendTo(win, `chat:event:${id}`, JSON.parse(l)) } catch {} // a login shell may print lines of its own
+      }
+    })
+    const ended = code => {
+      if (chats.get(id) !== chat) return
+      chats.delete(id)
+      sendTo(win, `chat:event:${id}`, { type: 'exit', code: code ?? 1 })
+    }
+    chat.on('exit', ended)
+    chat.on('error', () => ended(1))
+    chat.stdin.on('error', () => {})
+  }
+  chat.stdin.write(JSON.stringify({ type: 'user', message: { role: 'user', content: String(text) } }) + '\n')
+})
+ipcMain.on('chat:answer', (_, id, requestId, allow, input) => {
+  const response = allow ? { behavior: 'allow', updatedInput: input ?? {} } : { behavior: 'deny', message: 'The user refused this.' }
+  chats.get(id)?.stdin.write(JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: String(requestId), response } }) + '\n')
+})
+// Stop ends the process; the next message resumes the same session.
+ipcMain.on('chat:stop', (_, id) => chats.get(id)?.kill())
+
 ipcMain.on('pty:write', (_, id, data) => terms.get(id)?.write(data))
 ipcMain.on('pty:resize', (_, id, cols, rows) => terms.get(id)?.resize(Math.max(cols, 2), Math.max(rows, 2)))
 ipcMain.on('pty:kill', (_, id) => terms.get(id)?.kill())
@@ -336,6 +374,7 @@ app.on('before-quit', () => {
   preview?.then(p => p.close())
   for (const term of terms.values()) term.kill()
   terms.clear()
+  for (const chat of chats.values()) chat.kill()
 })
 app.on('window-all-closed', () => {
   for (const term of terms.values()) term.kill()

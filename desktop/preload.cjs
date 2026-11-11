@@ -36,6 +36,12 @@ contextBridge.exposeInMainWorld('evoke', {
     notify: (method, params) => ipcRenderer.send('ide:notify', method, params),
     connected: () => ipcRenderer.invoke('ide:connected'),
   },
+  chat: {
+    send: (id, cwd, text, session) => ipcRenderer.invoke('chat:send', id, cwd, text, session),
+    answer: (id, requestId, allow, input) => ipcRenderer.send('chat:answer', id, requestId, allow, input),
+    stop: id => ipcRenderer.send('chat:stop', id),
+    on: (id, fn) => listen(`chat:event:${id}`, fn),
+  },
   pty: {
     spawn: (id, cwd, cols, rows, kind, resume) => ipcRenderer.invoke('pty:spawn', id, cwd, cols, rows, kind, resume),
     write: (id, data) => ipcRenderer.send('pty:write', id, data),

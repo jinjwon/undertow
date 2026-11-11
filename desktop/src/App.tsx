@@ -6,6 +6,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
 import { Pane } from './Pane'
+import { Chat } from './ChatPanel'
 import { LANGS as UI_LANGS, langFrom, tr, type Lang } from './i18n'
 import { agentsOf, parseAgents, targetOf, type Agent, type Agents } from './agents'
 import { iconOf, isImage, previewKind, promptVars, stepDate, weekOf } from './text'
@@ -135,7 +136,7 @@ export function App() {
   const [toast, setToast] = useState('')
   const warned = useRef(new Set<string>())
   const [agents, setAgents] = useState<Agents>(storedAgents)
-  const [pane, setPane] = useState<'claude' | 'codex' | 'shell' | 'ssh'>(() => agentsOf(storedAgents())[0])
+  const [pane, setPane] = useState<'claude' | 'codex' | 'shell' | 'ssh' | 'chat'>(() => agentsOf(storedAgents())[0])
   const [hosts, setHosts] = useState<string[]>([]) // LINK: the hosts of ~/.ssh/config
   const [remotes, setRemotes] = useState<string[]>([]) // hosts with an ssh terminal open
   const [remote, setRemote] = useState('')
@@ -149,8 +150,10 @@ export function App() {
   const [resumes, setResumes] = useState<Record<string, string>>({}) // project -> the session its Claude pane resumed
   const [sessions, setSessions] = useState<{ id: string; title: string; mtime: number }[]>([])
   const [codexes, setCodexes] = useState<string[]>([]) // projects with Codex open; started on first use, like the shell
-  const showPane = (p: 'claude' | 'codex' | 'shell') => {
+  const [chatting, setChatting] = useState<string[]>([]) // projects with the chat panel open; started on first use
+  const showPane = (p: 'claude' | 'codex' | 'shell' | 'chat') => {
     setPane(p)
+    if (p === 'chat' && root) setChatting(was => (was.includes(root) ? was : [...was, root]))
     if (p === 'shell' && root) setShells(was => (was.includes(root) ? was : [...was, root]))
     if (p === 'codex' && root) setCodexes(was => (was.includes(root) ? was : [...was, root]))
   }
@@ -180,7 +183,8 @@ export function App() {
     const live: Record<Agent, string[]> = { claude: claudeOn, codex: codexOn }
     for (const a of agentsOf(agents)) if (!agentsOf(next).includes(a)) for (const path of live[a]) api.pty.kill(`${a}:${path}`)
     if (next !== 'both') setCodexes([])
-    if ((pane === 'claude' || pane === 'codex') && !agentsOf(next).includes(pane)) setPane(agentsOf(next)[0])
+    if (next === 'codex') for (const path of chatting) api.chat.stop(`chat:${path}`)
+    if (pane === 'chat' ? next === 'codex' : (pane === 'claude' || pane === 'codex') && !agentsOf(next).includes(pane)) setPane(agentsOf(next)[0])
     setAgents(next)
     try { localStorage.setItem('agents', next) } catch {}
   }
@@ -729,6 +733,7 @@ export function App() {
       <section className="right" style={mainStyle('right')}>
         <div className="head sides">
           {agents !== 'codex' && <button onClick={() => showPane('claude')} className={pane === 'claude' ? 'on' : ''}><Cut label="CLAUDE" ground={pane === 'claude' ? 'var(--edge)' : 'var(--mid)'} /></button>}
+          {agents !== 'codex' && <button onClick={() => showPane('chat')} className={pane === 'chat' ? 'on' : ''} title={T('chat.title')}><Cut label="CHAT" ground={pane === 'chat' ? 'var(--edge)' : 'var(--mid)'} /></button>}
           {agents !== 'claude' && <button onClick={() => showPane('codex')} className={pane === 'codex' ? 'on' : ''}><Cut label="CODEX" ground={pane === 'codex' ? 'var(--edge)' : 'var(--mid)'} /></button>}
           <button onClick={() => showPane('shell')} className={pane === 'shell' ? 'on' : ''}><Cut label="SHELL" ground={pane === 'shell' ? 'var(--edge)' : 'var(--mid)'} /></button>
           {remotes.length > 0 && <button onClick={() => setPane('ssh')} className={pane === 'ssh' ? 'on' : ''}><Cut label={`SSH ${remote}`} ground={pane === 'ssh' ? 'var(--edge)' : 'var(--mid)'} /></button>}
@@ -741,6 +746,7 @@ export function App() {
         {claudeOn.map(path => <Claude key={`claude:${path}:${resumes[path] ?? ''}`} kind="claude" resume={resumes[path]} cwd={path} on={pane === 'claude' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
         {remotes.map(host => <Claude key={`ssh:${host}`} kind="ssh" cwd={host} on={pane === 'ssh' && host === remote} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
         {codexOn.map(path => <Claude key={`codex:${path}`} kind="codex" cwd={path} on={pane === 'codex' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
+        {agents !== 'codex' && chatting.map(path => <Chat key={`chat:${path}`} cwd={path} on={pane === 'chat' && path === root} T={T} />)}
         {shells.map(path => <Claude key={`shell:${path}`} kind="shell" cwd={path} on={pane === 'shell' && path === root} theme={theme} prefs={termPrefs} endedLabel={code => T('ended', { code })} />)}
       </section>
 
