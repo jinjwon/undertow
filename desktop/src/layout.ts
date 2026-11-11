@@ -1,18 +1,19 @@
 // The window's editable layout as plain geometry, so every rule can be tested without a window.
+import { DOCKS, parseDocks, type Docks } from './docks.ts'
 // Saved rects are fractions of the workspace (the area between the top bar and the HUD), which is what keeps a layout across window sizes.
 export type Rect = { x: number; y: number; w: number; h: number }
 export type Size = { w: number; h: number }
 export type MainId = 'pane' | 'center' | 'right'
 export type FloatId = 'calendar' | 'info' | 'clock'
 export type Id = MainId | FloatId
-export type Layout = { main: Record<MainId, Rect> | null; floats: Partial<Record<FloatId, Rect>> }
+export type Layout = { main: Record<MainId, Rect> | null; floats: Partial<Record<FloatId, Rect>>; docks: Docks }
 export type Handle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 export type Guides = { v: number[]; h: number[] }
 export type Ctx = { id: Id; ws: Size; lines: Rect[]; solid: Rect[]; snap: boolean }
 
 export const MAIN_IDS: MainId[] = ['pane', 'center', 'right']
 export const FLOAT_IDS: FloatId[] = ['calendar', 'info', 'clock']
-export const EMPTY: Layout = { main: null, floats: {} }
+export const EMPTY: Layout = { main: null, floats: {}, docks: DOCKS }
 export const GRID = 16
 const NEAR = 6
 const EPS = 0.5
@@ -197,5 +198,20 @@ export const parseLayout = (raw: unknown): Layout => {
   const main = rects.every(Boolean) ? (Object.fromEntries(MAIN_IDS.map((id, i) => [id, rects[i]])) as Record<MainId, Rect>) : null
   const floats: Layout['floats'] = {}
   for (const id of FLOAT_IDS) { const r = rectOf(v?.floats?.[id]); if (r) floats[id] = r }
-  return { main, floats }
+  return { main, floats, docks: parseDocks(v?.docks) }
+}
+
+// Layouts that ship with the app. VIBE gives the agents half the window, Claude above Codex and the shell; REVIEW gives it to the editor.
+export const PRESETS: Record<'default' | 'vibe' | 'review', Layout> = {
+  default: EMPTY,
+  vibe: {
+    main: { pane: { x: 0, y: 0, w: 0.19, h: 1 }, center: { x: 0.19, y: 0, w: 0.31, h: 1 }, right: { x: 0.5, y: 0, w: 0.5, h: 1 } },
+    floats: {},
+    docks: { groups: [['claude', 'chat', 'ssh'], ['codex', 'shell']], dir: 'col', ratio: 0.6, hidden: [] },
+  },
+  review: {
+    main: { pane: { x: 0, y: 0, w: 0.2, h: 1 }, center: { x: 0.2, y: 0, w: 0.55, h: 1 }, right: { x: 0.75, y: 0, w: 0.25, h: 1 } },
+    floats: {},
+    docks: DOCKS,
+  },
 }
