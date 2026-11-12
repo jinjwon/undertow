@@ -15,15 +15,63 @@ const TYPES = {
 const extOf = name => path.extname(String(name)).slice(1).toLowerCase()
 const typeOf = name => TYPES[extOf(name)] ?? 'application/octet-stream'
 
-// The page reloads itself when the server says a file changed.
+// The page reloads itself when the server says a file changed, and comes back to where it was scrolled.
 const inject = (html, nonce, liveUrl) => {
-  const script = `<script nonce="${nonce}">new EventSource(${JSON.stringify(liveUrl)}).onmessage = () => location.reload()</script>`
+  const script = `<script nonce="${nonce}">(() => {
+  const key = 'evoke-scroll:' + location.pathname
+  try { const y = sessionStorage.getItem(key); if (y) addEventListener('load', () => scrollTo(0, Number(y))) } catch {}
+  new EventSource(${JSON.stringify(liveUrl)}).onmessage = () => { try { sessionStorage.setItem(key, String(scrollY)) } catch {} location.reload() }
+})()</script>`
   const at = html.toLowerCase().lastIndexOf('</body>')
   return at < 0 ? html + script : html.slice(0, at) + script + html.slice(at)
 }
 
 const PAGE_LIMIT = 5e6 // a page is read whole to add the reload script; past this it goes out as plain text
 const escapeHtml = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+
+// A rendered Markdown document in the app's two themes (DESIGN.md): TIDE by default, REBEL with ?theme=rebel.
+const MD_STYLE = `<style>
+:root { --bg: #FFFFFF; --text: #06145B; --gray: #06145BB0; --hi: #064DE8; --edge: #16D9F5; --line: #BFC4D0; --code: #F1F4FA; --chip: #06145B; --chip-ink: #FFFFFF; color-scheme: light; }
+:root[data-theme='rebel'] { --bg: #080808; --text: #FFFFFF; --gray: rgba(255,255,255,.6); --hi: #FFFFFF; --edge: #B8001F; --line: #2A2A2A; --code: #141414; --chip: #B8001F; --chip-ink: #FFFFFF; color-scheme: dark; }
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { margin: 0; padding: 40px 24px 96px; color: var(--text); background: var(--bg); font: 15px/1.75 Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Hiragino Sans', sans-serif; word-break: keep-all; overflow-wrap: anywhere; -webkit-font-smoothing: antialiased; }
+main { max-width: 760px; margin: 0 auto; }
+main > :first-child { margin-top: 0; }
+h1, h2, h3, h4, h5, h6 { margin: 2em 0 .6em; line-height: 1.3; font-weight: 800; letter-spacing: -.01em; }
+h1 { font-size: 2em; padding-bottom: .3em; border-bottom: 3px solid var(--hi); box-shadow: 0 3px 0 var(--edge); }
+h2 { font-size: 1.45em; padding-bottom: .25em; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.2em; }
+h4 { font-size: 1.05em; }
+h5, h6 { font-size: .95em; color: var(--gray); }
+p, ul, ol, blockquote, pre, table { margin: 0 0 1.1em; }
+a { color: var(--hi); text-decoration: underline; text-decoration-color: var(--edge); text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+strong { font-weight: 800; }
+ul, ol { padding-left: 1.6em; }
+li { margin: .25em 0; }
+li > ul, li > ol { margin: .25em 0 0; }
+li::marker { color: var(--hi); }
+li:has(> input[type=checkbox]) { list-style: none; margin-left: -1.4em; }
+input[type=checkbox] { accent-color: var(--hi); margin: 0 .5em 0 0; vertical-align: -1px; }
+blockquote { padding: .4em 1em; color: var(--gray); border-left: 4px solid var(--hi); background: var(--code); }
+blockquote > :last-child { margin-bottom: 0; }
+code, kbd, pre { font-family: Iosevka, 'SF Mono', Menlo, Consolas, monospace; }
+:not(pre) > code { padding: .12em .4em; font-size: .88em; background: var(--code); border: 1px solid var(--line); }
+kbd { padding: .1em .45em; font-size: .85em; border: 1px solid var(--line); border-bottom-width: 2px; }
+pre { padding: 14px 16px; overflow: auto; font-size: 13px; line-height: 1.55; background: var(--code); border: 1px solid var(--line); border-left: 4px solid var(--hi); tab-size: 2; }
+pre code { padding: 0; background: none; border: 0; }
+table { display: block; max-width: 100%; overflow: auto; border-collapse: collapse; font-size: .93em; }
+th, td { padding: 7px 12px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { font-weight: 800; color: var(--chip-ink); background: var(--chip); border-color: var(--chip); }
+tr:nth-child(2n) td { background: var(--code); }
+hr { height: 0; margin: 2.2em 0; border: 0; border-top: 1px solid var(--line); }
+img, video { max-width: 100%; height: auto; }
+::selection { color: #FFFFFF; background: var(--hi); }
+:root[data-theme='rebel'] ::selection { background: var(--edge); }
+</style>`
+const markdownPage = (title, body, theme) =>
+  `<!doctype html><html data-theme="${theme === 'rebel' ? 'rebel' : 'tide'}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title>${MD_STYLE}<body><main>${body}</main></body></html>`
 
 const start = ({ roots, guard, markdown }) => new Promise((resolve, reject) => {
   const token = crypto.randomBytes(16).toString('hex')
@@ -62,7 +110,8 @@ const start = ({ roots, guard, markdown }) => new Promise((resolve, reject) => {
     if ((isMarkdown || ext === 'html' || ext === 'htm') && stat.size <= PAGE_LIMIT) {
       const text = await fs.promises.readFile(file, 'utf8')
       const nonce = crypto.randomBytes(16).toString('hex')
-      const page = isMarkdown ? `<!doctype html><meta charset="utf-8"><title>${escapeHtml(path.basename(file))}</title><body>${markdown(text)}</body>` : text
+      const theme = new URLSearchParams(req.url.split('?')[1] ?? '').get('theme')
+      const page = isMarkdown ? markdownPage(path.basename(file), markdown(text), theme) : text
       const headers = { 'Content-Type': TYPES.html, 'Cache-Control': 'no-store' }
       if (isMarkdown) headers['Content-Security-Policy'] = `script-src 'nonce-${nonce}'` // only the reload script may run in a rendered document
       res.writeHead(200, headers)
