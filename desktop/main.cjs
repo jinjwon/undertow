@@ -7,7 +7,7 @@ const { execFile } = require('node:child_process')
 const pty = require('node-pty')
 const { startIde } = require('./ide.cjs')
 const { createStore } = require('./store.cjs')
-const { skillDirsOf, skillFiles, SKILL_NAME, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { skillDirsOf, skillFiles, SKILL_NAME, statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 const { start: startPreview } = require('./serve.cjs')
 const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
 
@@ -274,9 +274,50 @@ ipcMain.handle('equip:list', async (_, root) => ({
   plugins: pluginsOf(await readFrom(path.join(home, '.claude', 'plugins', 'installed_plugins.json')), await readFrom(path.join(home, '.claude', 'settings.json'))).map(p => p.name),
 }))
 
-// With the Evoke plugin on, its store file holds the last usage a session measured (context, limits, cost); the newest one wins.
-// Without it that file only goes stale, so the context comes from the project's newest transcript and the limits stay empty.
+// The HUD's usage, from the first source that has it:
+// 1. the status line JSON of sessions Evoke started (see pty:spawn): context, 5-hour and 7-day limits and cost, no plugin needed;
+// 2. the Evoke plugin's store file, when the plugin is on;
+// 3. the context from the end of the project's newest transcript (limits stay empty).
+const usageDir = path.join(app.getPath('userData'), 'usage')
+const lastGood = new Map() // file -> its last whole reading, for a tick that catches Claude Code mid-write
+const statusUsage = async root => {
+  const names = (await fs.readdir(usageDir).catch(() => [])).filter(n => n.endsWith('.json'))
+  const found = []
+  for (const n of names) {
+    const file = path.join(usageDir, n)
+    const [stat, text] = await Promise.all([fs.stat(file), fs.readFile(file, 'utf8')]).catch(() => [null, ''])
+    const u = (stat && usageFromStatus(text)) ?? lastGood.get(file)
+    if (!stat || !u) continue
+    lastGood.set(file, u)
+    found.push({ ...u, mtime: stat.mtimeMs })
+  }
+  found.sort((a, b) => b.mtime - a.mtime)
+  if (!found.length) return null
+  const here = root ? found.find(u => u.project && inside(root, u.project)) : found[0]
+  // Limits belong to the account, so the newest reading from any session counts.
+  return { context: here?.context ?? null, usd: here?.usd ?? null, limits: found.find(u => u.limits.length)?.limits ?? [] }
+}
+const transcriptContext = async root => {
+  const dir = path.join(home, '.claude', 'projects', slugOf(path.resolve(root)))
+  const names = (await fs.readdir(dir).catch(() => [])).filter(n => n.endsWith('.jsonl') && isSessionId(n.slice(0, -6)))
+  const found = await Promise.all(names.map(async n => ({ file: path.join(dir, n), mtime: (await fs.stat(path.join(dir, n))).mtimeMs })))
+  const newest = found.sort((a, b) => b.mtime - a.mtime)[0]
+  if (!newest) return null
+  const handle = await fs.open(newest.file)
+  try {
+    const { size } = await handle.stat()
+    const length = Math.min(size, 262144)
+    const { buffer } = await handle.read(Buffer.alloc(length), 0, length, size - length)
+    return contextOf(buffer.toString('utf8'))
+  } finally { await handle.close() }
+}
 ipcMain.handle('usage:get', async (_, root) => {
+  if (root) await guard(root)
+  const status = await statusUsage(root)
+  if (status && (status.context !== null || status.limits.length)) {
+    if (status.context === null && root) status.context = await transcriptContext(root)
+    return status
+  }
   const plugins = pluginsOf(await readFrom(path.join(home, '.claude', 'plugins', 'installed_plugins.json')), await readFrom(path.join(home, '.claude', 'settings.json')))
   if (plugins.some(p => p.name === 'evoke')) {
     const dir = path.join(home, '.claude', 'plugins', 'store')
@@ -291,20 +332,8 @@ ipcMain.handle('usage:get', async (_, root) => {
     return latestUsage(files)
   }
   if (!root) return null
-  await guard(root)
-  const dir = path.join(home, '.claude', 'projects', slugOf(path.resolve(root)))
-  const names = (await fs.readdir(dir).catch(() => [])).filter(n => n.endsWith('.jsonl') && isSessionId(n.slice(0, -6)))
-  const found = await Promise.all(names.map(async n => ({ file: path.join(dir, n), mtime: (await fs.stat(path.join(dir, n))).mtimeMs })))
-  const newest = found.sort((a, b) => b.mtime - a.mtime)[0]
-  if (!newest) return null
-  const handle = await fs.open(newest.file)
-  try {
-    const { size } = await handle.stat()
-    const length = Math.min(size, 262144)
-    const { buffer } = await handle.read(Buffer.alloc(length), 0, length, size - length)
-    const context = contextOf(buffer.toString('utf8'))
-    return context === null ? null : { context, limits: [], usd: null }
-  } finally { await handle.close() }
+  const context = await transcriptContext(root)
+  return context === null ? null : { context, limits: [], usd: null }
 })
 
 // Past Claude Code sessions of a project, newest first, named by their first prompt.
@@ -340,12 +369,22 @@ ipcMain.handle('pty:spawn', async (_, id, cwd, cols, rows, kind, resume) => {
   }
   const windows = process.platform === 'win32'
   const claude = kind === 'codex' ? 'codex' : again ? `claude --resume ${resume}` : 'claude' // the agent's command line: Claude Code or Codex
+  const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }
+  // Claude Code's status line feeds the HUD (see usage:get). The settings ride on --settings, so your own settings file is never touched.
+  // shortcut: macOS and Linux only; Windows' cmd.exe line would need its own quoting, so Windows keeps the transcript fallback.
+  let settings = ''
+  if (kind === 'claude' && !windows) {
+    const extra = path.join(app.getPath('userData'), 'claude-statusline.json')
+    await fs.writeFile(extra, JSON.stringify({ statusLine: { type: 'command', command: statusLineOf(await readFrom(path.join(home, '.claude', 'settings.json'))) } }))
+    await fs.mkdir(usageDir, { recursive: true })
+    env.EVOKE_USAGE_FILE = path.join(usageDir, `${slugOf(cwd)}.json`)
+    settings = ` --settings '${extra.replace(/'/g, "'\\''")}'`
+  }
   const [file, args] =
     remote ? [windows ? 'ssh.exe' : 'ssh', [cwd]]
     : kind === 'shell'
       ? windows ? ['powershell.exe', ['-NoLogo']] : [process.env.SHELL || '/bin/zsh', ['-il']]
-      : windows ? ['cmd.exe', ['/c', ...claude.split(' ')]] : [process.env.SHELL || '/bin/zsh', ['-ilc', claude]]
-  const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }
+      : windows ? ['cmd.exe', ['/c', ...claude.split(' ')]] : [process.env.SHELL || '/bin/zsh', ['-ilc', claude + settings]]
   // Claude Code connects to the editor through these, as it does in VS Code's terminal.
   if (kind === 'claude' && ide) Object.assign(env, { CLAUDE_CODE_SSE_PORT: String(ide.port), ENABLE_IDE_INTEGRATION: 'true' })
   delete env.TERM_PROGRAM // xterm.js draws no images: the Evoke pane falls back to plain rows

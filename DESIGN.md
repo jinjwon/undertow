@@ -65,6 +65,8 @@ Rules:
 
 Disabled is `opacity: .4` with no pointer events; there is no disabled colour.
 
+File badges (`.fi`, kinds and shapes in `iconOf` in `desktop/src/text.ts`) are data, like the git status colours: each kind has its own colour and each family its own outline (code: slanted tab; React, Vue, Svelte: pill; data and config: hexagon; docs: folded page; HTML and CSS: arrow; media: rounded; shell: notched; tests: octagon). They look the same in both themes and are the one place outside a theme block with fixed colours. Folders keep each theme's own mark. A new kind needs its colour in `style.css`; a test fails without it.
+
 ## States and motion
 
 | State | Rule |
@@ -138,11 +140,11 @@ Function follows a code editor (side bar, preview tabs, panel, status bar, quick
 | Empty editor (project open) | Display word and one hint line | `.empty` |
 | Editor | Tabs on a dark band, page below; a single click opens a preview tab (italic) | `.tabs`, `.tab`, Monaco |
 | Side bar | Nine menus, each content list under band headers with counts | `.pane`, `.group`, `.entry` |
-| Terminals | Chips pick the terminal; tools on their own row | `.head.sides`, `.tools`, `.claude` |
+| Terminals | A usage strip on top (context, every limit Claude Code reports, cost), then chips that pick the terminal; tools on their own row | `.usage-strip`, `.gauge`, `.head.sides`, `.tools`, `.claude` |
 | Status bar | Menu chip, project, branch, changes | `.hud` |
 | Sheets (projects, quick open, search, settings) | Overlay, one skewed plate, title band, rows | `.picker`, `.sheet`, `.row`, `.set-tabs` |
 | Alert | Plate at the bottom right, 5 seconds | `.toast` |
-| UI edit mode | Grid overlay, panel boxes, inspector, bar | `.edit`, `.box`, `.inspector`, `.edit-bar` |
+| UI edit mode | Outline boxes over the live layout (no fill, no grid), one options bar in the top band, a ⋯ menu for numbers, agent panel and presets, W × H beside the cursor while dragging; hold Space to hide the overlay | `.edit`, `.box`, `.inspector.bar`, `.inspector.more`, `.size-tip` |
 | Loading, error | See States | `.state`, `.state-error` |
 
 Rules:

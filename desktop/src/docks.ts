@@ -78,6 +78,12 @@ export const dockGrid = (d: Docks, shown: number[]): { columns: string; rows: st
     : { columns: '1fr', rows: `auto ${fr(d.ratio)} 6px auto ${fr(1 - d.ratio)}`, areas: '"h0" "b0" "split" "h1" "b1"' }
 }
 
+// The same grid with one full-width row on top, for the usage strip above the dock heads.
+export const withTop = (g: { columns: string; rows: string; areas: string }, area: string) => {
+  const cols = (/"([^"]*)"/.exec(g.areas)?.[1] ?? area).trim().split(/\s+/).length
+  return { ...g, rows: `auto ${g.rows}`, areas: `"${Array(cols).fill(area).join(' ')}" ${g.areas}` }
+}
+
 // Where a tool dropped on a group's body goes: the right or bottom 30% splits that way, the rest drops into the group.
 export const dropSide = (x: number, y: number, w: number, h: number): Dir | null => {
   const right = (w - x) / w

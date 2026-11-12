@@ -22,7 +22,23 @@ function Gauge({ label, percent, reset }: { label: string; percent: number | nul
   )
 }
 
-export function Pane({ menu, onMenu, usage, now, hint, style, wrapInfo, children }: { menu: string; onMenu: (m: string) => void; usage: Usage | null; now: number; hint: string; style?: CSSProperties; wrapInfo: (info: ReactNode) => ReactNode; children: ReactNode }) {
+// Above the terminals: context, every limit Claude Code reports (model limits included), and the session's cost.
+// The 5-hour and 7-day rows are always there, so the strip keeps its shape before the first reading.
+export function UsageStrip({ usage, now, label }: { usage: Usage | null; now: number; label: (kind: string) => string }) {
+  const kinds = [...new Set(['five_hour', 'seven_day', ...(usage?.limits.map(l => l.kind) ?? [])])]
+  return (
+    <div className="usage-strip">
+      <Gauge label={label('context')} percent={usage?.context} />
+      {kinds.map(k => {
+        const l = usage?.limits.find(x => x.kind === k)
+        return <Gauge key={k} label={label(k)} percent={l?.percent} reset={untilReset(l?.resetsAt, now)} />
+      })}
+      <span className="usd"><i>{label('cost')}</i> <b>{usage?.usd != null ? `$${usage.usd.toFixed(2)}` : '--'}</b></span>
+    </div>
+  )
+}
+
+export function Pane({ menu, onMenu, now, hint, style, wrapInfo, children }: { menu: string; onMenu: (m: string) => void; now: number; hint: string; style?: CSSProperties; wrapInfo: (info: ReactNode) => ReactNode; children: ReactNode }) {
   const [frame, setFrame] = useState(100)
   useEffect(() => {
     for (const m of MENUS) for (const f of FRAMES) new Image().src = scene(m, f) // decoded ahead, so the cut-in never flashes
@@ -39,7 +55,6 @@ export function Pane({ menu, onMenu, usage, now, hint, style, wrapInfo, children
   }, [menu])
 
   const { date, moon } = dayOf(now)
-  const limit = (kind: string) => usage?.limits.find(l => l.kind === kind)
   return (
     <aside className="pane" style={style}>
       <div className="art">
@@ -47,12 +62,7 @@ export function Pane({ menu, onMenu, usage, now, hint, style, wrapInfo, children
         <div className="cutin" key={menu} aria-hidden="true"><b>{menu}</b></div>
         {wrapInfo(
           <div className="pane-hud">
-            <div className="day"><b>{date}</b> <i>{moon}</i><span className="usd"><i>AI USAGE</i> <b>{usage?.usd != null ? `$${usage.usd.toFixed(2)}` : '--'}</b></span></div>
-            <div className="gauges">
-              <Gauge label="CTX" percent={usage?.context} />
-              <Gauge label="5H" percent={limit('five_hour')?.percent} reset={untilReset(limit('five_hour')?.resetsAt, now)} />
-              <Gauge label="7D" percent={limit('seven_day')?.percent} reset={untilReset(limit('seven_day')?.resetsAt, now)} />
-            </div>
+            <div className="day"><b>{date}</b> <i>{moon}</i></div>
           </div>
         )}
         {MENUS.map((m: string, i: number) => (
