@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert'
-import { DOCKS, dockGrid, dropSide, groupOf, moveBefore, moveTool, parseDocks, pickActive, showIn, splitDocks } from './docks.ts'
+import { DOCKS, withTop, dockGrid, dropSide, groupOf, moveBefore, moveTool, parseDocks, pickActive, showIn, splitDocks } from './docks.ts'
 
 test('parseDocks repairs whatever storage holds', () => {
   assert.deepStrictEqual(parseDocks(null), DOCKS)
@@ -57,4 +57,9 @@ test('showIn shows a moved tool in the group it moved to and focuses that group'
   const next = moveTool(two, 'shell', 1, Infinity)
   assert.deepStrictEqual(showIn(next, ['claude', 'codex'], 'shell'), { picked: ['claude', 'shell'], focus: 1 })
   assert.deepStrictEqual(showIn(next, ['claude', 'codex'], 'chat'), { picked: ['chat', 'codex'], focus: 0 })
+})
+
+test('withTop adds one full-width row above any dock grid', () => {
+  assert.deepStrictEqual(withTop({ columns: '1fr', rows: 'auto 1fr', areas: '"h0" "b0"' }, 'usage'), { columns: '1fr', rows: 'auto auto 1fr', areas: '"usage" "h0" "b0"' })
+  assert.deepStrictEqual(withTop({ columns: '1fr 6px 1fr', rows: 'auto 1fr', areas: '"h0 split h1" "b0 split b1"' }, 'usage').areas, '"usage usage usage" "h0 split h1" "b0 split b1"')
 })

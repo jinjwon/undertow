@@ -4,17 +4,20 @@ import { createPortal } from 'react-dom'
 import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { EmptyArt } from './EmptyArt'
 import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
-import { Pane } from './Pane'
+import { Pane, UsageStrip } from './Pane'
 import { Chat } from './ChatPanel'
-import { LANGS as UI_LANGS, langFrom, tr, type Lang } from './i18n'
+import { LANGS as UI_LANGS, STRINGS, langFrom, tr, type Lang } from './i18n'
 import { agentsOf, parseAgents, targetOf, type Agent, type Agents } from './agents'
-import { iconOf, isImage, previewKind, promptVars, stepDate, weekOf } from './text'
+import { iconOf, isImage, matchItems, previewKind, promptVars, stepDate, weekOf } from './text'
+import { MENUS } from '../../plugins/evoke/hooks/tokens.js'
 import { EMPTY, FLOAT_IDS, fillHidden, fitCols, fitFloat, parseLayout, type Cols, type FloatId, type Layout, type MainId, type Rect } from './layout'
 import { LayoutEdit } from './LayoutEdit'
 import { DockHead, toolOf } from './Dock'
-import { TOOL_IDS, dockGrid, dropSide, groupOf, moveBefore, moveTool, parseDocks, pickActive, showIn, splitDocks, type Docks, type ToolId } from './docks'
+import { TOOL_IDS, withTop, dockGrid, dropSide, groupOf, moveBefore, moveTool, parseDocks, pickActive, showIn, splitDocks, type Docks, type ToolId } from './docks'
 import { prefs } from './prefs'
+import { KINDS, dateKey, eventsOn, parseEvents, removeEvent, saveEvent, upcoming, type Event } from './events'
 import { baseName, lastUsedOf, projectsOf, rank, rankProjects, samePath } from '../../plugins/evoke/hooks/data'
 
 declare global {
@@ -27,10 +30,16 @@ type Entry = { name: string; path: string; dir: boolean }
 // web: a preview page's address on the preview server (a PDF, a video, or the live view of an HTML or Markdown file, whose tab is named live:<path>);
 // head: a diff tab against the last commit; image: a picture shown instead of text; preview: replaced by the next single click, as in VS Code
 // proposal: an edit Claude Code offers through the IDE link, shown as a diff of this file until it is accepted or rejected
-type Tab = { path: string; text: string; saved: string; head?: string; image?: string; web?: string; preview?: boolean; proposal?: string }
+// skill: a read-only look at a skill from GitHub before it is installed (DISCOVER in the SKILL menu)
+type Tab = { path: string; text: string; saved: string; head?: string; image?: string; web?: string; preview?: boolean; proposal?: string; skill?: { repo: string; folder: string; files: number; installed: boolean; note?: string } }
+type Repo = { repo: string; description: string; stars: number }
+type Found = { folder: string; name: string; installed: boolean }
 type Change = { path: string; code: string }
-type Hit = { path: string; rel: string; line?: number; col?: number; preview?: string }
-type Finder = { mode: 'files' | 'search'; query: string; hits: Hit[]; at: number }
+// group and run: a ⌘K hit that is not a file (a menu, a tool, a project, an event) carries its own action.
+type Hit = { path: string; rel: string; line?: number; col?: number; preview?: string; group?: string; run?: () => void }
+// opts: the search sheet's toggles and file filters; replace: the text Replace all puts in.
+type SearchOpts = { caseSensitive?: boolean; word?: boolean; regex?: boolean; include?: string; exclude?: string }
+type Finder = { mode: 'files' | 'search' | 'all'; query: string; hits: Hit[]; at: number; opts?: SearchOpts; replace?: string }
 type Usage = { context: number | null; limits: { kind: string; percent: number; resetsAt?: string }[]; usd: number | null }
 
 const LIMITS: Record<string, string> = { five_hour: '5H', seven_day: '7D', spend_limit: 'SPEND' } // same labels as the pane's HUD
@@ -90,7 +99,7 @@ const focusTerm = (id: string) => requestAnimationFrame(() => document.querySele
 // Text typed into a terminal for you: no control characters, so a file or skill name can never press Enter or send keys.
 const typed = (text: string) => text.replace(/[\x00-\x1f\x7f]/g, '')
 const fileUrl = (path: string) => encodeURI(`file://${path.startsWith('/') ? '' : '/'}${path.replace(/\\/g, '/')}`)
-const isFile = (t: { path: string; head?: string; web?: string; image?: string }) => t.head === undefined && t.web === undefined && t.image === undefined
+const isFile = (t: { path: string; head?: string; web?: string; image?: string; skill?: unknown }) => t.head === undefined && t.web === undefined && t.image === undefined && !t.skill
 const relative = (root: string, path: string) => path.slice(root.length).replace(/^[\\/]/, '')
 
 const Cut = ({ label, ground = 'var(--chip)', ink = 'var(--chip-ink)' }: { label: string; ground?: string; ink?: string }) => (
@@ -132,12 +141,29 @@ export function App() {
     return next
   })
   const T = (key: Parameters<typeof tr>[1], vars?: Record<string, string | number>) => tr(lang, key, vars)
+  // A limit Claude Code adds later (a model's own weekly limit, say) still gets a readable name: seven_day_opus is "Weekly OPUS".
+  const usageLabel = (kind: string) => {
+    const key = `usage.${kind}` as Parameters<typeof tr>[1]
+    if (key in STRINGS.en) return T(key)
+    if (kind.startsWith('model:')) return T('usage.model', { name: kind.slice(6) })
+    return kind.startsWith('seven_day_') ? `${T('usage.seven_day')} ${kind.slice(10).toUpperCase()}` : kind.replace(/_/g, ' ').toUpperCase()
+  }
   const [finder, setFinder] = useState<Finder | null>(null)
   const [menu, setMenu] = useState('ITEM')
   const [skills, setSkills] = useState<{ name: string; description: string; plugin: string; uses: number }[]>([])
+  // DISCOVER: null while loading, a string when GitHub could not be reached. One repository is open at a time.
+  const [repos, setRepos] = useState<Repo[] | null | string>(null)
+  const [shelf, setShelf] = useState<{ repo: string; skills: Found[] | null | string }>()
   const [equip, setEquip] = useState<{ mcp: string[]; plugins: string[] }>({ mcp: [], plugins: [] })
   const [quests, setQuests] = useState<Hit[] | null>(null)
-  const [day, setDay] = useState<string | null>(null) // CALENDAR: the day whose sessions are listed
+  const [day, setDay] = useState<string | null>(null) // CALENDAR: the picked day, 'YYYY-MM-DD'
+  // Your own schedule, for every project. Written on each change, so the calendar and the store never disagree.
+  const [events, setEvents] = useState<Event[]>(() => { try { return parseEvents(JSON.parse(prefs.getItem('events') ?? '[]')) } catch { return [] } })
+  const changeEvents = (f: (list: Event[]) => Event[]) => setEvents(list => {
+    const next = f(list)
+    try { prefs.setItem('events', JSON.stringify(next)) } catch {}
+    return next
+  })
   const [toast, setToast] = useState('')
   const warned = useRef(new Set<string>())
   const [agents, setAgents] = useState<Agents>(storedAgents)
@@ -197,7 +223,11 @@ export function App() {
   }, [liveAct.join(), root])
   const calendarOut = Boolean(shown.floats.calendar)
   const [changes, setChanges] = useState<Change[]>([])
-  const refreshGit = useCallback(async () => setChanges(root ? await api.status(root) : []), [root])
+  const [commits, setCommits] = useState<{ hash: string; subject: string; author: string; at: number }[]>([])
+  const refreshGit = useCallback(async () => {
+    setChanges(root ? await api.status(root) : [])
+    setCommits(root ? await api.log(root) : [])
+  }, [root])
   useEffect(() => {
     refreshGit()
     window.addEventListener('focus', refreshGit)
@@ -207,9 +237,9 @@ export function App() {
   useEffect(() => {
     if (menu === 'LINK') api.sshHosts().then(setHosts, () => setHosts([]))
     if (!root) return
-    if (menu === 'SKILL') api.skills().then(setSkills)
+    if (menu === 'SKILL') (api.skills().then(setSkills), api.discover.repos().then(setRepos, () => setRepos(T('discover.failed'))))
     if (menu === 'EQUIP') api.equip(root).then(setEquip)
-    if (menu === 'AGENT' || menu === 'CALENDAR' || calendarOut) api.sessions(root).then(setSessions)
+    if (agents !== 'codex' && (menu === 'AGENT' || menu === 'CALENDAR' || calendarOut)) api.sessions(root).then(setSessions)
     if (menu === 'STATUS') refreshGit()
     if (menu === 'QUEST') (setQuests(null), api.search(root, 'TODO').then(setQuests))
   }, [menu, root, calendarOut])
@@ -429,7 +459,7 @@ export function App() {
   // Claude Code edits files on disk: tabs without your own unsaved edits follow the disk when you come back to the window.
   useEffect(() => {
     const sync = async () => {
-      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved && t.head === undefined && t.image === undefined && t.web === undefined ? api.read(t.path).catch(() => t.saved) : t.saved)))
+      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved && isFile(t) ? api.read(t.path).catch(() => t.saved) : t.saved)))
       setTabs(ts => ts.map((t, i) => (t.text === t.saved && fresh[i] !== undefined && fresh[i] !== t.saved ? { ...t, text: fresh[i], saved: fresh[i] } : t)))
     }
     window.addEventListener('focus', sync)
@@ -445,6 +475,10 @@ export function App() {
         e.preventDefault()
         e.stopPropagation()
         setFinder({ mode: 'files', query: '', hits: [], at: 0 })
+      } else if (mod && !e.shiftKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        e.stopPropagation()
+        setFinder({ mode: 'all', query: '', hits: [], at: 0 })
       } else if (mod && e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault()
         e.stopPropagation()
@@ -542,20 +576,87 @@ export function App() {
 
   // Quick open ranks on every key; search waits for a pause, since it reads every file.
   useEffect(() => {
-    if (!finder || !root) return
+    if (!finder || (!root && finder.mode !== 'all')) return
     const { mode, query } = finder
     const id = setTimeout(async () => {
-      const hits: Hit[] = mode === 'files' ? await api.files(root, query) : await api.search(root, query)
+      const hits: Hit[] = mode === 'all' ? [...everywhere(query), ...(root && query.trim() ? (await api.files(root, query)).slice(0, 10).map((h: Hit) => ({ ...h, group: 'FILE' })) : [])]
+        : mode === 'files' ? await api.files(root, query) : await api.search(root, query, finder.opts)
       setFinder(f => (f && f.mode === mode && f.query === query ? { ...f, hits, at: 0 } : f))
     }, mode === 'files' ? 60 : 250)
     return () => clearTimeout(id)
-  }, [finder?.mode, finder?.query, root])
+  }, [finder?.mode, finder?.query, JSON.stringify(finder?.opts), root])
   const pickHit = (h?: Hit) => {
     if (!h) return
     setFinder(null)
-    openFile(h.path, h.line, h.col)
+    if (h.run) h.run()
+    else openFile(h.path, h.line, h.col)
+  }
+  // Replace all, after a confirm: files open with unsaved edits are skipped; clean open tabs then reload from disk.
+  const replaceAll = async () => {
+    if (!finder || !root || !finder.hits.length) return
+    const files = new Set(finder.hits.map(h => h.path)).size
+    if (!window.confirm(T('replace.confirm', { n: finder.hits.length, files, text: finder.replace ?? '' }))) return
+    const dirty = tabs.filter(t => t.text !== t.saved).map(t => t.path)
+    try {
+      const done = await api.replace(root, finder.query, finder.replace ?? '', finder.opts ?? {}, dirty)
+      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved && isFile(t) ? api.read(t.path).catch(() => t.saved) : t.saved)))
+      setTabs(ts => ts.map((t, i) => (t.text === t.saved && fresh[i] !== undefined ? { ...t, text: fresh[i], saved: fresh[i] } : t)))
+      setToast(T('replace.done', { n: done.n, files: done.files }) + (dirty.length ? ` ${T('replace.skipped', { n: dirty.length })}` : ''))
+      setFinder(f => f && { ...f, hits: [] })
+      refreshGit()
+    } catch (e) { setToast(String((e as Error).message ?? e)) }
+  }
+  const [message, setMessage] = useState('')
+  const commit = async () => {
+    if (!root || !message.trim()) return
+    const r = await api.commit(root, message).catch((e: Error) => ({ ok: false, error: e.message }))
+    if (r.ok) setMessage('')
+    setToast(r.ok ? T('commit.done') : r.error)
+    refreshGit()
+  }
+  // ⌘K: what the window already holds, matched by name. Files come from the project on top of these.
+  const everywhere = (query: string): Hit[] => {
+    const goMenu = (m: string) => () => (setMenu(m), setSplit(s => ({ ...s, hidePane: false })))
+    const items: (Hit & { label: string; detail?: string })[] = [
+      ...MENUS.map((m: string) => ({ group: 'MENU', label: m, detail: T(`hint.${m}` as Parameters<typeof tr>[1]), run: goMenu(m) })),
+      ...visible.map(t => ({ group: 'TOOL', label: t.toUpperCase(), detail: t === 'ssh' ? remote : t, run: () => (showPane(t), setSplit(s => ({ ...s, hideRight: false }))) })),
+      ...projects.map(p => ({ group: 'PROJECT', label: p.name, detail: p.path, run: () => open(p.path) })),
+      ...events.map(e => ({ group: 'EVENT', label: e.title, detail: `${e.date} ${e.time} ${T(`kind.${e.kind}`)} ${e.note}`, run: () => (setDay(e.date), goMenu('CALENDAR')()) })),
+      ...(quests ?? []).map(q => ({ group: 'TODO', label: q.preview ?? '', detail: q.rel, path: q.path, rel: q.rel, line: q.line, col: q.col })),
+      ...changes.map(c => ({ group: 'CHANGE', label: baseName(c.path), detail: relative(root, c.path), run: () => openDiff(c.path) })),
+      ...THEME_NAMES.map(t => ({ group: 'THEME', label: THEMES[t].label, detail: T('theme'), run: () => setTheme(t) })),
+      { group: 'SYSTEM', label: T('settings'), detail: 'settings', run: () => setSettings(true) },
+    ].map(i => ({ path: '', rel: i.detail ?? '', ...i }))
+    return matchItems(items, query)
   }
 
+  const openShelf = (repo: string) => {
+    if (shelf?.repo === repo) return setShelf(undefined)
+    setShelf({ repo, skills: null })
+    api.discover.skills(repo).then((skills: Found[]) => setShelf(s => (s?.repo === repo ? { repo, skills } : s)), () => setShelf(s => (s?.repo === repo ? { repo, skills: T('discover.failed') } : s)))
+  }
+  const skillTab = (repo: string, folder: string) => `skill:${repo}/${folder}`
+  const openSkill = async (repo: string, s: Found) => {
+    const id = skillTab(repo, s.folder)
+    const got = await api.discover.preview(repo, s.folder).catch(() => undefined)
+    if (!got) return setShelf(x => (x?.repo === repo ? { repo, skills: T('discover.failed') } : x))
+    setTabs(ts => [...ts.filter(t => t.path !== id), { path: id, text: got.text, saved: got.text, skill: { repo, folder: s.folder, files: got.files, installed: got.installed } }])
+    setActive(id)
+  }
+  // Copies the skill into ~/.claude/skills and nothing else: it runs only when you later call it in a session.
+  const installSkill = async (t: Tab) => {
+    if (!t.skill) return
+    const { repo, folder } = t.skill
+    const mark = (skill: Partial<NonNullable<Tab['skill']>>) => setTabs(ts => ts.map(x => (x.path === t.path && x.skill ? { ...x, skill: { ...x.skill, ...skill } } : x)))
+    try {
+      await api.discover.install(repo, folder)
+      mark({ installed: true, note: undefined })
+      api.skills().then(setSkills)
+      api.discover.skills(repo).then((skills: Found[]) => setShelf(s => (s?.repo === repo ? { repo, skills } : s)), () => {})
+    } catch (e) {
+      mark({ note: T(String(e).includes('exists') ? 'discover.exists' : 'discover.failed') })
+    }
+  }
   const tab = tabs.find(t => t.path === active)
   const save = async (path: string, text: string) => {
     await api.write(path, text)
@@ -613,9 +714,9 @@ export function App() {
     })
   }
 
-  const grid = dockGrid(docks, shownGroups)
+  const grid = withTop(dockGrid(docks, shownGroups), 'usage')
   const termOf = (t: ToolId) => (t === 'ssh' ? `ssh:${remote}` : `${t}:${root}`)
-  const calendar = <Calendar now={now} sessions={sessions} day={day} onDay={setDay} onPick={resume} T={T} />
+  const calendar = <Calendar now={now} sessions={sessions} events={events} onSave={e => changeEvents(l => saveEvent(l, e))} onRemove={id => changeEvents(l => removeEvent(l, id))} day={day} onDay={setDay} onPick={resume} T={T} />
   return (
     <div className={`app ${api.platform} ${shown.main ? 'custom' : ''}`} style={customCols ? { gridTemplateColumns: `${hidePane ? 0 : cols.pane}px 1fr ${hideRight ? 0 : cols.right}px` } : undefined}>
       <header className="top">
@@ -623,6 +724,7 @@ export function App() {
           <Cut label="PROJECT" /> {root ? baseName(root) : T('pickProject')}
         </button>
         <span className="branch">{branch && `⎇ ${branch}`}</span>
+        <button className="find-open" onClick={() => setFinder({ mode: 'all', query: '', hits: [], at: 0 })} title={`${T('key.K')} (${MOD}K)`}>⌕ <span>{T('find.all')}</span> <kbd>{MOD}K</kbd></button>
         <button className="theme" onClick={nextTheme} title={T('theme')}><Cut label={THEMES[theme].label} ground="var(--sel)" /></button>
         <button className="edit-open" onClick={startEdit} title={T('edit.open')}><Cut label="UI" ground="var(--chip)" /></button>
         <button className="gear fold" onClick={() => setSplit(s => ({ ...s, hidePane: !s.hidePane }))} aria-pressed={!hidePane} title={`${T('key.B')} (${MOD}B)`} aria-label={T('key.B')}>◧</button>
@@ -631,16 +733,28 @@ export function App() {
         {widget('clock', <Clock now={now} />)}
       </header>
 
-      <Pane menu={menu} onMenu={setMenu} usage={usage} now={now} hint={T(`hint.${menu}` as Parameters<typeof tr>[1])} style={mainStyle('pane')} wrapInfo={info => widget('info', info)}>
+      <Pane menu={menu} onMenu={setMenu} now={now} hint={T(`hint.${menu}` as Parameters<typeof tr>[1])} style={mainStyle('pane')} wrapInfo={info => widget('info', info)}>
         {/* Every menu's content starts under a section header, as the terminal pane's does. */}
         {menu === 'ITEM' && root && <div className="group">FILES</div>}
         {menu === 'ITEM' && root && <Tree key={root} dir={root} depth={0} onOpen={openFile} active={active} />}
+        {menu === 'STATUS' && branch && (
+          <form className="commit-box" onSubmit={e => (e.preventDefault(), commit())}>
+            <input value={message} onChange={e => setMessage(e.target.value)} placeholder={T('commit.placeholder', { branch })} onKeyDown={e => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.preventDefault(), commit())} />
+            <button type="submit" disabled={!message.trim() || !changes.some(c => c.code !== '??')} title={T('commit.hint')}>✓ COMMIT</button>
+          </form>
+        )}
         {menu === 'STATUS' && <div className="group">CHANGES <span>{changes.length}</span></div>}
         {menu === 'STATUS' && (changes.length ? changes.map(c => (
           <div tabIndex={0} key={c.path} className={`entry change ${active === `diff:${c.path}` ? 'on' : ''}`} onClick={() => openDiff(c.path)} title={relative(root, c.path)}>
             <b className={`code c-${c.code.replace('??', 'U')[0]}`}>{c.code.replace('??', 'U')}</b> {baseName(c.path)} <span className="quiet">{relative(root, c.path).slice(0, -baseName(c.path).length)}</span>
           </div>
         )) : <div className="entry quiet">{branch ? T('noChanges', { branch }) : T('noGit')}</div>)}
+        {menu === 'STATUS' && commits.length > 0 && <div className="group">COMMITS <span>{commits.length}</span></div>}
+        {menu === 'STATUS' && commits.map(c => (
+          <div key={c.hash} className="entry commit" title={`${c.hash} · ${c.author} · ${new Date(c.at).toLocaleString()}`}>
+            <b className="rank">{c.hash}</b> {c.subject} <div className="desc">{c.author} · {new Date(c.at).toLocaleDateString()}</div>
+          </div>
+        ))}
         {menu === 'SKILL' && [...new Set(skills.map(s => s.plugin))].flatMap(group => {
           const own = skills.filter(s => s.plugin === group)
           return [
@@ -653,6 +767,27 @@ export function App() {
             )),
           ]
         })}
+        {menu === 'SKILL' && (
+          <>
+            <div className="group">DISCOVER <span>{Array.isArray(repos) ? repos.length : ''}</span></div>
+            {repos === null && <div className="entry quiet">{T('searching')}</div>}
+            {typeof repos === 'string' && <div className="entry quiet">{repos}</div>}
+            {Array.isArray(repos) && repos.flatMap(r => [
+              <div tabIndex={0} key={r.repo} className="entry skill" onClick={() => openShelf(r.repo)} title={r.description} aria-expanded={shelf?.repo === r.repo}>
+                <span>{shelf?.repo === r.repo ? '▾' : '▸'} {r.repo}</span> <b className="rank">★{r.stars >= 1000 ? `${(r.stars / 1000).toFixed(1)}k` : r.stars}</b>
+                <div className="desc">{r.description}</div>
+              </div>,
+              ...(shelf?.repo !== r.repo ? [] : !Array.isArray(shelf.skills)
+                ? [<div key={`${r.repo}:state`} className="entry sub quiet">{shelf.skills ?? T('searching')}</div>]
+                : shelf.skills.length ? shelf.skills.map(s => (
+                  <div tabIndex={0} key={`${r.repo}/${s.folder}`} className={`entry sub ${active === skillTab(r.repo, s.folder) ? 'on' : ''}`} onClick={() => openSkill(r.repo, s)} title={s.folder}>
+                    {s.name} {s.installed && <b className="got" aria-label={T('discover.installed')}>✓</b>}
+                    <div className="desc">{s.folder.split('/').slice(0, -1).join('/')}</div>
+                  </div>
+                )) : [<div key={`${r.repo}:none`} className="entry sub quiet">{T('discover.none')}</div>]),
+            ])}
+          </>
+        )}
         {menu === 'EQUIP' && (
           <>
             <div className="group">MCP <span>{equip.mcp.length}</span></div>
@@ -661,7 +796,7 @@ export function App() {
             {equip.plugins.map(m => <div key={m} className="entry">◆ {m}</div>)}
           </>
         )}
-        {agents === 'codex' && (menu === 'AGENT' || menu === 'CALENDAR') && <div className="entry quiet">{T('claudeOnly')}</div>}
+        {agents === 'codex' && menu === 'AGENT' && <div className="entry quiet">{T('claudeOnly')}</div>}
         {menu === 'AGENT' && agents !== 'codex' && (
           <>
             <div className="group">SESSIONS <span>{sessions.length}</span></div>
@@ -688,7 +823,7 @@ export function App() {
             )) : <div className="entry quiet">{T('noServers')}</div>}
           </>
         )}
-        {menu === 'CALENDAR' && agents !== 'codex' && (calendarOut ? <div className="entry quiet">{T('calendarFloating')}</div> : widget('calendar', calendar))}
+        {menu === 'CALENDAR' && (calendarOut ? <div className="entry quiet">{T('calendarFloating')}</div> : widget('calendar', calendar))}
         {menu === 'SYSTEM' && (
           <>
             <div className="group">{T('theme')}</div>
@@ -696,7 +831,7 @@ export function App() {
             <div className="group">{T('language')}</div>
             {UI_LANGS.map(l => <div tabIndex={0} key={l.id} className={`entry ${l.id === lang ? 'on' : ''}`} onClick={() => setLang(l.id)}>◆ {l.label}</div>)}
             <div className="group">{T('keys')}</div>
-            {(['P', 'F', 'S', 'L', 'O', 'B', 'J'] as const).map(k => <div key={k} className="entry"><b className="rank">{MOD}{k === 'F' ? '⇧F' : k}</b> {T(`key.${k}`)}</div>)}
+            {(['K', 'P', 'F', 'S', 'L', 'O', 'B', 'J'] as const).map(k => <div key={k} className="entry"><b className="rank">{MOD}{k === 'F' ? '⇧F' : k}</b> {T(`key.${k}`)}</div>)}
           </>
         )}
       </Pane>
@@ -735,6 +870,23 @@ export function App() {
         </>
         ) : tab?.image !== undefined ? (
           <div className="image-view">{tab.image ? <img src={tab.image} alt={baseName(tab.path)} /> : <p className="quiet">{T('binary')}</p>}</div>
+        ) : tab?.skill ? (<>
+          <div className="web-bar proposal" role="group" aria-label={T('discover.preview')}>
+            <span>{tab.skill.repo}/{tab.skill.folder} · {T('discover.files', { n: tab.skill.files })}{tab.skill.note && ` · ${tab.skill.note}`}</span>
+            {tab.skill.installed
+              ? <b className="got">✓ {T('discover.installed')}</b>
+              : <button onClick={() => installSkill(tab)}><Cut label={T('discover.install')} ground="var(--sel)" ink="var(--sel-ink)" /></button>}
+          </div>
+          <Editor
+            path={tab.path}
+            language="markdown"
+            value={tab.text}
+            theme={`evoke-${theme}`}
+            beforeMount={defineThemes}
+            loading={<div className="state">{T('loading')}</div>}
+            options={{ readOnly: true, wordWrap: 'on', fontFamily: 'Iosevka, Menlo, Consolas, monospace', fontSize: 14, minimap: { enabled: false }, padding: { top: 12 } }}
+          />
+        </>
         ) : tab ? (
           <Editor
             path={tab.path}
@@ -752,10 +904,11 @@ export function App() {
           />
         ) : (
           <div className="empty">
+            <EmptyArt theme={theme} />
             <img className="mark" src={THEMES[theme].logo} alt="Evoke" />
             <div className="big">EVOKE</div>
             {root ? (
-              <p>{T('emptyHint', { mod: MOD })}</p>
+              <p className="keys">{T('emptyHint', { mod: MOD }).split(' · ').map(k => <span key={k}>{k}</span>)}</p>
             ) : (
               <div className="welcome">
                 <div className="group">{T('welcome')}</div>
@@ -777,6 +930,7 @@ export function App() {
         style={{ ...mainStyle('right'), gridTemplateColumns: grid.columns, gridTemplateRows: grid.rows, gridTemplateAreas: grid.areas }}
         onPointerDown={e => { const g = (e.target as HTMLElement).closest('[data-group]')?.getAttribute('data-group'); if (g) setFocus(Number(g)) }}
       >
+        <UsageStrip usage={usage} now={now} label={usageLabel} />
         {shownGroups.map(g => (
           <DockHead
             key={g}
@@ -857,8 +1011,8 @@ export function App() {
       {/* The status band, as above the terminal's prompt. */}
       <footer className="hud">
         <Cut label={menu} ground="var(--chip)" />
-        <b className="band">{root ? baseName(root) : '—'}</b>{branch && <i className="quiet"> / {branch}</i>}
-        <span className="quiet">{T('changes', { n: changes.length })}</span>
+        <b className="band">{root ? baseName(root) : '—'}</b>{branch && <i className="hud-branch">⎇ {branch}</i>}
+        <span className={`hud-changes ${changes.length ? 'dirty' : ''}`}>{T('changes', { n: changes.length })}</span>
         {!usage && <span className="quiet usd">{T('noUsage')}</span>}
       </footer>
       {!shown.main && !draft && !hidePane && divider('pane')}
@@ -871,12 +1025,12 @@ export function App() {
         <div className="picker" onClick={() => setFinder(null)}>
           <div className="sheet finder" onClick={e => e.stopPropagation()}>
             <div className="head">
-              <Cut label={finder.mode === 'files' ? 'FILES' : 'SEARCH'} />
+              <Cut label={finder.mode === 'files' ? 'FILES' : finder.mode === 'all' ? 'FIND' : 'SEARCH'} />
               <input
                 autoFocus
                 value={finder.query}
-                placeholder={finder.mode === 'files' ? T('fileName') : T('searchText')}
-                onChange={e => setFinder({ ...finder, query: e.target.value })}
+                placeholder={finder.mode === 'files' ? T('fileName') : finder.mode === 'all' ? T('find.all') : T('searchText')}
+                onChange={e => { const query = e.target.value; setFinder(f => f && { ...f, query }) }}
                 onKeyDown={e => {
                   const n = finder.hits.length
                   if (e.key === 'Escape') setFinder(null)
@@ -888,13 +1042,29 @@ export function App() {
                 }}
               />
             </div>
+            {finder.mode === 'search' && (
+              <div className="search-opts">
+                <span className="ev-line">
+                  <input value={finder.replace ?? ''} placeholder={T('replace.with')} onChange={e => { const replace = e.target.value; setFinder(f => f && { ...f, replace }) }} />
+                  {([['caseSensitive', 'Aa'], ['word', 'ab'], ['regex', '.*']] as const).map(([k, label]) => (
+                    <button key={k} type="button" className={finder.opts?.[k] ? 'on' : ''} aria-pressed={!!finder.opts?.[k]} title={T(`search.${k}`)} onClick={() => setFinder(f => f && { ...f, opts: { ...f.opts, [k]: !f.opts?.[k] } })}>{label}</button>
+                  ))}
+                  <button type="button" disabled={!finder.hits.length} onClick={replaceAll} title={T('replace.all')}>{T('replace.all')}</button>
+                </span>
+                <span className="ev-line">
+                  <input value={finder.opts?.include ?? ''} placeholder={T('search.include')} onChange={e => { const include = e.target.value; setFinder(f => f && { ...f, opts: { ...f.opts, include } }) }} />
+                  <input value={finder.opts?.exclude ?? ''} placeholder={T('search.exclude')} onChange={e => { const exclude = e.target.value; setFinder(f => f && { ...f, opts: { ...f.opts, exclude } }) }} />
+                </span>
+              </div>
+            )}
             <div className="hits">
               {finder.hits.map((h, i) => (
-                <button key={`${h.path}:${h.line}`} className={`row ${i === finder.at ? 'on' : ''}`} onClick={() => pickHit(h)}>
-                  {h.line ? <><b>{h.line}</b> <span className="preview">{h.preview}</span> <span className="quiet">{h.rel}</span></> : <><FileIcon name={h.rel} /> {baseName(h.rel)} <span className="quiet">{h.rel}</span></>}
+                <button key={`${h.group}:${h.path}:${h.line}:${h.rel}:${i}`} className={`row ${i === finder.at ? 'on' : ''}`} onClick={() => pickHit(h)}>
+                  {h.group && <b className="kind">{h.group}</b>}
+                  {h.run || h.group === 'TODO' ? <>{(h as any).label} <span className="quiet">{h.rel}</span></> : h.line ? <><b>{h.line}</b> <span className="preview">{h.preview}</span> <span className="quiet">{h.rel}</span></> : <><FileIcon name={h.rel} /> {baseName(h.rel)} <span className="quiet">{h.rel}</span></>}
                 </button>
               ))}
-              {finder.query.length >= (finder.mode === 'files' ? 1 : 2) && !finder.hits.length && <div className="row quiet">{T('noResults')}</div>}
+              {finder.query.trim().length >= (finder.mode === 'search' ? 2 : 1) && !finder.hits.length && <div className="row quiet">{T('noResults')}</div>}
             </div>
           </div>
         </div>
@@ -926,7 +1096,7 @@ export function App() {
                 <button className="row" onClick={startEdit}><b>▸</b> {T('edit.open')}</button>
               </>
             )}
-            {settingsTab === 'keys' && (['P', 'F', 'S', 'L', 'O', 'B', 'J', 'W', 'Tab', ','] as const).map(k => <div key={k} className="row"><b className="key">{k === 'Tab' ? 'Ctrl+Tab' : `${MOD}${k === 'F' ? '⇧F' : k}`}</b> {T(`key.${k}`)}</div>)}
+            {settingsTab === 'keys' && (['K', 'P', 'F', 'S', 'L', 'O', 'B', 'J', 'W', 'Tab', ','] as const).map(k => <div key={k} className="row"><b className="key">{k === 'Tab' ? 'Ctrl+Tab' : `${MOD}${k === 'F' ? '⇧F' : k}`}</b> {T(`key.${k}`)}</div>)}
             {settingsTab === 'terminal' && (
               <>
                 <div className="row"><b>◆</b> {T('term.size')}
@@ -1073,25 +1243,40 @@ function Claude({ kind, cwd, group, on, theme, prefs, resume, endedLabel }: { ki
   )
 }
 
-// CALENDAR: month, week or day, with a mark on each day you talked to Claude in this project.
-function Calendar({ now, sessions, day, onDay, onPick, T }: { now: number; sessions: { id: string; title: string; mtime: number }[]; day: string | null; onDay: (d: string) => void; onPick: (id: string) => void; T: (key: any, vars?: any) => string }) {
+// CALENDAR: month, week or day. Each day shows your own events (by kind) and a mark for each talk with Claude in this project.
+type Draft = Partial<Event> & { date: string }
+function Calendar({ now, sessions, events, onSave, onRemove, day, onDay, onPick, T }: { now: number; sessions: { id: string; title: string; mtime: number }[]; events: Event[]; onSave: (e: Event) => void; onRemove: (id: string) => void; day: string | null; onDay: (d: string) => void; onPick: (id: string) => void; T: (key: any, vars?: any) => string }) {
   const [view, setView] = useState<'month' | 'week' | 'day'>('month')
   const [at, setAt] = useState(now)
+  const [draft, setDraft] = useState<Draft | null>(null)
   const d = new Date(at)
   const y = d.getFullYear()
   const m = d.getMonth()
-  const keyOf = (t: number) => new Date(t).toDateString()
-  const today = keyOf(now)
+  const today = dateKey(now)
   const count = new Map<string, number>()
-  for (const s of sessions) count.set(keyOf(s.mtime), (count.get(keyOf(s.mtime)) ?? 0) + 1)
+  for (const s of sessions) count.set(dateKey(s.mtime), (count.get(dateKey(s.mtime)) ?? 0) + 1)
   const first = new Date(y, m, 1).getDay()
   const days = new Date(y, m + 1, 0).getDate()
-  const pick = (k: string) => (onDay(k), setAt(new Date(k).getTime()))
-  const shown = view === 'day' ? keyOf(at) : day
-  const picked = sessions.filter(s => keyOf(s.mtime) === shown).sort((a, b) => a.mtime - b.mtime)
+  const pick = (k: string) => (onDay(k), setAt(new Date(`${k}T12:00`).getTime()), setDraft(null))
+  const shown = view === 'day' ? dateKey(at) : day ?? today
+  const picked = sessions.filter(s => dateKey(s.mtime) === shown).sort((a, b) => a.mtime - b.mtime)
+  const dayEvents = eventsOn(events, shown)
+  const next = upcoming(events, now).filter(e => e.date !== shown)
   const week = weekOf(at)
   const pad = (n: number) => String(n).padStart(2, '0')
   const label = view === 'month' ? `${y}.${pad(m + 1)}` : view === 'week' ? `${pad(new Date(week[0]).getMonth() + 1)}.${pad(new Date(week[0]).getDate())} – ${pad(new Date(week[6]).getMonth() + 1)}.${pad(new Date(week[6]).getDate())}` : `${y}.${pad(m + 1)}.${pad(d.getDate())} ${DAYS[d.getDay()]}`
+  const dots = (k: string) => KINDS.filter(kind => events.some(e => e.date === k && e.kind === kind)).map(kind => <i key={kind} className={`dot k-${kind}`} />)
+  const save = () => {
+    if (!draft?.title?.trim()) return
+    onSave({ id: draft.id ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, title: draft.title, date: draft.date, time: draft.time ?? '', kind: draft.kind ?? 'dev', note: draft.note ?? '' })
+    setDraft(null)
+  }
+  const row = (e: Event, withDate = false) => (
+    <div tabIndex={0} key={e.id} className={`entry event k-${e.kind}`} onClick={() => (withDate && pick(e.date), setDraft(e))} title={e.note}>
+      <i className={`dot k-${e.kind}`} /> <b className="rank">{withDate ? `${e.date.slice(5).replace('-', '/')} ` : ''}{e.time || T('ev.allDay')}</b> {e.title}
+      {e.note && <div className="desc">{e.note}</div>}
+    </div>
+  )
   return (
     <div className="calendar">
       <div className="cal-bar">
@@ -1108,11 +1293,11 @@ function Calendar({ now, sessions, day, onDay, onPick, T }: { now: number; sessi
           {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((w, i) => <i key={i}>{w}</i>)}
           {Array.from({ length: first }, (_, i) => <span key={`x${i}`} />)}
           {Array.from({ length: days }, (_, i) => {
-            const k = new Date(y, m, i + 1).toDateString()
+            const k = dateKey(new Date(y, m, i + 1).getTime())
             const n = count.get(k) ?? 0
             return (
-              <button key={k} className={`${n ? 'has' : ''} ${k === day ? 'on' : ''} ${k === today ? 'today' : ''}`} onClick={() => pick(k)} title={n ? T('talks', { n }) : ''}>
-                {i + 1}
+              <button key={k} className={`${n ? 'has' : ''} ${k === shown ? 'on' : ''} ${k === today ? 'today' : ''}`} onClick={() => pick(k)} title={n ? T('talks', { n }) : ''}>
+                {i + 1}<span className="dots">{dots(k)}</span>
               </button>
             )
           })}
@@ -1121,18 +1306,42 @@ function Calendar({ now, sessions, day, onDay, onPick, T }: { now: number; sessi
       {view === 'week' && (
         <div className="week">
           {week.map(t => {
-            const k = keyOf(t)
+            const k = dateKey(t)
             const n = count.get(k) ?? 0
             return (
-              <button key={k} className={`${n ? 'has' : ''} ${k === day ? 'on' : ''} ${k === today ? 'today' : ''}`} onClick={() => pick(k)}>
-                <b>{DAYS[new Date(t).getDay()]}</b> {new Date(t).getDate()} <span className="quiet">{n ? T('talks', { n }) : ''}</span>
+              <button key={k} className={`${n ? 'has' : ''} ${k === shown ? 'on' : ''} ${k === today ? 'today' : ''}`} onClick={() => pick(k)}>
+                <b>{DAYS[new Date(t).getDay()]}</b> {new Date(t).getDate()} <span className="dots">{dots(k)}</span> <span className="quiet">{n ? T('talks', { n }) : ''}</span>
               </button>
             )
           })}
         </div>
       )}
+      <div className="group">{shown.slice(5).replace('-', '/')} {shown === today ? T('today') : ''} <span>{dayEvents.length}</span></div>
+      {dayEvents.map(e => row(e))}
+      {draft ? (
+        <form className="ev-form" onSubmit={e => (e.preventDefault(), save())} onKeyDown={e => e.key === 'Escape' && setDraft(null)}>
+          <input autoFocus required value={draft.title ?? ''} placeholder={T('ev.title')} onChange={e => setDraft({ ...draft, title: e.target.value })} />
+          <span className="ev-line">
+            <input type="date" required value={draft.date} onChange={e => e.target.value && setDraft({ ...draft, date: e.target.value })} />
+            <input type="time" value={draft.time ?? ''} onChange={e => setDraft({ ...draft, time: e.target.value })} aria-label={T('ev.time')} />
+          </span>
+          <span className="views kinds">
+            {KINDS.map(k => <button type="button" key={k} className={`k-${k} ${(draft.kind ?? 'dev') === k ? 'on' : ''}`} onClick={() => setDraft({ ...draft, kind: k })}>{T(`kind.${k}`)}</button>)}
+          </span>
+          <input value={draft.note ?? ''} placeholder={T('ev.note')} onChange={e => setDraft({ ...draft, note: e.target.value })} />
+          <span className="ev-line">
+            <button type="submit" className="on">{T('ev.save')}</button>
+            {draft.id && <button type="button" onClick={() => (onRemove(draft.id!), setDraft(null))}>{T('ev.delete')}</button>}
+            <button type="button" onClick={() => setDraft(null)}>{T('ev.cancel')}</button>
+          </span>
+        </form>
+      ) : (
+        <div tabIndex={0} className="entry" onClick={() => setDraft({ date: shown })}>＋ {T('ev.add')}</div>
+      )}
+      {picked.length > 0 && <div className="group">SESSIONS <span>{picked.length}</span></div>}
       {picked.map(s => <div tabIndex={0} key={s.id} className="entry" onClick={() => onPick(s.id)}>▸ {new Date(s.mtime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {s.title || T('untitled')}</div>)}
-      {view === 'day' && !picked.length && <div className="entry quiet">{T('noSessions')}</div>}
+      <div className="group">UPCOMING <span>{next.length}</span></div>
+      {next.length ? next.map(e => row(e, true)) : <div className="entry quiet">{T('ev.none')}</div>}
     </div>
   )
 }

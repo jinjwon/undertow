@@ -1,7 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { baseName, cellOf, dayOf, entryOf, fitName, gauge, lastUsedOf, layoutOf, menuOf, monthOf, moon, openerOf, pageOf, projectsOf, rank, rankProjects, samePath, skillRows, skillsOf, slotsOf, tallied, untilReset } from './data'
-import { ART, GRID, ITEM_ROWS } from './tokens.js'
+import { baseName, dayOf, entryOf, fitName, gauge, lastUsedOf, menuOf, monthOf, moon, openerOf, pageOf, projectsOf, rank, rankProjects, samePath, skillRows, skillsOf, slotsOf, tallied, untilReset } from './data'
 
 declare const setTimeout: (done: (value?: unknown) => void, ms: number) => void
 
@@ -14,30 +13,6 @@ test('tools land on their menu, ranks cap, the moon is right', async () => {
   expect(rank(50)).toBe('MAX')
   expect(moon(Date.UTC(2026, 10, 9, 12))).toBe('New Moon')
   expect(moon(Date.UTC(2026, 10, 24, 12))).toBe('Full Moon')
-})
-
-test('the art keeps its shape and hands over its rows', async () => {
-  const full = layoutOf(56, 41, ART, GRID)
-  expect(full).toEqual({ height: 41, columns: 56, content: 22, footer: 38, scale: 1 })
-  expect(layoutOf(56, 60, ART, GRID)?.height).toBe(41) // A taller pane leaves water below, not a stretched picture.
-  expect(layoutOf(56, 30, ART, GRID)?.columns).toBe(41) // A shorter one shrinks the picture whole.
-  expect(layoutOf(30, 40, ART, GRID)).toBeNull()
-  expect(layoutOf(56, 20, ART, GRID)).toBeNull()
-})
-
-test('the cell of another font resizes the art, and a wrong one is ignored', async () => {
-  expect(cellOf('0.5')).toBe(0.5)
-  expect(cellOf(undefined)).toBe(0.4)
-  expect(cellOf('wide')).toBe(0.4)
-  expect(cellOf('3')).toBe(0.4)
-  expect(layoutOf(56, 41, ART, GRID, 0.5)?.columns).toBe(45) // A wider cell needs fewer columns for the same picture.
-})
-
-test('every menu name keeps a row of its own at the smallest art', async () => {
-  const small = layoutOf(56, 28, ART, GRID)!
-  const rows = ITEM_ROWS.map((r: { y: number }) => Math.round((r.y / ART.cellY - 0.5) * small.scale))
-  expect(new Set(rows).size).toBe(ITEM_ROWS.length)
-  expect(Math.max(...rows)).toBeLessThan(small.content)
 })
 
 test('a tool call shows in the band guide', async ($, on) => {
@@ -184,7 +159,7 @@ test('each menu draws its own content at every size, however long its log', asyn
   }
 })
 
-test('with no picture the pane is sections: the menu in its column, the content, the keys', async ($, on) => {
+test('the pane is sections: the menu in its column, the content, the keys', async ($, on) => {
   on('clock.now', () => ({ value: Date.UTC(2026, 10, 6) }))
   const filled: string[] = []
   on('prompt.fill', (_$, e) => {
@@ -209,7 +184,7 @@ test('with no picture the pane is sections: the menu in its column, the content,
   }
 })
 
-test('a pane drawn before any session start asks the terminal, and draws rows where there are no pictures', async ($: any, on: any) => {
+test('a pane drawn before any session start draws rows in every terminal', async ($: any, on: any) => {
   on('clock.now', () => ({ value: Date.UTC(2026, 10, 6) }))
   let terminal: string | undefined
   on('env.get', () => ({ value: terminal }))
@@ -222,7 +197,7 @@ test('a pane drawn before any session start asks the terminal, and draws rows wh
       requestId: 'evoke',
       props: { title: 'EVOKE', isFocused: true, bodyColumns: 56, placement: 'dock', scroll: { offset: 0, bodyRows: 41 }, view: {} },
     })
-    expect(Boolean(await ui.find({ type: 'Text', text: /^MENU$/ }))).toBe(isPlain)
+    expect(Boolean(await ui.find({ type: 'Text', text: /^MENU$/ }))).toBe(true)
     await ui.unmount()
   }
 })
