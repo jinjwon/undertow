@@ -176,8 +176,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .pane-hud { position: absolute; inset: 0 0 auto 0; padding: 6px 10px; background: var(--ink); font: 12px Iosevka, Menlo, Consolas, monospace; }
 .pane-hud .day { display: flex; gap: 8px; align-items: baseline; font-style: italic; color: var(--text); }
 .pane-hud .day b { color: #fff; }
-.pane-hud .usd { margin-left: auto; color: var(--gray); }
-.gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 2px; }
+/* Usage above the terminals: one row of gauges that wraps when the panel is narrow. The left inset clears TIDE's slant and REBEL's cut corner. */
+.usage-strip { grid-area: usage; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 16px; padding: 6px 12px 6px 48px; background: var(--ink); border-bottom: 1px solid var(--line); font: 12px Iosevka, Menlo, Consolas, monospace; }
+.usage-strip .gauge { min-width: 112px; }
 .gauge { display: flex; flex-direction: column; font-size: 11px; }
 .gauge i { color: var(--text); } .gauge b { color: #fff; font-style: italic; } .gauge .hot { color: var(--hot); }
 .g-bar span:first-child { color: var(--hi); letter-spacing: -1px; } .g-bar .quiet { letter-spacing: -1px; }

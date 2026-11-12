@@ -5,15 +5,15 @@ import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
-import { Pane } from './Pane'
+import { Pane, UsageStrip } from './Pane'
 import { Chat } from './ChatPanel'
-import { LANGS as UI_LANGS, langFrom, tr, type Lang } from './i18n'
+import { LANGS as UI_LANGS, STRINGS, langFrom, tr, type Lang } from './i18n'
 import { agentsOf, parseAgents, targetOf, type Agent, type Agents } from './agents'
 import { iconOf, isImage, previewKind, promptVars, stepDate, weekOf } from './text'
 import { EMPTY, FLOAT_IDS, fillHidden, fitCols, fitFloat, parseLayout, type Cols, type FloatId, type Layout, type MainId, type Rect } from './layout'
 import { LayoutEdit } from './LayoutEdit'
 import { DockHead, toolOf } from './Dock'
-import { TOOL_IDS, dockGrid, dropSide, groupOf, moveBefore, moveTool, parseDocks, pickActive, showIn, splitDocks, type Docks, type ToolId } from './docks'
+import { TOOL_IDS, withTop, dockGrid, dropSide, groupOf, moveBefore, moveTool, parseDocks, pickActive, showIn, splitDocks, type Docks, type ToolId } from './docks'
 import { prefs } from './prefs'
 import { baseName, lastUsedOf, projectsOf, rank, rankProjects, samePath } from '../../plugins/evoke/hooks/data'
 
@@ -132,6 +132,12 @@ export function App() {
     return next
   })
   const T = (key: Parameters<typeof tr>[1], vars?: Record<string, string | number>) => tr(lang, key, vars)
+  // A limit Claude Code adds later (a model's own weekly limit, say) still gets a readable name: seven_day_opus is "Weekly OPUS".
+  const usageLabel = (kind: string) => {
+    const key = `usage.${kind}` as Parameters<typeof tr>[1]
+    if (key in STRINGS.en) return T(key)
+    return kind.startsWith('seven_day_') ? `${T('usage.seven_day')} ${kind.slice(10).toUpperCase()}` : kind.replace(/_/g, ' ').toUpperCase()
+  }
   const [finder, setFinder] = useState<Finder | null>(null)
   const [menu, setMenu] = useState('ITEM')
   const [skills, setSkills] = useState<{ name: string; description: string; plugin: string; uses: number }[]>([])
@@ -613,7 +619,7 @@ export function App() {
     })
   }
 
-  const grid = dockGrid(docks, shownGroups)
+  const grid = withTop(dockGrid(docks, shownGroups), 'usage')
   const termOf = (t: ToolId) => (t === 'ssh' ? `ssh:${remote}` : `${t}:${root}`)
   const calendar = <Calendar now={now} sessions={sessions} day={day} onDay={setDay} onPick={resume} T={T} />
   return (
@@ -631,7 +637,7 @@ export function App() {
         {widget('clock', <Clock now={now} />)}
       </header>
 
-      <Pane menu={menu} onMenu={setMenu} usage={usage} now={now} hint={T(`hint.${menu}` as Parameters<typeof tr>[1])} style={mainStyle('pane')} wrapInfo={info => widget('info', info)}>
+      <Pane menu={menu} onMenu={setMenu} now={now} hint={T(`hint.${menu}` as Parameters<typeof tr>[1])} style={mainStyle('pane')} wrapInfo={info => widget('info', info)}>
         {/* Every menu's content starts under a section header, as the terminal pane's does. */}
         {menu === 'ITEM' && root && <div className="group">FILES</div>}
         {menu === 'ITEM' && root && <Tree key={root} dir={root} depth={0} onOpen={openFile} active={active} />}
@@ -777,6 +783,7 @@ export function App() {
         style={{ ...mainStyle('right'), gridTemplateColumns: grid.columns, gridTemplateRows: grid.rows, gridTemplateAreas: grid.areas }}
         onPointerDown={e => { const g = (e.target as HTMLElement).closest('[data-group]')?.getAttribute('data-group'); if (g) setFocus(Number(g)) }}
       >
+        <UsageStrip usage={usage} now={now} label={usageLabel} />
         {shownGroups.map(g => (
           <DockHead
             key={g}
