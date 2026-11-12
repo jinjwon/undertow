@@ -465,15 +465,13 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .stepper { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; }
 .stepper button { width: 28px; font-weight: 900; background: var(--sel); color: var(--sel-ink); clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%); }
 
-.edit { position: fixed; inset: 0; z-index: 60; -webkit-app-region: no-drag; user-select: none; background: linear-gradient(color-mix(in srgb, var(--edge) 18%, transparent) 1px, transparent 1px) 0 0 / 16px 16px, linear-gradient(90deg, color-mix(in srgb, var(--edge) 18%, transparent) 1px, transparent 1px) 0 0 / 16px 16px, color-mix(in srgb, var(--ink) 20%, transparent); animation: flood .14s ease-out; }
-.edit.previewing { background: none; pointer-events: none; }
-.edit-bar { position: fixed; left: 50%; bottom: 44px; translate: -50% 0; display: flex; gap: 16px; align-items: center; padding: 8px 20px; color: #FFFFFF; background: var(--ink); box-shadow: 6px 6px 0 var(--edge); pointer-events: auto; font: 900 italic 15px Barlow, Pretendard, sans-serif; }
-.edit-bar button { color: var(--edge); }
+.edit { position: fixed; inset: 0; z-index: 60; -webkit-app-region: no-drag; user-select: none; }
+.edit.peeking { pointer-events: none; }
 .edit-ws { position: absolute; left: 0; right: 0; }
-.box { position: absolute; cursor: move; touch-action: none; color: #FFFFFF; background: color-mix(in srgb, var(--sel) 12%, transparent); border: 2px solid var(--sel); transition: left .05s linear, top .05s linear, width .05s linear, height .05s linear, background .1s; }
-.box:hover { background: color-mix(in srgb, var(--edge) 18%, transparent); }
+.box { position: absolute; cursor: move; touch-action: none; color: #FFFFFF; border: 2px solid var(--sel); box-shadow: 0 0 0 1px var(--ink); transition: left .05s linear, top .05s linear, width .05s linear, height .05s linear; }
+.box:hover { border-color: var(--edge); }
 .box.docked { border-style: dashed; }
-.box.on { z-index: 2; background: color-mix(in srgb, var(--edge) 22%, transparent); border-color: var(--edge); box-shadow: 0 0 0 1px var(--ink); }
+.box.on { z-index: 2; border-color: var(--edge); }
 .box.swap { background: color-mix(in srgb, var(--edge) 60%, transparent); }
 .box > b { position: absolute; left: 0; top: 0; padding: 2px 14px 2px 8px; font: 900 italic 13px Barlow, Pretendard, sans-serif; white-space: nowrap; background: var(--ink); clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
 .box > i { position: absolute; right: 4px; bottom: 2px; padding: 0 6px; font: 11px Iosevka, Menlo, monospace; background: color-mix(in srgb, var(--ink) 80%, transparent); }
@@ -486,8 +484,15 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .gap-l { left: 6px; top: calc(50% + 12px); } .gap-r { right: 6px; top: calc(50% + 12px); } .gap-t { top: 26px; left: calc(50% + 12px); } .gap-b { bottom: 20px; left: calc(50% + 12px); }
 .guide { position: absolute; z-index: 3; background: var(--edge); pointer-events: none; }
 .guide.v { top: 0; bottom: 0; width: 1px; } .guide.h { left: 0; right: 0; height: 1px; }
-.inspector { position: fixed; right: 20px; bottom: 44px; z-index: 4; width: 270px; max-height: calc(100vh - 110px); overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 10px 14px 12px; color: var(--ink); background: #FFFFFF; border-left: 8px solid var(--edge); box-shadow: 8px 8px 0 var(--ink); font-size: 12px; }
-.inspector.left { right: auto; left: 20px; }
+.inspector { position: fixed; z-index: 4; display: flex; gap: 6px; padding: 6px 12px; color: var(--ink); background: #FFFFFF; border-left: 8px solid var(--edge); box-shadow: 6px 6px 0 var(--ink); font-size: 12px; }
+/* The options bar sits in the top band, over nothing being edited; the ⋯ menu drops under it on the right. */
+.inspector.bar { top: 4px; left: 50%; translate: -50% 0; align-items: center; max-width: calc(100vw - 32px); white-space: nowrap; }
+.inspector.bar h3 { font-size: 16px; }
+.inspector.bar .dims { font: 700 13px Iosevka, Menlo, Consolas, monospace; color: var(--sel); }
+.inspector.bar select { padding: 2px 4px; }
+.inspector.more { top: 48px; right: 16px; width: 270px; max-height: calc(100vh - 150px); overflow: auto; flex-direction: column; padding: 10px 14px 12px; }
+.size-tip { position: fixed; z-index: 5; padding: 1px 6px; pointer-events: none; color: var(--ink); background: var(--edge); font: 700 11px Iosevka, Menlo, Consolas, monospace; }
+
 .inspector h3 { margin: 0; font: 900 italic 20px Barlow, Pretendard, sans-serif; color: var(--sel); }
 .inspector h4 { margin: 4px 0 0; font: 900 italic 13px Barlow, Pretendard, sans-serif; border-bottom: 2px solid var(--ink); }
 .inspector p { margin: 0; }
@@ -502,7 +507,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .nums label { display: flex; align-items: center; gap: 6px; font: 900 italic 14px Barlow, sans-serif; }
 .check { display: flex; align-items: center; gap: 6px; }
 .preset-new, .preset { display: flex; gap: 4px; }
-.preset button:first-child { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.preset span { flex: 1; padding: 4px 10px; overflow: hidden; text-overflow: ellipsis; }
 .actions { display: flex; gap: 4px; margin-top: 4px; }
 .actions button { flex: 1; text-align: center; }
 .actions .save { color: #FFFFFF; background: var(--sel); }
@@ -560,10 +565,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 [data-theme='rebel'] {
   .c-M, .c-A, .c-U { color: #FFFFFF; } .c-D { color: var(--blood); } .c-R { color: var(--gray); }
   .entry.on .code { color: #000000; }
-  .edit-bar { transform: rotate(-1.5deg); outline: 3px solid #FFFFFF; box-shadow: 8px 8px 0 var(--blood); }
   .inspector { border-left: 0; outline: 3px solid #000000; box-shadow: 10px 10px 0 var(--blood); transform: rotate(1deg); }
   .inspector h3, .box.on { color: var(--blood); }
-  .box { border-color: #FFFFFF; } .box.on { border-color: var(--blood); background: #FFFFFF38; }
+  .box { border-color: #FFFFFF; } .box.on { border-color: var(--blood); }
   .hd { border-color: var(--blood); } .actions .save { background: var(--blood); }
   .state-error { background: #000000; }
   .state-error h1 { margin-bottom: 28px; padding: 0 16px; color: #000000; background: #FFFFFF; box-shadow: 10px 10px 0 var(--blood); transform: rotate(-3deg); }

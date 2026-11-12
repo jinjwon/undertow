@@ -140,11 +140,11 @@ Function follows a code editor (side bar, preview tabs, panel, status bar, quick
 | Empty editor (project open) | Display word and one hint line | `.empty` |
 | Editor | Tabs on a dark band, page below; a single click opens a preview tab (italic) | `.tabs`, `.tab`, Monaco |
 | Side bar | Nine menus, each content list under band headers with counts | `.pane`, `.group`, `.entry` |
-| Terminals | Chips pick the terminal; tools on their own row | `.head.sides`, `.tools`, `.claude` |
+| Terminals | A usage strip on top (context, every limit Claude Code reports, cost), then chips that pick the terminal; tools on their own row | `.usage-strip`, `.gauge`, `.head.sides`, `.tools`, `.claude` |
 | Status bar | Menu chip, project, branch, changes | `.hud` |
 | Sheets (projects, quick open, search, settings) | Overlay, one skewed plate, title band, rows | `.picker`, `.sheet`, `.row`, `.set-tabs` |
 | Alert | Plate at the bottom right, 5 seconds | `.toast` |
-| UI edit mode | Grid overlay, panel boxes, inspector, bar | `.edit`, `.box`, `.inspector`, `.edit-bar` |
+| UI edit mode | Outline boxes over the live layout (no fill, no grid), one options bar in the top band, a ⋯ menu for numbers, agent panel and presets, W × H beside the cursor while dragging; hold Space to hide the overlay | `.edit`, `.box`, `.inspector.bar`, `.inspector.more`, `.size-tip` |
 | Loading, error | See States | `.state`, `.state-error` |
 
 Rules:
