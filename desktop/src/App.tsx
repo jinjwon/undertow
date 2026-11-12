@@ -136,6 +136,7 @@ export function App() {
   const usageLabel = (kind: string) => {
     const key = `usage.${kind}` as Parameters<typeof tr>[1]
     if (key in STRINGS.en) return T(key)
+    if (kind.startsWith('model:')) return T('usage.model', { name: kind.slice(6) })
     return kind.startsWith('seven_day_') ? `${T('usage.seven_day')} ${kind.slice(10).toUpperCase()}` : kind.replace(/_/g, ' ').toUpperCase()
   }
   const [finder, setFinder] = useState<Finder | null>(null)
