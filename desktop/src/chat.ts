@@ -37,3 +37,23 @@ export const chatReduce = (chat: Chat, event: any): Chat => {
   }
   return chat
 }
+
+// An answer's Markdown, cut into parts React draws as elements: fenced code, inline code, bold and plain text.
+// No HTML is ever made from Claude's words, so nothing it writes can run in this window.
+export type Part = { kind: 'code'; lang: string; text: string } | { kind: 'line'; spans: { kind: 'text' | 'code' | 'bold'; text: string }[] }
+const FENCE = /```([^\n`]*)\n?([\s\S]*?)(?:```|$)/
+const spansOf = (t: string) => t.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/).filter(Boolean).map(x =>
+  x.length > 2 && x.startsWith('`') && x.endsWith('`') ? { kind: 'code' as const, text: x.slice(1, -1) }
+  : x.length > 4 && x.startsWith('**') && x.endsWith('**') ? { kind: 'bold' as const, text: x.slice(2, -2) }
+  : { kind: 'text' as const, text: x })
+export const partsOf = (text: string): Part[] => {
+  const parts: Part[] = []
+  let rest = text
+  for (let m = FENCE.exec(rest); m && rest; m = FENCE.exec(rest)) {
+    if (m.index) parts.push({ kind: 'line', spans: spansOf(rest.slice(0, m.index)) })
+    parts.push({ kind: 'code', lang: m[1].trim(), text: m[2].replace(/\n$/, '') })
+    rest = rest.slice(m.index + m[0].length)
+  }
+  if (rest) parts.push({ kind: 'line', spans: spansOf(rest) })
+  return parts
+}
