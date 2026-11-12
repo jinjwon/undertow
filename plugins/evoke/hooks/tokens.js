@@ -1,4 +1,4 @@
-// The design tokens, shared by the pane (register.tsx) and the art (tools/scene.html).
+// The design tokens, shared by the plugin pane (register.tsx) and the desktop pane (Pane.tsx).
 // desktop/src/style.css (TIDE) uses the same colours: change them together.
 export const COLOR = {
   INK: '#01030C', // the HUD's plate: far enough from NAVY that the shader leaves them solid

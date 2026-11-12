@@ -185,7 +185,7 @@ The MENU pane the plugin draws inside Claude Code. Colours are in `plugins/evoke
 
 One mode: plain rows, sections with band headers (MENU, the content, COMMAND). The picture mode for Ghostty and other image terminals was removed on 2026-11-12; Evoke's own terminals (xterm.js) never drew it.
 
-The scene art in `plugins/evoke/scenes/` (made by `tools/render.sh` from `tools/scene.html`) now belongs to the desktop: TIDE's MENU pane shows it, with the menu buttons on `ITEM_ROWS`.
+The scene art (`plugins/evoke/scenes/`) was removed on 2026-11-12. Both desktop themes draw the MENU pane in CSS, with the menu buttons on `ITEM_ROWS`. TIDE follows the remake's pause menu: deep water with drifting light and bubbles, straight upright names, the pick a blue bar that sweeps in with a cyan edge, eased motion only.
 
 Rules:
 
@@ -199,4 +199,4 @@ Rules:
 - Fold each panel and confirm the others take the room.
 - Check the settings sheet, UI edit mode and a `.state-error` in REBEL: no TIDE colour may show.
 - Tab through the side bar: every row shows the focus ring and opens on Enter.
-- For the pane: check plain rows in Evoke's terminal, and TIDE's scene art in the desktop MENU pane.
+- For the pane: check plain rows in Evoke's terminal, and both themes' desktop MENU pane.
