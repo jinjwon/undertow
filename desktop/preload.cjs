@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld('evoke', {
     install: (repo, folder) => ipcRenderer.invoke('discover:install', repo, folder),
   },
   previewUrl: file => ipcRenderer.invoke('preview:url', file),
+  customCss: () => ipcRenderer.invoke('custom:css'),
+  onCustomCss: fn => listen('custom:changed', fn),
   previewOpen: url => ipcRenderer.send('preview:open', url),
   sshHosts: () => ipcRenderer.invoke('ssh:hosts'),
   ide: {

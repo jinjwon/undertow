@@ -23,7 +23,23 @@ const store = createStore(path.join(app.getPath('userData'), 'store'))
 ipcMain.on('store:load', e => { e.returnValue = store.snapshot() })
 ipcMain.on('store:set', (_, key, value) => { store.set(key, value).catch(() => {}) })
 
-const allowed = target => [...roots].some(root => inside(root, target))
+// Your own stylesheet: opened in the editor like a project file and applied to the window whenever it is saved.
+const customCss = path.join(app.getPath('userData'), 'custom.css')
+const CUSTOM_TEMPLATE = `/* Evoke custom CSS: saved here, applied at once, kept across updates.
+   Theme variables: --sel --hi --text --gray --panel --plate --page --chip --edge --line --ink
+   Example:
+   [data-theme='tide'] { --sel: #7B2CFF; }
+   .hud { font-size: 13px; }
+*/
+`
+ipcMain.handle('custom:css', async () => {
+  await fs.writeFile(customCss, CUSTOM_TEMPLATE, { flag: 'wx' }).catch(() => {}) // only when missing
+  return { path: customCss, text: await fs.readFile(customCss, 'utf8').catch(() => '') }
+})
+require('fs').watchFile(customCss, { interval: 500 }, () => {
+  fs.readFile(customCss, 'utf8').then(text => win?.webContents.send('custom:changed', text)).catch(() => {})
+})
+const allowed = target => target === customCss || [...roots].some(root => inside(root, target))
 // Real path, so a symlink inside a project cannot reach a file outside it.
 const guard = async target => {
   if (!allowed(await fs.realpath(target))) throw new Error(`Outside the open projects: ${target}`)
