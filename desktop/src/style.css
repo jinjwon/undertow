@@ -90,6 +90,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .top { grid-area: top; display: flex; align-items: center; gap: 16px; padding: 0 16px 0 84px; background: var(--plate); border-bottom: 2px solid var(--sel); -webkit-app-region: drag; }
 .top button { -webkit-app-region: no-drag; }
 .win32 .top { padding: 0 150px 0 12px; } /* room for Windows' own window buttons on the right */
+.win32 .inspector.bar { max-width: calc(100vw - 340px); } /* the edit bar stays centred and clear of those buttons */
 .project { display: flex; align-items: center; font-weight: 700; }
 .branch { color: var(--gray); }
 .theme { margin-left: auto; }
@@ -191,6 +192,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .pane .entry .desc { padding-left: 14px; color: var(--gray); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
 .entry.skill { white-space: normal; }
 .rank { color: var(--hi); font: 900 italic 11px Barlow, sans-serif; margin-left: 6px; }
+/* DISCOVER: a repository's skills sit one step in; ✓ marks one already in ~/.claude/skills. */
+.pane .entry.sub { padding-left: 26px; }
+.got { color: var(--hi); font-weight: 800; }
+.entry.on .got { color: inherit; }
 .group { display: flex; justify-content: space-between; margin: 8px 12px 2px; padding-bottom: 2px; border-bottom: 1px solid var(--line); color: var(--hi); font: 900 italic 13px Barlow, sans-serif; }
 /* In the MENU pane a group is a section header, as an editor's side bar draws one: a band, an edge, its count at the right. */
 .pane .pane-content .group { margin: 8px 0 2px; padding: 3px 12px 3px 8px; border-bottom: 0; border-left: 4px solid var(--edge); background: var(--chip); color: var(--chip-ink); font-size: 13px; text-transform: uppercase; text-shadow: none; }
@@ -203,8 +208,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .calendar .month button.on { background: var(--sel); color: var(--sel-ink); }
 .band { font: 900 italic 14px Barlow, sans-serif; }
 .toast { position: fixed; right: 24px; bottom: 44px; z-index: 3; padding: 10px 16px; background: var(--plate); border-left: 4px solid var(--hot); font-weight: 700; animation: drop .2s ease-out; }
-[data-theme='rebel'] .pane .art img { filter: grayscale(1) contrast(1.4); mix-blend-mode: screen; }
-[data-theme='rebel'] .hot-menu:hover { background: linear-gradient(90deg, transparent, rgba(184, 0, 31, 0.4), transparent); }
 /* File badges: a slanted chip coloured by kind, instead of an icon theme. */
 .ext { display: inline-block; width: 8px; height: 10px; margin: 0 6px 0 2px; background: var(--gray); transform: skewX(-12deg); vertical-align: -1px; }
 .ext[data-ext='ts'], .ext[data-ext='tsx'] { background: #3B82F6; }
@@ -308,7 +311,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .cutin, .hot-menu span { display: none; }
 
 [data-theme='tide'] {
-  body::before, .empty .mark, .pane .art img { display: none; }
+  body::before, .empty .mark { display: none; }
 
   /* Surfaces that flip to dark re-point the vars, so everything inside them stays readable. */
   .pane-hud, .hud, .right, .tabs, .pane-hint, .sheet .head, .toast, .clock { --text: #FFFFFF; --hi: #16D9F5; --gray: #BFC4D0; --hot: #16D9F5; --line: #FFFFFF44; --chip: #16D9F5; --chip-ink: #06145B; color: #FFFFFF; }
@@ -332,26 +335,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   .win32 .clock { margin-right: 0; }
   .clock b { font-size: 15px; }
 
-  /* MENU column: live text instead of the scene art, tilted as the game tilts it. */
+  /* MENU column: white under the scene art. */
   .pane { background: #FFFFFF; border-right: 0; }
-  .pane .art { isolation: isolate; }
-  .pane .art::before { content: ''; position: absolute; top: 8%; left: 0; width: 35cqw; height: 45%; background: radial-gradient(circle at 0 100%, #FFFFFF 0 16cqw, #06145B 16cqw 30cqw, #064DE8 30cqw 44cqw, #06145B 44cqw 58cqw, #064DE8 58cqw 72cqw, #06145B 72cqw 86cqw, #064DE8 86cqw); clip-path: polygon(0 0, 100% 0, 84% 100%, 0 100%); }
-  .pane .art::after { content: ''; position: absolute; top: 8%; right: 0; width: 28cqw; height: 34%; background: radial-gradient(circle, #BFC4D0 0 38%, transparent 42%) 0 0 / 9px 9px; -webkit-mask-image: linear-gradient(225deg, #000, transparent 75%); }
-  .pane-hud { z-index: 4; background: #06145B; color: #FFFFFF; }
-  .cutin { display: block; position: absolute; inset: 0; pointer-events: none; }
-  .cutin b { position: absolute; z-index: 1; left: 11cqw; top: 51%; font: 900 italic 17cqw/1 Barlow, sans-serif; color: #FFFFFF; -webkit-text-stroke: 5px #050505; paint-order: stroke fill; white-space: nowrap; transform-origin: 0 50%; transform: rotate(-84deg); animation: word .18s cubic-bezier(.2, .9, .3, 1); }
-  .cutin::after { content: ''; position: absolute; z-index: 3; inset: 0; background: #064DE8; clip-path: polygon(0 0, 0 0, 0 0); animation: wipe .26s ease-out; }
-
-  .hot-menu { z-index: 2; left: calc(36% + var(--x)); width: auto; padding: 0 16px; isolation: isolate; color: #064DE8; font: 900 italic 7cqw/1 Barlow, sans-serif; white-space: nowrap; transform-origin: 0 50%; transition: transform .09s, color .09s, font-size .09s; }
-  .hot-menu span { display: inline; }
-  .hot-menu:hover { background: none; color: #06145B; transform: rotate(-6deg) translateX(6px); }
-  .hot-menu::before, .hot-menu.on::after { content: ''; position: absolute; inset: 0 -6px; clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
-  .hot-menu::before { z-index: -1; background: #16D9F5; transform: scaleX(0); transform-origin: 0 50%; transition: transform .1s; }
-  .hot-menu:hover::before, .hot-menu.on::before { transform: scaleX(1); }
-  .hot-menu.on { color: #FFFFFF; font-size: 8.6cqw; transform: rotate(-6deg) translateX(10px); }
-  .hot-menu.on::before { background: #064DE8; }
-  .hot-menu.on::after { z-index: -2; background: #16D9F5; transform: translate(6px, 5px); }
-  .hot-menu:active { transform: rotate(-6deg) translateX(10px) scale(.95); }
 
   .pane-body { background: #FFFFFF; padding-top: 26px; clip-path: polygon(0 18px, 100% 0, 100% 100%, 0 100%); }
   .pane-body::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 26px; background: #064DE8; clip-path: polygon(0 18px, 100% 0, 100% 8px, 0 26px); }
@@ -489,6 +474,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .inspector.bar { top: 4px; left: 50%; translate: -50% 0; align-items: center; max-width: calc(100vw - 32px); white-space: nowrap; }
 .inspector.bar h3 { font-size: 16px; }
 .inspector.bar .dims { font: 700 13px Iosevka, Menlo, Consolas, monospace; color: var(--sel); }
+.inspector .quiet { color: color-mix(in srgb, var(--ink) 60%, transparent); } /* the plate is white in both themes */
 .inspector.bar select { padding: 2px 4px; }
 .inspector.more { top: 48px; right: 16px; width: 270px; max-height: calc(100vh - 150px); overflow: auto; flex-direction: column; padding: 10px 14px 12px; }
 .size-tip { position: fixed; z-index: 5; padding: 1px 6px; pointer-events: none; color: var(--ink); background: var(--edge); font: 700 11px Iosevka, Menlo, Consolas, monospace; }
@@ -566,6 +552,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   .c-M, .c-A, .c-U { color: #FFFFFF; } .c-D { color: var(--blood); } .c-R { color: var(--gray); }
   .entry.on .code { color: #000000; }
   .inspector { border-left: 0; outline: 3px solid #000000; box-shadow: 10px 10px 0 var(--blood); transform: rotate(1deg); }
+  .inspector.bar { transform: rotate(-.4deg); } /* still tilted, but a bar this long would swing 9px at 1deg and cover the info widget */
   .inspector h3, .box.on { color: var(--blood); }
   .box { border-color: #FFFFFF; } .box.on { border-color: var(--blood); }
   .hd { border-color: var(--blood); } .actions .save { background: var(--blood); }
@@ -631,3 +618,157 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 [data-theme='rebel'] .dock-split { background: #000000; }
 [data-theme='rebel'] .dock-split:hover, [data-theme='rebel'] .dock-split:active { background: var(--blood); }
 [data-theme='rebel'] .right:has(.dock-head.focused) .dock-head:not(.focused) { opacity: .6; }
+
+/* ⌘K: the search field in the top bar, centred in the free space between the branch and the theme chip. */
+.find-open { display: flex; align-items: center; gap: 8px; margin-left: auto; min-width: 0; width: min(320px, 28vw); padding: 4px 12px; color: var(--gray); background: var(--page); border: 1px solid var(--line); transform: skewX(-8deg); transition: transform .12s, border-color .12s; }
+.find-open > * { transform: skewX(8deg); }
+.find-open span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.find-open:hover, .find-open:focus-visible { border-color: var(--edge); transform: skewX(-8deg) translateX(3px); outline: none; }
+.find-open kbd { font: 900 italic 12px Barlow, sans-serif; color: var(--hi); }
+.find-open + .theme { margin-left: 0; }
+.row b.kind { width: 64px; flex: none; font-size: 11px; color: var(--gray); }
+.row.on b.kind, .row:hover b.kind { color: inherit; }
+
+/* CALENDAR events. Kinds differ by shape, not colour, so REBEL keeps its one red: meeting a solid block, dev a slanted bar, personal an outline. */
+.dot { display: inline-block; width: 7px; height: 7px; vertical-align: middle; }
+.dot.k-meeting { background: var(--hi); }
+.dot.k-dev { background: var(--sel); transform: skewX(-20deg); width: 9px; }
+.dot.k-personal { box-shadow: inset 0 0 0 1.5px var(--edge); }
+.calendar .dots { display: flex; justify-content: center; gap: 2px; height: 7px; }
+.calendar .month button { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.entry.event { white-space: normal; }
+.ev-form { display: grid; gap: 6px; padding: 8px 12px; }
+.ev-form input { width: 100%; min-width: 0; padding: 4px 8px; background: var(--page); color: var(--text); border: 1px solid var(--line); font: 13px Pretendard, sans-serif; color-scheme: light dark; }
+.ev-form input:focus { outline: 2px solid var(--edge); outline-offset: -2px; }
+.ev-line { display: flex; gap: 6px; }
+.ev-form .views { display: flex; }
+.ev-form button { padding: 2px 10px; font: 900 italic 12px Barlow, Pretendard, sans-serif; color: var(--hi); }
+.ev-form button.on { background: var(--sel); color: var(--sel-ink); }
+[data-theme='rebel'] .ev-form button.on { background: #FFFFFF; color: #000000; box-shadow: 3px 2px 0 var(--blood); }
+.entry.commit { white-space: normal; cursor: default; }
+
+/* Search sheet: replace, the three toggles and the file filters, under the query. */
+.search-opts { display: grid; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--line); }
+.search-opts input, .commit-box input { flex: 1; min-width: 0; padding: 4px 8px; background: var(--page); color: var(--text); border: 1px solid var(--line); font: 13px Pretendard, sans-serif; }
+.search-opts input:focus, .commit-box input:focus { outline: 2px solid var(--edge); outline-offset: -2px; }
+.search-opts button, .commit-box button { padding: 2px 10px; font: 900 italic 12px Barlow, Pretendard, sans-serif; color: var(--hi); white-space: nowrap; }
+.search-opts button.on { background: var(--sel); color: var(--sel-ink); }
+[data-theme='rebel'] .search-opts button.on { background: #FFFFFF; color: #000000; box-shadow: 3px 2px 0 var(--blood); }
+.search-opts button:disabled, .commit-box button:disabled { opacity: .4; pointer-events: none; }
+/* STATUS: the commit message and its button above the changes. */
+.commit-box { display: flex; gap: 6px; padding: 8px 12px; }
+.commit-box button { background: var(--sel); color: var(--sel-ink); }
+[data-theme='rebel'] .commit-box button { background: #FFFFFF; color: #000000; box-shadow: 3px 2px 0 var(--blood); }
+
+/* ---- 2026-11-12 redesign: drawn empty page, menu pane closer to each game's menu language, new top bar and HUD. Later rules win. ---- */
+
+/* Empty editor: the SVG backdrop (EmptyArt.tsx) under the word and the shortcut chips. */
+.empty { position: relative; overflow: hidden; }
+.empty-art { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.empty > :not(.empty-art) { position: relative; z-index: 1; }
+.empty .keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; max-width: 640px; margin: 18px auto 0; }
+.empty .keys span { padding: 3px 10px; white-space: nowrap; font-weight: 700; }
+.ea-rays { transform-origin: 400px 300px; animation: spin 90s linear infinite; }
+.ea-bubbles > g { animation: bubble 7s ease-in infinite; }
+@keyframes spin { to { rotate: 360deg; } }
+@keyframes bubble { 0% { translate: 0 30px; opacity: 0; } 15% { opacity: 1; } 100% { translate: 6px -260px; opacity: 0; } }
+
+/* HUD pieces shared by both themes. */
+.hud-branch { color: var(--gray); font: 900 italic 13px Barlow, sans-serif; }
+.hud-changes { color: var(--gray); font: 900 italic 13px Barlow, Pretendard, sans-serif; }
+
+[data-theme='rebel'] {
+  /* Empty page: a white word with a black outline and a red shadow, slammed onto the burst. */
+  .empty .big { position: relative; color: #FFFFFF; -webkit-text-stroke: 7px #000000; paint-order: stroke fill; text-shadow: 10px 9px 0 var(--blood); font-size: clamp(90px, 10vw, 190px); line-height: .9; transform: rotate(-9deg) skewX(-8deg); }
+  .empty > p.keys { background: none; transform: rotate(-4deg); padding: 0; }
+  .empty .keys span { background: #FFFFFF; color: #000000; transform: rotate(-3deg); box-shadow: 3px 3px 0 var(--blood); }
+  .empty .keys span:nth-child(2n) { background: #000000; color: #FFFFFF; outline: 2px solid #FFFFFF; transform: rotate(4deg) translateY(4px); }
+  .empty .keys span:nth-child(3n) { background: var(--blood); color: #FFFFFF; box-shadow: 3px 3px 0 #000000; transform: rotate(-6deg); }
+  .empty .welcome { background: #000000; outline: 3px solid #FFFFFF; box-shadow: 10px 10px 0 var(--blood); transform: rotate(-1.5deg); }
+
+  /* MENU pane: live words on a red burst instead of the terminal's scene art, each row at its own angle,
+     letters cut at different sizes; the pick is a white torn slab over a red one. */
+  .pane .art img { display: none; }
+  .pane .art { isolation: isolate; overflow: hidden; background:
+      radial-gradient(circle, #000000 0 36%, transparent 40%) 0 0 / 8px 8px,
+      repeating-conic-gradient(from 4deg at 22% 46%, #000000 0 9deg, transparent 9deg 22deg),
+      var(--blood);
+    -webkit-mask-image: linear-gradient(180deg, #000 85%, transparent); }
+  .pane .art::before { content: ''; position: absolute; inset: 6% -10% 8% 28%; background: #000000; clip-path: polygon(10% 4%, 100% 0, 100% 92%, 0 100%, 6% 60%, 0 42%); }
+  .pane .art::after { content: ''; position: absolute; inset: 8% -10% 10% 30%; border: 0; background: linear-gradient(#FFFFFF, #FFFFFF) left / 3px 100% no-repeat; clip-path: polygon(10% 4%, 100% 0, 100% 92%, 0 100%, 6% 60%, 0 42%); }
+  .pane-hud { z-index: 4; background: #000000; box-shadow: 0 2px 0 #FFFFFF; }
+  .cutin { display: block; position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+  .cutin b { position: absolute; left: 4cqw; top: 54%; font: 900 italic 22cqw/1 Barlow, sans-serif; color: #000000; -webkit-text-stroke: 3px #FFFFFF; paint-order: stroke fill; white-space: nowrap; transform-origin: 0 50%; transform: rotate(-78deg); animation: word .18s cubic-bezier(.2, .9, .3, 1); }
+  .cutin::after { content: ''; position: absolute; z-index: 3; inset: 0; background: #FFFFFF; clip-path: polygon(0 0, 0 0, 0 0); animation: wipe .22s ease-out; }
+
+  .hot-menu { z-index: 2; left: calc(34% + var(--x)); width: auto; padding: 0 14px; isolation: isolate; color: #FFFFFF; font: 900 7.2cqw/1 Barlow, sans-serif; white-space: nowrap; -webkit-text-stroke: 4px #000000; paint-order: stroke fill; transform-origin: 0 50%; transform: rotate(var(--r, -8deg)); transition: transform .09s, color .09s; }
+  .hot-menu:nth-of-type(3n+1) { --r: -11deg; }
+  .hot-menu:nth-of-type(3n+2) { --r: -5deg; }
+  .hot-menu:nth-of-type(3n) { --r: -9deg; }
+  .hot-menu span { display: inline; }
+  .hot-menu span i { display: inline-block; font-style: normal; }
+  .hot-menu span i:nth-child(3n+1) { transform: rotate(-5deg) scale(1.14); }
+  .hot-menu span i:nth-child(3n+2) { transform: translateY(.06em) rotate(4deg) scale(.9); }
+  .hot-menu span i:nth-child(4n) { transform: translateY(-.04em) rotate(-2deg) scale(1.04); }
+  .hot-menu::before, .hot-menu::after { content: ''; position: absolute; inset: -4px -10px; clip-path: polygon(3% 12%, 30% 0, 62% 8%, 100% 0, 96% 52%, 100% 100%, 58% 90%, 24% 100%, 0 86%, 4% 46%); transform: scaleX(0); transform-origin: 0 50%; transition: transform .1s; }
+  .hot-menu::before { z-index: -1; background: #FFFFFF; }
+  .hot-menu::after { z-index: -2; background: var(--blood); translate: 8px 6px; rotate: 3deg; }
+  .hot-menu:hover { background: none; color: var(--blood); -webkit-text-stroke-color: #FFFFFF; transform: rotate(var(--r)) translateX(6px); }
+  .hot-menu.on { color: #000000; -webkit-text-stroke: 0; font-size: 9cqw; transform: rotate(var(--r)) translateX(12px); }
+  .hot-menu.on::before, .hot-menu.on::after { transform: scaleX(1); }
+  .hot-menu.on::after { background: #000000; outline: 0; box-shadow: none; }
+  .hot-menu.on span i:nth-child(2n) { color: var(--blood); }
+  .hot-menu:active { transform: rotate(var(--r)) translateX(12px) scale(.94); }
+
+  .pane-body { background: #000000F2; padding-top: 18px; clip-path: polygon(0 14px, 100% 0, 100% 100%, 0 100%); }
+  .pane-body::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 18px; background: linear-gradient(#FFFFFF, #FFFFFF) 0 100% / 100% 3px no-repeat, var(--blood); clip-path: polygon(0 14px, 100% 0, 100% 6px, 0 18px); }
+  .pane .pane-content .group { border-left: 0; background: var(--blood); transform: skewX(-10deg); margin-left: 6px; margin-right: 10px; box-shadow: 3px 3px 0 #FFFFFF; }
+  .pane-hint { background: #FFFFFF; color: #000000; border-top: 3px solid var(--blood); font-weight: 700; }
+
+  /* Top bar: black, the project on a white slab, search as a white card with a red shadow. */
+  .top { background: #000000; gap: 18px; }
+  .project { padding: 3px 16px 3px 4px; background: #FFFFFF; color: #000000; transform: rotate(-2deg) skewX(-8deg); box-shadow: 4px 4px 0 var(--blood); transition: transform .1s; }
+  .project:hover { transform: rotate(-3deg) skewX(-8deg) translateX(4px); }
+  .branch:not(:empty) { padding: 1px 10px; background: var(--blood); color: #FFFFFF; font: 900 italic 13px Barlow, sans-serif; transform: rotate(2deg); }
+  .find-open { background: #FFFFFF; color: #000000; border: 0; box-shadow: 4px 4px 0 var(--blood); }
+  .find-open span { color: #3A3A3A; }
+  .find-open kbd { color: var(--blood); }
+  .find-open:hover, .find-open:focus-visible { box-shadow: 6px 5px 0 var(--blood); }
+
+  /* HUD: a white and red rule on top, red slashes fading in on the right. */
+  .hud { position: relative; border-top: 0; background: #000000; box-shadow: inset 0 2px 0 #FFFFFF, 0 -3px 0 var(--blood); }
+  .hud::after { content: ''; position: absolute; inset: 0 0 0 auto; width: 40%; pointer-events: none; background: repeating-linear-gradient(115deg, var(--blood) 0 5px, transparent 5px 14px); -webkit-mask-image: linear-gradient(90deg, transparent, #000); }
+  .hud > * { position: relative; z-index: 1; }
+  .hud .band { color: #FFFFFF; font-size: 15px; }
+  .hud-branch { padding: 0 8px; background: #FFFFFF; color: #000000; transform: rotate(-2deg); box-shadow: 2px 2px 0 var(--blood); }
+  .hud-changes { color: #FFFFFF; }
+  .hud-changes.dirty { padding: 0 10px; background: var(--blood); transform: rotate(2deg) skewX(-10deg); }
+}
+
+[data-theme='tide'] {
+  /* Empty page: ripples, light shafts and bubbles on the blue half. */
+  .empty .keys { justify-content: start; margin: 4px 0 0; max-width: 58%; }
+  .empty .keys span { background: #06145B; color: #FFFFFF; transform: skewX(-10deg); box-shadow: 4px 4px 0 #16D9F5; }
+
+  /* MENU pane: the scene art (plugins/evoke/scenes) is the menu; its transparent water sits on the art's navy. */
+  .pane .art { background: #0B1648; }
+  .hot-menu:hover { background: linear-gradient(90deg, transparent, #5FE3FF40, transparent); }
+
+  /* Top bar: navy, the project on a white plate, cyan and blue rules under it, the clock a cyan plate. */
+  .top { --text: #FFFFFF; --hi: #16D9F5; --gray: #BFC4D0; --line: #FFFFFF44; --page: #FFFFFF14; --chip: #16D9F5; --chip-ink: #06145B; color: #FFFFFF; background: #06145B; box-shadow: inset 0 -3px 0 #16D9F5, inset 0 -6px 0 #064DE8; }
+  .project { padding: 4px 18px 4px 4px; background: #FFFFFF; color: #06145B; clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); transition: transform .1s; }
+  .project:hover { transform: translateX(4px); }
+  .branch { color: #16D9F5; font: 900 italic 13px Barlow, sans-serif; }
+  .find-open { color: #BFC4D0; }
+  .find-open:hover, .find-open:focus-visible { background: #FFFFFF26; }
+  .gear { color: #FFFFFF; }
+  .gear:hover { color: #16D9F5; }
+  .clock { --text: #06145B; --hi: #064DE8; color: #06145B; background: #16D9F5; box-shadow: inset 0 -6px 0 #064DE8; }
+
+  /* HUD: a cyan rule on top, the change count a cyan chip once the tree is dirty. */
+  .hud { gap: 16px; box-shadow: inset 0 3px 0 #16D9F5; padding-top: 3px; }
+  .hud .band { font-size: 15px; }
+  .hud-branch { color: #16D9F5; }
+  .hud-changes { padding: 0 10px; transform: skewX(-10deg); }
+  .hud-changes.dirty { background: #16D9F5; color: #06145B; }
+}

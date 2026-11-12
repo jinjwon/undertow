@@ -7,9 +7,9 @@ const { execFile } = require('node:child_process')
 const pty = require('node-pty')
 const { startIde } = require('./ide.cjs')
 const { createStore } = require('./store.cjs')
-const { claudeLimitsOf, codexLimitsOf, statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { skillDirsOf, skillFiles, SKILL_NAME, claudeLimitsOf, codexLimitsOf, statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 const { start: startPreview } = require('./serve.cjs')
-const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
+const { walkSkip, fuzzy, searchText, replaceText, pathAllowed, parseStatus } = require('./match.cjs')
 
 const home = os.homedir()
 const roots = new Set() // real paths of the folders the window has opened; file access stays inside them
@@ -93,19 +93,46 @@ ipcMain.handle('fs:files', async (_, root, query) => {
     .sort((a, b) => b.score - a.score)
     .slice(0, 50)
 })
-ipcMain.handle('fs:search', async (_, root, query) => {
+// opts: caseSensitive, word, regex, include, exclude (the search sheet's toggles and file filters).
+const searchable = async (root, opts) => {
+  const out = []
+  for (const file of await filesOf(root)) {
+    if (!pathAllowed(path.relative(root, file), opts?.include, opts?.exclude)) continue
+    const stat = await fs.stat(file).catch(() => null)
+    if (stat && stat.size <= 1e6) out.push(file)
+  }
+  return out
+}
+ipcMain.handle('fs:search', async (_, root, query, opts = {}) => {
   await guard(root)
   const q = String(query)
   if (q.length < 2) return []
   const hits = []
-  for (const file of await filesOf(root)) {
+  for (const file of await searchable(root, opts)) {
     if (hits.length >= 500) break
-    const stat = await fs.stat(file).catch(() => null)
-    if (!stat || stat.size > 1e6) continue
     const text = await fs.readFile(file, 'utf8').catch(() => '')
-    for (const h of searchText(text, q, 500 - hits.length)) hits.push({ path: file, rel: path.relative(root, file), ...h })
+    for (const h of searchText(text, q, 500 - hits.length, opts)) hits.push({ path: file, rel: path.relative(root, file), ...h })
   }
   return hits
+})
+// Replace in every matching file under the same filters. skip: open files with unsaved edits, left alone so nothing typed is lost.
+ipcMain.handle('fs:replace', async (_, root, query, replacement, opts = {}, skip = []) => {
+  await guard(root)
+  const q = String(query)
+  if (q.length < 2) return { files: 0, n: 0 }
+  let files = 0
+  let n = 0
+  for (const file of await searchable(root, opts)) {
+    if (skip.includes(file)) continue
+    const text = await fs.readFile(file, 'utf8').catch(() => null)
+    if (text == null) continue
+    const out = replaceText(text, q, String(replacement), opts)
+    if (!out.n) continue
+    await fs.writeFile(file, out.text)
+    files++
+    n += out.n
+  }
+  return { files, n }
 })
 ipcMain.handle('fs:read', async (_, file) => fs.readFile(await guard(file), 'utf8'))
 // Images for the preview tab, as a data URL the page's CSP allows (img-src data:).
@@ -159,6 +186,22 @@ ipcMain.handle('git:status', async (_, root) => {
   const out = await git(root, ['status', '--porcelain=v1', '-z', '-uall'])
   return out == null ? [] : parseStatus(out).map(c => ({ ...c, path: path.join(root, c.path) }))
 })
+// STATUS: commit every change to tracked files (git commit -a). New files stay out until added, so stray files never ride along.
+ipcMain.handle('git:commit', async (_, root, message) => {
+  await guard(root)
+  const msg = String(message).trim()
+  if (!msg) throw new Error('Empty commit message')
+  return new Promise(resolve => execFile('git', ['-C', root, 'commit', '-a', '-m', msg], (err, out, errOut) => resolve(err ? { ok: false, error: (errOut || out || err.message).trim().split('\n').slice(-3).join('\n') } : { ok: true })))
+})
+// STATUS: the last commits on the current branch, one line each. \x1f splits the fields, since a subject can hold anything else.
+ipcMain.handle('git:log', async (_, root) => {
+  await guard(root)
+  const out = await git(root, ['log', '-n', '15', '--pretty=format:%h%x1f%s%x1f%an%x1f%ct'])
+  return (out ?? '').split('\n').filter(Boolean).map(l => {
+    const [hash, subject, author, at] = l.split('\x1f')
+    return { hash, subject, author, at: Number(at) * 1000 }
+  })
+})
 // The file as of the last commit: '' for a new file. A deleted file has no real path, so this checks the name only.
 ipcMain.handle('git:head', async (_, root, file) => {
   await guard(root)
@@ -186,6 +229,88 @@ ipcMain.handle('skills:list', async () => {
   }
   return lists.flat().map(s => ({ ...s, uses: uses[s.name] ?? 0 })).sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name))
 })
+// DISCOVER: skills from GitHub repositories, read and copied by this process only. Nothing fetched is ever run.
+// No sign-in, so GitHub allows 60 lookups an hour; every answer is kept for the life of the window.
+const PINNED = ['MengTo/Skills', 'anthropics/skills']
+const REPO = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]+$/
+const PREVIEW_MAX = 400_000 // bytes of text shown in the preview tab
+const INSTALL_MAX = { files: 300, bytes: 20_000_000 }
+const TEXT = /\.(md|mdx|txt|json|ya?ml|toml|js|cjs|mjs|ts|tsx|jsx|py|sh|bash|zsh|rb|go|rs|html|css|svg|xml|csv|ini|cfg)$|(^|\/)[A-Z]+$/i
+const seen = new Map()
+const once = (key, make) => {
+  if (!seen.has(key)) seen.set(key, make().catch(e => { seen.delete(key); throw e }))
+  return seen.get(key)
+}
+const github = async url => {
+  const res = await fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'evoke-desktop' } })
+  if (!res.ok) throw new Error(`GitHub answered ${res.status}`)
+  return res
+}
+const repoOf = repo => {
+  if (!REPO.test(String(repo))) throw new Error(`Not a repository: ${repo}`)
+  return String(repo)
+}
+const treeOf = repo => once(`tree:${repo}`, async () => (await (await github(`https://api.github.com/repos/${repo}/git/trees/HEAD?recursive=1`)).json()).tree ?? [])
+const rawOf = (repo, file) => github(`https://raw.githubusercontent.com/${repo}/HEAD/${file.split('/').map(encodeURIComponent).join('/')}`)
+const skillOf = async (repo, folder) => {
+  const skill = skillDirsOf(await treeOf(repo), repo.split('/')[1]).find(s => s.folder === String(folder))
+  if (!skill) throw new Error(`No such skill: ${repo}/${folder}`)
+  return { ...skill, files: skillFiles(await treeOf(repo), skill.folder), dest: path.join(home, '.claude', 'skills', skill.name) }
+}
+const exists = target => fs.stat(target).then(() => true, () => false)
+
+ipcMain.handle('discover:repos', () => once('repos', async () => {
+  const brief = r => ({ repo: r.full_name, description: r.description ?? '', stars: r.stargazers_count })
+  const [pinned, found] = await Promise.all([
+    Promise.all(PINNED.map(async repo => brief(await (await github(`https://api.github.com/repos/${repo}`)).json()))),
+    github('https://api.github.com/search/repositories?q=topic:claude-skills&sort=stars&per_page=12').then(r => r.json()),
+  ])
+  return [...pinned, ...(found.items ?? []).map(brief).filter(r => !PINNED.includes(r.repo))]
+}))
+ipcMain.handle('discover:skills', async (_, repo) => {
+  const skills = skillDirsOf(await treeOf(repoOf(repo)), String(repo).split('/')[1])
+  return Promise.all(skills.map(async s => ({ ...s, installed: await exists(path.join(home, '.claude', 'skills', s.name)) })))
+})
+// Everything the skill would bring, as one text: SKILL.md first, then each other file under a rule with its name.
+ipcMain.handle('discover:preview', (_, repo, folder) => once(`preview:${repo}/${folder}`, async () => {
+  const skill = await skillOf(repoOf(repo), folder)
+  let room = PREVIEW_MAX
+  const parts = []
+  for (const f of skill.files) {
+    const rule = f.rel === 'SKILL.md' ? '' : `\n\n──────── ${f.rel} (${f.size} bytes) ────────\n`
+    if (!TEXT.test(f.rel) || f.size > room) { parts.push(rule); continue } // named, not shown: a binary, or past the preview's size
+    room -= f.size
+    parts.push(rule + await (await rawOf(repo, f.path)).text())
+  }
+  return { name: skill.name, text: parts.join(''), files: skill.files.length, installed: await exists(skill.dest) }
+}))
+// Copies one skill's files into ~/.claude/skills/<name>. Never over an existing skill, never outside that folder, never executable.
+ipcMain.handle('discover:install', async (_, repo, folder) => {
+  const skill = await skillOf(repoOf(repo), folder)
+  if (!SKILL_NAME.test(skill.name)) throw new Error(`Not a skill name: ${skill.name}`)
+  if (await exists(skill.dest)) throw new Error('exists')
+  if (skill.files.length > INSTALL_MAX.files || skill.files.reduce((n, f) => n + f.size, 0) > INSTALL_MAX.bytes) throw new Error('too large')
+  const part = `${skill.dest}.part` // whole or not at all: the folder appears under its name only once every file is in
+  await fs.rm(part, { recursive: true, force: true })
+  try {
+    let bytes = 0
+    for (const f of skill.files) {
+      const target = path.join(part, f.rel)
+      if (!inside(part, target)) throw new Error(`Outside the skill: ${f.rel}`)
+      const data = Buffer.from(await (await rawOf(repo, f.path)).arrayBuffer())
+      if ((bytes += data.length) > INSTALL_MAX.bytes) throw new Error('too large')
+      await fs.mkdir(path.dirname(target), { recursive: true })
+      await fs.writeFile(target, data, { mode: 0o644 })
+    }
+    await fs.rename(part, skill.dest)
+  } catch (e) {
+    await fs.rm(part, { recursive: true, force: true })
+    throw e
+  }
+  seen.delete(`preview:${repo}/${folder}`)
+  return skill.name
+})
+
 // EQUIP: what Claude Code carries into this project.
 ipcMain.handle('equip:list', async (_, root) => ({
   mcp: mcpOf(await claudeJson(), String(root)),
