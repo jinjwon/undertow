@@ -596,3 +596,28 @@ Agent Manager (main)
 - 맨 Monaco를 유지하는 길(Option A)은 확장 실행을 포기하는 길이다. 제품 정의와 맞지 않는다.
 - Option C의 핵심 가정은 아직 검증되지 않았다. 그래서 첫 작업이 스파이크이고, 실패 시 전환 대상(Theia 우선, 다음이 Code - OSS 포크)과 그때 살아남을 경계(엔진 인터페이스)를 미리 정해 두었다.
 - 어느 길로 가든 달라지지 않는 사실: Marketplace는 못 쓰고 Open VSX를 쓴다. Microsoft 전용 확장은 못 쓴다. "VS Code에서 쓰던 것을 그대로"는 그 범위 안에서만 성립한다.
+
+## 부록 E. Phase 0 결과 (2026-11-12)
+
+계획: `docs/superpowers/plans/2026-11-12-vscode-extensions-spike.md`. 버릴 브랜치 `spike/vscode-engine`에서, 별도 QA 인스턴스(`--remote-debugging-port=9461`, 임시 `--user-data-dir`)로 확인했다. 렌더러의 `sandbox`와 `contextIsolation`은 끄지 않았다.
+
+**버전**: `@codingame/monaco-vscode-*` 39.0.4 (VS Code 1.145.2). VS Code 서버는 VSCodium REH 1.143.17232 darwin-arm64 (MIT, 기본 갤러리 Open VSX, sha256 일치). openvscode-server 최신 1.109.5는 36 버전 뒤처져 제외했다.
+
+| Check | 결과 | 근거 |
+|---|---|---|
+| A. 샌드박스 렌더러에서 로드 | 통과 (조건부) | TextMate 색과 VS Code 테마 적용, CSP 오류 없음. 에디터 준비 344 ms (CDP `performance.now()`). `dist` 18 MB → 29 MB (`du -sh dist`). 필요했던 변경 4개: ① `file://`에서는 `fetch`가 실패해 `evoke://` 특권 스킴(`protocol.handle`)으로 `dist/`를 서빙, ② CSP `script-src 'self' 'wasm-unsafe-eval'` (Oniguruma, `unsafe-eval`은 불필요), ③ Vite `assetsInlineLimit: 0` (작은 확장 파일이 `data:` URL이 되어 `connect-src`에 막힘), ④ Vite의 동적 import 트리 셰이킹 버그 우회 transform (TextMate 토크나이저가 `undefined`를 받음). |
+| B. Node 확장 (ESLint) | 도달 못함 | 다운로드한 서버 실행이 자동 모드에서 차단됨. 서버 기동 코드(`127.0.0.1`, 실행마다 새 토큰, 열린 프로젝트 밖 거부, 에이전트 환경 변수 제거)와 단위 테스트 2개까지 작성. |
+| C. 언어 서버, 파일 간 정의 이동 | 도달 못함 | 같은 이유 (B와 같은 서버 필요). |
+| D. 서버 강제 종료 후 복구 | 도달 못함 | 같은 이유. |
+| E. 색 테마와 파일 아이콘 테마 | 통과 | Open VSX에서 `PKief.material-icon-theme` 5.40.0과 `zhuangtongfa.material-theme` 설치(웹 확장 관리), One Dark Pro 적용. 아이콘 테마 JSON을 데이터로 읽음(`fileNames` 2156, `fileExtensions` 1391, `tsx` → `react_ts`). 설치한 확장은 메모리 사용자 데이터에 있어 다시 불러오면 사라지고, 리소스는 Open VSX에서 실시간으로 받는다. CSP `connect-src`에 Open VSX 호스트 4개, `img-src https:` 추가. |
+| F. VS Code 뷰를 Evoke의 div에 | 통과 | `renderSidebarPart`, `renderPanelPart`로 Extensions 뷰와 Problems 뷰를 Evoke가 배치한 두 div에 그림. 검색과 설치가 동작하고, 칸 폭 320 → 480에 따라 319 → 479 px로 따라감. 단위는 뷰가 아니라 파트(사이드바, 패널) 하나씩이다. |
+| G. Claude Code `getDiagnostics` | 도달 못함 | B의 진단이 필요. |
+| H. 두 번째 프로젝트 | 조건부 | 같은 페이지 전환 불가(`vscode.openFolder`가 끝나지 않음). 다시 불러오면 77 ms(캐시 상태), 첫 로드 344–552 ms. 잃는 것: 웹으로 설치한 확장, 열린 편집기, 뷰 상태, 렌더러 쪽 터미널. 프로젝트마다 서버 재시작. |
+
+**판단 규칙 적용**: A, B, C, F가 모두 통과해야 Option C가 선다. B와 C에 도달하지 못했으므로 규칙상 판정할 수 없다.
+
+**결론: Option C 판정 보류. Node 확장 지원은 하지 않고 DISCOVER로 대체한다.**
+
+- 사용자가 원한 것은 "확장을 바로 가져와 쓰기"였고, GitHub의 스킬 레포를 SKILL 메뉴에서 골라 설치하는 DISCOVER(PR #18)가 그 자리를 채운다. 별도 서버(플랫폼마다 약 100 MB), 서버 버전 맞추기, 확장 보안 경계(11절 3번)가 필요 없다.
+- 편집 엔진은 지금의 Monaco 0.52를 유지한다. 부록 D의 "편집 엔진 교체"는 실행하지 않는다.
+- 다시 열 조건: 린터나 언어 서버 같은 Node 확장이 필요해지면, 서버 실행을 허용한 상태에서 B와 C부터 다시 확인한다. 스파이크 코드는 버렸으므로 위 A의 변경 4개와 E, F의 API 이름이 출발점이다.
