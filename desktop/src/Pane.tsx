@@ -1,13 +1,8 @@
-// The MENU pane from the terminal, as a column: the scene art is the whole pane, the HUD sits on its dark band,
-// the nine menu names drawn in the art are the buttons, and the menu's content lies on the open water below.
-// TIDE hides the art and shows the buttons' own text and .cutin instead (see style.css).
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+// The MENU pane as a column: the HUD on its dark band, the nine menu names as buttons on rows from ITEM_ROWS,
+// the menu's content below. Each theme draws the ground and the names in CSS (see style.css).
+import type { CSSProperties, ReactNode } from 'react'
 import { MENUS, ITEM_ROWS, ART, GRID } from '../../plugins/evoke/hooks/tokens.js'
 import { dayOf, gauge, untilReset } from '../../plugins/evoke/hooks/data'
-
-const SCENES = import.meta.glob('../../plugins/evoke/scenes/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
-const scene = (menu: string, frame: number) => SCENES[`../../plugins/evoke/scenes/${menu}_${frame}.png`]
-const FRAMES = [25, 50, 75, 90, 100] // the cut-in, as the pane plays it
 
 export type Usage = { context: number | null; limits: { kind: string; percent: number; resetsAt?: string; stale?: boolean }[]; usd: number | null }
 
@@ -39,26 +34,10 @@ export function UsageStrip({ usage, now, label }: { usage: Usage | null; now: nu
 }
 
 export function Pane({ menu, onMenu, now, hint, style, wrapInfo, children }: { menu: string; onMenu: (m: string) => void; now: number; hint: string; style?: CSSProperties; wrapInfo: (info: ReactNode) => ReactNode; children: ReactNode }) {
-  const [frame, setFrame] = useState(100)
-  useEffect(() => {
-    for (const m of MENUS) for (const f of FRAMES) new Image().src = scene(m, f) // decoded ahead, so the cut-in never flashes
-  }, [])
-  useEffect(() => {
-    let i = 0
-    setFrame(FRAMES[0])
-    const id = setInterval(() => {
-      i += 1
-      setFrame(FRAMES[Math.min(i, FRAMES.length - 1)])
-      if (i >= FRAMES.length - 1) clearInterval(id)
-    }, 40)
-    return () => clearInterval(id)
-  }, [menu])
-
   const { date, moon } = dayOf(now)
   return (
     <aside className="pane" style={style}>
       <div className="art">
-        <img src={scene(menu, frame)} alt={menu} draggable={false} />
         <div className="cutin" key={menu} aria-hidden="true"><b>{menu}</b></div>
         {wrapInfo(
           <div className="pane-hud">
