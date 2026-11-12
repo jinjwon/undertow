@@ -865,7 +865,7 @@ export function App() {
         </nav>
         <Suspense fallback={<div className="state">{T('loading')}</div>}>
         {tab?.web !== undefined ? (
-          <WebView key={tab.path} url={tab.web} T={T} />
+          <WebView key={tab.path} url={tab.web} theme={theme} T={T} />
         ) : tab?.head !== undefined ? (<>
           {tab.proposal && (
             <div className="web-bar proposal" role="group" aria-label={T('ide.proposal')}>
@@ -1182,8 +1182,10 @@ function Tree({ dir, depth, onOpen, active }: { dir: string; depth: number; onOp
 }
 
 // A preview page in a frame. It is another origin with no preload, so it cannot reach the app; no sandbox attribute, because Chromium refuses its PDF viewer in a sandboxed frame.
-function WebView({ url, T }: { url: string; T: (key: any, vars?: any) => string }) {
+// A Markdown page is drawn in the app's theme, so it follows a theme switch.
+function WebView({ url, theme, T }: { url: string; theme: ThemeName; T: (key: any, vars?: any) => string }) {
   const [run, setRun] = useState(0)
+  const src = url && /\.(md|markdown)$/i.test(url) ? `${url}?theme=${theme}` : url
   return (
     <div className="web-view">
       <div className="web-bar">
@@ -1191,7 +1193,7 @@ function WebView({ url, T }: { url: string; T: (key: any, vars?: any) => string 
         <button onClick={() => setRun(r => r + 1)} title={T('live.reload')} aria-label={T('live.reload')}>↻</button>
         <button onClick={() => api.previewOpen(url)} title={T('live.browser')} aria-label={T('live.browser')}>↗</button>
       </div>
-      {url ? <iframe key={run} src={url} title={T('live.open')} /> : <p className="quiet">{T('binary')}</p>}
+      {url ? <iframe key={run} src={src} title={T('live.open')} /> : <p className="quiet">{T('binary')}</p>}
     </div>
   )
 }

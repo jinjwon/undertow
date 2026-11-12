@@ -69,6 +69,12 @@ test('serves a file, a folder index and a byte range', async () => {
   assert.deepStrictEqual([whole.status, whole.headers['content-type'], whole.body], [200, 'application/pdf', '0123456789'])
 })
 
+test('Markdown is drawn in the theme the URL asks for, TIDE otherwise', async () => {
+  assert.match((await get(pathOf(path.join(root, 'doc.md')))).body, /<html data-theme="tide">.*<style>/s)
+  assert.match((await get(`${pathOf(path.join(root, 'doc.md'))}?theme=rebel`)).body, /<html data-theme="rebel">/)
+  assert.match((await get(`${pathOf(path.join(root, 'doc.md'))}?theme="><x`)).body, /<html data-theme="tide">/)
+})
+
 test('Markdown is rendered and its scripts cannot run', async () => {
   const res = await get(pathOf(path.join(root, 'doc.md')))
   assert.strictEqual(res.status, 200)
