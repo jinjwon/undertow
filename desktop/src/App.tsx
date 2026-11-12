@@ -76,8 +76,8 @@ const rectStyle = (r: Rect): CSSProperties => ({
 })
 // The badge in front of a file name: its kind in two or three letters, coloured per theme.
 const FileIcon = ({ name, dir = false }: { name: string; dir?: boolean }) => {
-  const { label, kind } = iconOf(name, dir)
-  return <i className={`fi fi-${kind}`} aria-hidden="true">{label}</i>
+  const { label, kind, shape } = iconOf(name, dir)
+  return <i className={`fi fi-${kind} fs-${shape}`} aria-hidden="true">{label}</i>
 }
 // A thief's domino mask, drawn here (not taken from any game): REBEL's alert and folder mark.
 const Mask = () => (

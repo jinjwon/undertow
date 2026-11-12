@@ -65,6 +65,8 @@ Rules:
 
 Disabled is `opacity: .4` with no pointer events; there is no disabled colour.
 
+File badges (`.fi`, kinds and shapes in `iconOf` in `desktop/src/text.ts`) are data, like the git status colours: each kind has its own colour and each family its own outline (code: slanted tab; React, Vue, Svelte: pill; data and config: hexagon; docs: folded page; HTML and CSS: arrow; media: rounded; shell: notched; tests: octagon). They look the same in both themes and are the one place outside a theme block with fixed colours. Folders keep each theme's own mark. A new kind needs its colour in `style.css`; a test fails without it.
+
 ## States and motion
 
 | State | Rule |
