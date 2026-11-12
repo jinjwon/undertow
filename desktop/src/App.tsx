@@ -167,7 +167,7 @@ export function App() {
   const [toast, setToast] = useState('')
   const warned = useRef(new Set<string>())
   const [agents, setAgents] = useState<Agents>(storedAgents)
-  const [picked, setPicked] = useState<(ToolId | null)[]>(() => [storedAgents() === 'codex' ? 'codex' : 'chat', null]) // Claude opens as the chat, as its VS Code panel does // the tool each dock group was last asked to show
+  const [picked, setPicked] = useState<(ToolId | null)[]>(() => [agentsOf(storedAgents())[0], null]) // the tool each dock group was last asked to show // the tool each dock group was last asked to show
   const [focus, setFocus] = useState(0) // the group skills and ⌘L type into
   const [dragging, setDragging] = useState(false)
   const [dropAt, setDropAt] = useState<{ group: number; side: 'row' | 'col' | null } | null>(null)
