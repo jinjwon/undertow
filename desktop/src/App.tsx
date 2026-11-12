@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { EmptyArt } from './EmptyArt'
 import { THEMES, THEME_NAMES, defineThemes, type ThemeName } from './themes'
 import { Pane, UsageStrip } from './Pane'
 import { Chat } from './ChatPanel'
@@ -903,10 +904,11 @@ export function App() {
           />
         ) : (
           <div className="empty">
+            <EmptyArt theme={theme} />
             <img className="mark" src={THEMES[theme].logo} alt="Evoke" />
             <div className="big">EVOKE</div>
             {root ? (
-              <p>{T('emptyHint', { mod: MOD })}</p>
+              <p className="keys">{T('emptyHint', { mod: MOD }).split(' · ').map(k => <span key={k}>{k}</span>)}</p>
             ) : (
               <div className="welcome">
                 <div className="group">{T('welcome')}</div>
@@ -1009,8 +1011,8 @@ export function App() {
       {/* The status band, as above the terminal's prompt. */}
       <footer className="hud">
         <Cut label={menu} ground="var(--chip)" />
-        <b className="band">{root ? baseName(root) : '—'}</b>{branch && <i className="quiet"> / {branch}</i>}
-        <span className="quiet">{T('changes', { n: changes.length })}</span>
+        <b className="band">{root ? baseName(root) : '—'}</b>{branch && <i className="hud-branch">⎇ {branch}</i>}
+        <span className={`hud-changes ${changes.length ? 'dirty' : ''}`}>{T('changes', { n: changes.length })}</span>
         {!usage && <span className="quiet usd">{T('noUsage')}</span>}
       </footer>
       {!shown.main && !draft && !hidePane && divider('pane')}

@@ -679,3 +679,126 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .commit-box { display: flex; gap: 6px; padding: 8px 12px; }
 .commit-box button { background: var(--sel); color: var(--sel-ink); }
 [data-theme='rebel'] .commit-box button { background: #FFFFFF; color: #000000; box-shadow: 3px 2px 0 var(--blood); }
+
+/* ---- 2026-11-12 redesign: drawn empty page, menu pane closer to each game's menu language, new top bar and HUD. Later rules win. ---- */
+
+/* Empty editor: the SVG backdrop (EmptyArt.tsx) under the word and the shortcut chips. */
+.empty { position: relative; overflow: hidden; }
+.empty-art { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.empty > :not(.empty-art) { position: relative; z-index: 1; }
+.empty .keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; max-width: 640px; margin: 18px auto 0; }
+.empty .keys span { padding: 3px 10px; white-space: nowrap; font-weight: 700; }
+.ea-rays { transform-origin: 400px 300px; animation: spin 90s linear infinite; }
+.ea-bubbles > g { animation: bubble 7s ease-in infinite; }
+@keyframes spin { to { rotate: 360deg; } }
+@keyframes bubble { 0% { translate: 0 30px; opacity: 0; } 15% { opacity: 1; } 100% { translate: 6px -260px; opacity: 0; } }
+
+/* HUD pieces shared by both themes. */
+.hud-branch { color: var(--gray); font: 900 italic 13px Barlow, sans-serif; }
+.hud-changes { color: var(--gray); font: 900 italic 13px Barlow, Pretendard, sans-serif; }
+
+[data-theme='rebel'] {
+  /* Empty page: a white word with a black outline and a red shadow, slammed onto the burst. */
+  .empty .big { position: relative; color: #FFFFFF; -webkit-text-stroke: 7px #000000; paint-order: stroke fill; text-shadow: 10px 9px 0 var(--blood); font-size: clamp(90px, 10vw, 190px); line-height: .9; transform: rotate(-9deg) skewX(-8deg); }
+  .empty > p.keys { background: none; transform: rotate(-4deg); padding: 0; }
+  .empty .keys span { background: #FFFFFF; color: #000000; transform: rotate(-3deg); box-shadow: 3px 3px 0 var(--blood); }
+  .empty .keys span:nth-child(2n) { background: #000000; color: #FFFFFF; outline: 2px solid #FFFFFF; transform: rotate(4deg) translateY(4px); }
+  .empty .keys span:nth-child(3n) { background: var(--blood); color: #FFFFFF; box-shadow: 3px 3px 0 #000000; transform: rotate(-6deg); }
+  .empty .welcome { background: #000000; outline: 3px solid #FFFFFF; box-shadow: 10px 10px 0 var(--blood); transform: rotate(-1.5deg); }
+
+  /* MENU pane: live words on a red burst instead of the terminal's scene art, each row at its own angle,
+     letters cut at different sizes; the pick is a white torn slab over a red one. */
+  .pane .art img { display: none; }
+  .pane .art { isolation: isolate; overflow: hidden; background:
+      radial-gradient(circle, #000000 0 36%, transparent 40%) 0 0 / 8px 8px,
+      repeating-conic-gradient(from 4deg at 22% 46%, #000000 0 9deg, transparent 9deg 22deg),
+      var(--blood);
+    -webkit-mask-image: linear-gradient(180deg, #000 85%, transparent); }
+  .pane .art::before { content: ''; position: absolute; inset: 6% -10% 8% 28%; background: #000000; clip-path: polygon(10% 4%, 100% 0, 100% 92%, 0 100%, 6% 60%, 0 42%); }
+  .pane .art::after { content: ''; position: absolute; inset: 8% -10% 10% 30%; border: 0; background: linear-gradient(#FFFFFF, #FFFFFF) left / 3px 100% no-repeat; clip-path: polygon(10% 4%, 100% 0, 100% 92%, 0 100%, 6% 60%, 0 42%); }
+  .pane-hud { z-index: 4; background: #000000; box-shadow: 0 2px 0 #FFFFFF; }
+  .cutin { display: block; position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+  .cutin b { position: absolute; left: 4cqw; top: 54%; font: 900 italic 22cqw/1 Barlow, sans-serif; color: #000000; -webkit-text-stroke: 3px #FFFFFF; paint-order: stroke fill; white-space: nowrap; transform-origin: 0 50%; transform: rotate(-78deg); animation: word .18s cubic-bezier(.2, .9, .3, 1); }
+  .cutin::after { content: ''; position: absolute; z-index: 3; inset: 0; background: #FFFFFF; clip-path: polygon(0 0, 0 0, 0 0); animation: wipe .22s ease-out; }
+
+  .hot-menu { z-index: 2; left: calc(34% + var(--x)); width: auto; padding: 0 14px; isolation: isolate; color: #FFFFFF; font: 900 7.2cqw/1 Barlow, sans-serif; white-space: nowrap; -webkit-text-stroke: 4px #000000; paint-order: stroke fill; transform-origin: 0 50%; transform: rotate(var(--r, -8deg)); transition: transform .09s, color .09s; }
+  .hot-menu:nth-of-type(3n+1) { --r: -11deg; }
+  .hot-menu:nth-of-type(3n+2) { --r: -5deg; }
+  .hot-menu:nth-of-type(3n) { --r: -9deg; }
+  .hot-menu span { display: inline; }
+  .hot-menu span i { display: inline-block; font-style: normal; }
+  .hot-menu span i:nth-child(3n+1) { transform: rotate(-5deg) scale(1.14); }
+  .hot-menu span i:nth-child(3n+2) { transform: translateY(.06em) rotate(4deg) scale(.9); }
+  .hot-menu span i:nth-child(4n) { transform: translateY(-.04em) rotate(-2deg) scale(1.04); }
+  .hot-menu::before, .hot-menu::after { content: ''; position: absolute; inset: -4px -10px; clip-path: polygon(3% 12%, 30% 0, 62% 8%, 100% 0, 96% 52%, 100% 100%, 58% 90%, 24% 100%, 0 86%, 4% 46%); transform: scaleX(0); transform-origin: 0 50%; transition: transform .1s; }
+  .hot-menu::before { z-index: -1; background: #FFFFFF; }
+  .hot-menu::after { z-index: -2; background: var(--blood); translate: 8px 6px; rotate: 3deg; }
+  .hot-menu:hover { background: none; color: var(--blood); -webkit-text-stroke-color: #FFFFFF; transform: rotate(var(--r)) translateX(6px); }
+  .hot-menu.on { color: #000000; -webkit-text-stroke: 0; font-size: 9cqw; transform: rotate(var(--r)) translateX(12px); }
+  .hot-menu.on::before, .hot-menu.on::after { transform: scaleX(1); }
+  .hot-menu.on::after { background: #000000; outline: 0; box-shadow: none; }
+  .hot-menu.on span i:nth-child(2n) { color: var(--blood); }
+  .hot-menu:active { transform: rotate(var(--r)) translateX(12px) scale(.94); }
+
+  .pane-body { background: #000000F2; padding-top: 18px; clip-path: polygon(0 14px, 100% 0, 100% 100%, 0 100%); }
+  .pane-body::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 18px; background: linear-gradient(#FFFFFF, #FFFFFF) 0 100% / 100% 3px no-repeat, var(--blood); clip-path: polygon(0 14px, 100% 0, 100% 6px, 0 18px); }
+  .pane .pane-content .group { border-left: 0; background: var(--blood); transform: skewX(-10deg); margin-left: 6px; margin-right: 10px; box-shadow: 3px 3px 0 #FFFFFF; }
+  .pane-hint { background: #FFFFFF; color: #000000; border-top: 3px solid var(--blood); font-weight: 700; }
+
+  /* Top bar: black, the project on a white slab, search as a white card with a red shadow. */
+  .top { background: #000000; gap: 18px; }
+  .project { padding: 3px 16px 3px 4px; background: #FFFFFF; color: #000000; transform: rotate(-2deg) skewX(-8deg); box-shadow: 4px 4px 0 var(--blood); transition: transform .1s; }
+  .project:hover { transform: rotate(-3deg) skewX(-8deg) translateX(4px); }
+  .branch:not(:empty) { padding: 1px 10px; background: var(--blood); color: #FFFFFF; font: 900 italic 13px Barlow, sans-serif; transform: rotate(2deg); }
+  .find-open { background: #FFFFFF; color: #000000; border: 0; box-shadow: 4px 4px 0 var(--blood); }
+  .find-open span { color: #3A3A3A; }
+  .find-open kbd { color: var(--blood); }
+  .find-open:hover, .find-open:focus-visible { box-shadow: 6px 5px 0 var(--blood); }
+
+  /* HUD: a white and red rule on top, red slashes fading in on the right. */
+  .hud { position: relative; border-top: 0; background: #000000; box-shadow: inset 0 2px 0 #FFFFFF, 0 -3px 0 var(--blood); }
+  .hud::after { content: ''; position: absolute; inset: 0 0 0 auto; width: 40%; pointer-events: none; background: repeating-linear-gradient(115deg, var(--blood) 0 5px, transparent 5px 14px); -webkit-mask-image: linear-gradient(90deg, transparent, #000); }
+  .hud > * { position: relative; z-index: 1; }
+  .hud .band { color: #FFFFFF; font-size: 15px; }
+  .hud-branch { padding: 0 8px; background: #FFFFFF; color: #000000; transform: rotate(-2deg); box-shadow: 2px 2px 0 var(--blood); }
+  .hud-changes { color: #FFFFFF; }
+  .hud-changes.dirty { padding: 0 10px; background: var(--blood); transform: rotate(2deg) skewX(-10deg); }
+}
+
+[data-theme='tide'] {
+  /* Empty page: ripples, light shafts and bubbles on the blue half. */
+  .empty .keys { justify-content: start; margin: 4px 0 0; max-width: 58%; }
+  .empty .keys span { background: #06145B; color: #FFFFFF; transform: skewX(-10deg); box-shadow: 4px 4px 0 #16D9F5; }
+
+  /* MENU pane: the words float on blue water as the remake's menu does: pale words, the pick a white plate with a cyan wake. */
+  .pane .art { background: linear-gradient(172deg, #064DE8 0 40%, #0A33B8 70%, #06145B); overflow: hidden; }
+  .pane .art::before { top: 0; left: 0; width: 100%; height: 100%; opacity: .5; background: repeating-radial-gradient(ellipse 80% 30% at 20% 70%, transparent 0 22px, #FFFFFF1F 22px 24px, transparent 24px 48px); clip-path: none; }
+  .pane .art::after { top: 6%; right: 0; width: 40cqw; height: 50%; background: radial-gradient(circle, #16D9F5 0 30%, transparent 34%) 0 0 / 10px 10px; -webkit-mask-image: linear-gradient(225deg, #000, transparent 70%); }
+  .cutin b { color: #FFFFFF14; -webkit-text-stroke: 2px #FFFFFF66; font-size: 22cqw; left: 6cqw; }
+  .cutin::after { background: #16D9F5; }
+  .hot-menu { color: #CFEFFF; text-shadow: 3px 3px 0 #06145B; }
+  .hot-menu:hover { color: #FFFFFF; }
+  .hot-menu::before { background: #16D9F599; }
+  .hot-menu.on { color: #06145B; text-shadow: none; }
+  .hot-menu.on::before { background: #FFFFFF; }
+  .hot-menu.on::after { background: #16D9F5; }
+  .hot-menu span i { font-style: normal; }
+
+  /* Top bar: navy, the project on a white plate, cyan and blue rules under it, the clock a cyan plate. */
+  .top { --text: #FFFFFF; --hi: #16D9F5; --gray: #BFC4D0; --line: #FFFFFF44; --page: #FFFFFF14; --chip: #16D9F5; --chip-ink: #06145B; color: #FFFFFF; background: #06145B; box-shadow: inset 0 -3px 0 #16D9F5, inset 0 -6px 0 #064DE8; }
+  .project { padding: 4px 18px 4px 4px; background: #FFFFFF; color: #06145B; clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); transition: transform .1s; }
+  .project:hover { transform: translateX(4px); }
+  .branch { color: #16D9F5; font: 900 italic 13px Barlow, sans-serif; }
+  .find-open { color: #BFC4D0; }
+  .find-open:hover, .find-open:focus-visible { background: #FFFFFF26; }
+  .gear { color: #FFFFFF; }
+  .gear:hover { color: #16D9F5; }
+  .clock { --text: #06145B; --hi: #064DE8; color: #06145B; background: #16D9F5; box-shadow: inset 0 -6px 0 #064DE8; }
+
+  /* HUD: a cyan rule on top, the change count a cyan chip once the tree is dirty. */
+  .hud { gap: 16px; box-shadow: inset 0 3px 0 #16D9F5; padding-top: 3px; }
+  .hud .band { font-size: 15px; }
+  .hud-branch { color: #16D9F5; }
+  .hud-changes { padding: 0 10px; transform: skewX(-10deg); }
+  .hud-changes.dirty { background: #16D9F5; color: #06145B; }
+}
