@@ -1,7 +1,7 @@
 // Claude Code as a chat, as its VS Code panel shows it: your messages, its answers, the tools it runs,
 // and a question with ALLOW and DENY whenever a tool needs permission. One Claude Code process per project, in print mode.
 import { useEffect, useRef, useState } from 'react'
-import { EMPTY_CHAT, chatReduce, type Chat as ChatState } from './chat'
+import { EMPTY_CHAT, chatReduce, partsOf, type Chat as ChatState } from './chat'
 
 const api = window.evoke
 
@@ -34,8 +34,10 @@ export function Chat({ cwd, group, on, T }: { cwd: string; group: number; on: bo
         {!chat.items.length && <p className="quiet">{T('chat.empty')}</p>}
         {chat.items.map((item, i) =>
           item.kind === 'user' ? <div key={i} className="said mine">{item.text}</div>
-          // shortcut: answers are plain text, not rendered Markdown, so nothing Claude writes can become HTML in this window; render Markdown through a sanitiser when that is wanted.
-          : item.kind === 'text' ? <div key={i} className="said">{item.text}</div>
+          // Markdown drawn as React elements (partsOf), so nothing Claude writes can become HTML in this window.
+          : item.kind === 'text' ? <div key={i} className="said">{partsOf(item.text).map((p, j) => p.kind === 'code'
+            ? <pre key={j} className="said-code" data-lang={p.lang || undefined}><code>{p.text}</code></pre>
+            : <span key={j}>{p.spans.map((s, k) => s.kind === 'code' ? <code key={k}>{s.text}</code> : s.kind === 'bold' ? <b key={k}>{s.text}</b> : s.text)}</span>)}</div>
           : item.kind === 'error' ? <div key={i} className="said error" role="alert">{item.text}</div>
           : item.kind === 'tool' ? <div key={i} className={`used ${item.failed ? 'failed' : ''}`}><b>{item.name}</b> <span>{item.detail}</span></div>
           : (

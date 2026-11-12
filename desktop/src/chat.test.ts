@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert'
-import { EMPTY_CHAT, chatReduce, type Chat } from './chat.ts'
+import { EMPTY_CHAT, chatReduce, partsOf, type Chat } from './chat.ts'
 
 const run = (events: unknown[], from: Chat = { ...EMPTY_CHAT, busy: true }) => events.reduce(chatReduce, from)
 
@@ -27,4 +27,13 @@ test('chatReduce ends the turn on a result or an exit', () => {
   const asked = run([{ type: 'control_request', request_id: 'r', request: { subtype: 'can_use_tool', tool_name: 'Bash', input: { command: 'ls' } } }, { type: 'exit', code: 1 }])
   assert.deepStrictEqual(asked.items.map(i => [i.kind, 'answer' in i ? i.answer : undefined]), [['ask', 'deny'], ['error', undefined]])
   assert.deepStrictEqual(run([{ type: 'exit', code: 0 }], EMPTY_CHAT), EMPTY_CHAT)
+})
+
+test('an answer is cut into code blocks, inline code and bold, never HTML', () => {
+  assert.deepStrictEqual(partsOf('Run `npm test` **now**:\n```sh\nnpm test\n```\ndone <b>'), [
+    { kind: 'line', spans: [{ kind: 'text', text: 'Run ' }, { kind: 'code', text: 'npm test' }, { kind: 'text', text: ' ' }, { kind: 'bold', text: 'now' }, { kind: 'text', text: ':\n' }] },
+    { kind: 'code', lang: 'sh', text: 'npm test' },
+    { kind: 'line', spans: [{ kind: 'text', text: '\ndone <b>' }] },
+  ])
+  assert.deepStrictEqual(partsOf('```\nopen'), [{ kind: 'code', lang: '', text: 'open' }]) // a fence still streaming
 })

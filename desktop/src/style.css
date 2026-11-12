@@ -790,3 +790,12 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 @keyframes caustic { to { translate: 104px 0; } }
 @keyframes bubbles { to { translate: 0 -40%; } }
 @keyframes drift-in { from { opacity: 0; translate: -24px 0; } }
+
+/* CHAT as Claude's default panel: answers with code blocks and inline code, the composer as a framed card. */
+.said code { padding: 0 4px; font: 12.5px Iosevka, Menlo, Consolas, monospace; background: color-mix(in srgb, var(--text) 12%, transparent); }
+.said-code { position: relative; margin: 6px 0; padding: 10px 12px; overflow-x: auto; white-space: pre; background: #050505; color: #FFFFFF; border-left: 3px solid var(--edge); }
+.said-code code { padding: 0; background: none; font-size: 12.5px; }
+.said-code[data-lang]::before { content: attr(data-lang); position: absolute; top: 0; right: 0; padding: 0 8px; font: 900 italic 11px Barlow, sans-serif; color: var(--chip-ink); background: var(--chip); }
+.chat-box { margin: 0 12px 12px; padding: 8px 10px; border: 2px solid var(--edge); background: color-mix(in srgb, #000000 35%, transparent); }
+.chat-box:focus-within { box-shadow: 4px 4px 0 var(--sel); }
+[data-theme='rebel'] .chat-box:focus-within { box-shadow: 4px 4px 0 var(--blood); }
