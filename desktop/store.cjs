@@ -4,7 +4,7 @@ const fs = require('node:fs/promises')
 const path = require('node:path')
 
 // Which file each key lives in: settings, layout and theme are kept apart so one never overwrites another.
-const KEYS = { lang: 'settings', agents: 'settings', terminal: 'settings', motion: 'settings', layout: 'layout', split: 'layout', layoutPresets: 'layout', theme: 'theme' }
+const KEYS = { lang: 'settings', agents: 'settings', terminal: 'settings', motion: 'settings', layout: 'layout', split: 'layout', layoutPresets: 'layout', theme: 'theme', events: 'events' }
 const FILES = [...new Set(Object.values(KEYS))]
 const MAX = 1e6
 

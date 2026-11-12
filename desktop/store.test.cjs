@@ -42,5 +42,14 @@ test('writes leave no temporary file behind and keep the last of two quick write
 
 test('snapshot lists every key', async () => {
   const s = createStore(await fresh()); await s.load()
-  assert.deepStrictEqual(s.snapshot().keys.sort(), ['agents', 'lang', 'layout', 'layoutPresets', 'motion', 'split', 'terminal', 'theme'])
+  assert.deepStrictEqual(s.snapshot().keys.sort(), ['agents', 'events', 'lang', 'layout', 'layoutPresets', 'motion', 'split', 'terminal', 'theme'])
+})
+
+test('calendar events survive a reload in their own file', async () => {
+  const dir = await fresh()
+  const s = createStore(dir); await s.load()
+  await s.set('events', '[{"id":"a","title":"x","date":"2026-11-12"}]')
+  const again = createStore(dir); await again.load()
+  assert.strictEqual(again.snapshot().values.events, '[{"id":"a","title":"x","date":"2026-11-12"}]')
+  assert.ok(await fs.stat(path.join(dir, 'events.json')))
 })

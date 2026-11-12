@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert'
 import { readFileSync } from 'node:fs'
-import { FILE_KINDS, promptVars, iconOf, isImage, previewKind, stepDate, weekOf } from './text.ts'
+import { FILE_KINDS, promptVars, iconOf, isImage, previewKind, stepDate, weekOf, matchItems } from './text.ts'
 import { STRINGS, langFrom, tr } from './i18n.ts'
 
 test('promptVars finds each {{ }} variable with its offsets', () => {
@@ -91,4 +91,12 @@ test('Korean permission and chat copy reads right for any tool name', () => {
   assert.strictEqual(tr('ko', 'chat.ask', { tool: 'Bash' }), 'Bash 사용을 허용할까요?')
   assert.strictEqual(tr('ko', 'chat.ask', { tool: 'Write' }), 'Write 사용을 허용할까요?')
   assert.ok(tr('ko', 'chat.empty').includes('허락을 구해요'))
+})
+
+test('matchItems needs every word, puts label-prefix hits first and caps the list', () => {
+  const items = [{ label: 'Review PR', detail: 'meeting 11/12' }, { label: 'STATUS', detail: 'git changes' }, { label: 'standup', detail: 'meeting' }]
+  assert.deepStrictEqual(matchItems(items, 'st').map(i => i.label), ['STATUS', 'standup'])
+  assert.deepStrictEqual(matchItems(items, 'meeting pr').map(i => i.label), ['Review PR'])
+  assert.deepStrictEqual(matchItems(items, '  '), [])
+  assert.strictEqual(matchItems(items, 'e', 1).length, 1)
 })

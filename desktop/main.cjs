@@ -9,7 +9,7 @@ const { startIde } = require('./ide.cjs')
 const { createStore } = require('./store.cjs')
 const { skillDirsOf, skillFiles, SKILL_NAME, claudeLimitsOf, codexLimitsOf, statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 const { start: startPreview } = require('./serve.cjs')
-const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
+const { walkSkip, fuzzy, searchText, replaceText, pathAllowed, parseStatus } = require('./match.cjs')
 
 const home = os.homedir()
 const roots = new Set() // real paths of the folders the window has opened; file access stays inside them
@@ -93,19 +93,46 @@ ipcMain.handle('fs:files', async (_, root, query) => {
     .sort((a, b) => b.score - a.score)
     .slice(0, 50)
 })
-ipcMain.handle('fs:search', async (_, root, query) => {
+// opts: caseSensitive, word, regex, include, exclude (the search sheet's toggles and file filters).
+const searchable = async (root, opts) => {
+  const out = []
+  for (const file of await filesOf(root)) {
+    if (!pathAllowed(path.relative(root, file), opts?.include, opts?.exclude)) continue
+    const stat = await fs.stat(file).catch(() => null)
+    if (stat && stat.size <= 1e6) out.push(file)
+  }
+  return out
+}
+ipcMain.handle('fs:search', async (_, root, query, opts = {}) => {
   await guard(root)
   const q = String(query)
   if (q.length < 2) return []
   const hits = []
-  for (const file of await filesOf(root)) {
+  for (const file of await searchable(root, opts)) {
     if (hits.length >= 500) break
-    const stat = await fs.stat(file).catch(() => null)
-    if (!stat || stat.size > 1e6) continue
     const text = await fs.readFile(file, 'utf8').catch(() => '')
-    for (const h of searchText(text, q, 500 - hits.length)) hits.push({ path: file, rel: path.relative(root, file), ...h })
+    for (const h of searchText(text, q, 500 - hits.length, opts)) hits.push({ path: file, rel: path.relative(root, file), ...h })
   }
   return hits
+})
+// Replace in every matching file under the same filters. skip: open files with unsaved edits, left alone so nothing typed is lost.
+ipcMain.handle('fs:replace', async (_, root, query, replacement, opts = {}, skip = []) => {
+  await guard(root)
+  const q = String(query)
+  if (q.length < 2) return { files: 0, n: 0 }
+  let files = 0
+  let n = 0
+  for (const file of await searchable(root, opts)) {
+    if (skip.includes(file)) continue
+    const text = await fs.readFile(file, 'utf8').catch(() => null)
+    if (text == null) continue
+    const out = replaceText(text, q, String(replacement), opts)
+    if (!out.n) continue
+    await fs.writeFile(file, out.text)
+    files++
+    n += out.n
+  }
+  return { files, n }
 })
 ipcMain.handle('fs:read', async (_, file) => fs.readFile(await guard(file), 'utf8'))
 // Images for the preview tab, as a data URL the page's CSP allows (img-src data:).
@@ -158,6 +185,22 @@ ipcMain.handle('git:status', async (_, root) => {
   await guard(root)
   const out = await git(root, ['status', '--porcelain=v1', '-z', '-uall'])
   return out == null ? [] : parseStatus(out).map(c => ({ ...c, path: path.join(root, c.path) }))
+})
+// STATUS: commit every change to tracked files (git commit -a). New files stay out until added, so stray files never ride along.
+ipcMain.handle('git:commit', async (_, root, message) => {
+  await guard(root)
+  const msg = String(message).trim()
+  if (!msg) throw new Error('Empty commit message')
+  return new Promise(resolve => execFile('git', ['-C', root, 'commit', '-a', '-m', msg], (err, out, errOut) => resolve(err ? { ok: false, error: (errOut || out || err.message).trim().split('\n').slice(-3).join('\n') } : { ok: true })))
+})
+// STATUS: the last commits on the current branch, one line each. \x1f splits the fields, since a subject can hold anything else.
+ipcMain.handle('git:log', async (_, root) => {
+  await guard(root)
+  const out = await git(root, ['log', '-n', '15', '--pretty=format:%h%x1f%s%x1f%an%x1f%ct'])
+  return (out ?? '').split('\n').filter(Boolean).map(l => {
+    const [hash, subject, author, at] = l.split('\x1f')
+    return { hash, subject, author, at: Number(at) * 1000 }
+  })
 })
 // The file as of the last commit: '' for a new file. A deleted file has no real path, so this checks the name only.
 ipcMain.handle('git:head', async (_, root, file) => {

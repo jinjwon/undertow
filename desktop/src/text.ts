@@ -81,3 +81,16 @@ export const stepDate = (t: number, view: 'month' | 'week' | 'day', n: number) =
 // 'live' files (HTML, Markdown) open in the editor and can be shown beside it; null has no preview.
 export const previewKind = (path: string): 'direct' | 'live' | null =>
   /\.(pdf|mp4|webm|mov|mp3|wav|ogg)$/i.test(path) ? 'direct' : /\.(html?|md|markdown)$/i.test(path) ? 'live' : null
+
+// The ⌘K search over everything the window knows: every word must appear in the label or detail; labels that start with the query come first.
+export const matchItems = <T extends { label: string; detail?: string }>(items: T[], query: string, n = 30): T[] => {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+  const words = q.split(/\s+/)
+  return items
+    .filter(i => { const hay = `${i.label} ${i.detail ?? ''}`.toLowerCase(); return words.every(w => hay.includes(w)) })
+    .map((i, at) => ({ i, at, head: i.label.toLowerCase().startsWith(q) ? 0 : 1 }))
+    .sort((a, b) => a.head - b.head || a.at - b.at)
+    .slice(0, n)
+    .map(x => x.i)
+}

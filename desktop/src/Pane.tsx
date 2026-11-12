@@ -73,7 +73,7 @@ export function Pane({ menu, onMenu, now, hint, style, wrapInfo, children }: { m
             aria-label={m}
             style={{ top: `${((ITEM_ROWS[i].y - 84) / ART.height) * 100}%`, height: `${(78 / ART.height) * 100}%`, ['--x' as string]: `${((ITEM_ROWS[i].x - 430) / ART.width) * 100}cqw` }}
             onClick={() => onMenu(m)}
-          ><span>{m}</span></button>
+          ><span>{[...m].map((c, j) => <i key={j}>{c}</i>)}</span></button>
         ))}
       </div>
       <div className="pane-body" style={{ top: `calc(100cqw * ${ART.height / ART.width} * ${GRID.content / GRID.rows})` }}>
