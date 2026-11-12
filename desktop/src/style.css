@@ -805,3 +805,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 /* REBEL: the sheet head is white on its left, so the query typed there is black. */
 [data-theme='rebel'] .head input { color: #000000; caret-color: var(--blood); }
 [data-theme='rebel'] .head input::placeholder { color: #3A3A3A; }
+.inspector .look-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.inspector .look-row input[type='color'] { width: 36px; height: 22px; padding: 0; border: 1px solid var(--line); background: none; }
+.inspector .look-row input[type='range'] { flex: 1; }

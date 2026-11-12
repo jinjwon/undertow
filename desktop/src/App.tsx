@@ -17,6 +17,7 @@ import { LayoutEdit } from './LayoutEdit'
 import { DockHead, toolOf } from './Dock'
 import { TOOL_IDS, withTop, dockGrid, dropSide, groupOf, moveBefore, moveTool, parseDocks, pickActive, showIn, splitDocks, type Docks, type ToolId } from './docks'
 import { prefs } from './prefs'
+import { LOOK_VARS, NO_LOOK, parseLook, type Look } from './look'
 import { KINDS, dateKey, eventsOn, parseEvents, removeEvent, saveEvent, upcoming, type Event } from './events'
 import { baseName, lastUsedOf, projectsOf, rank, rankProjects, samePath } from '../../plugins/evoke/hooks/data'
 
@@ -125,6 +126,16 @@ export function App() {
     document.documentElement.dataset.motion = calm ? 'reduce' : 'full'
     try { prefs.setItem('motion', calm ? 'reduce' : 'full') } catch {}
   }, [calm])
+  // Your own CSS (custom.css in the app's data folder) and the LOOK colours from UI edit mode, both on top of the theme.
+  const [customCss, setCustomCss] = useState({ path: '', text: '' })
+  useEffect(() => { api.customCss().then(setCustomCss).catch(() => {}); return api.onCustomCss((text: string) => setCustomCss(c => ({ ...c, text }))) }, [])
+  const [look, setLookState] = useState<Look>(() => parseLook(prefs.getItem('look')))
+  const setLook = (l: Look) => { setLookState(l); prefs.setItem('look', JSON.stringify(l)) }
+  useEffect(() => {
+    const root = document.documentElement.style
+    for (const k of LOOK_VARS) look.vars[k] ? root.setProperty(k, look.vars[k]!) : root.removeProperty(k)
+    document.body.style.fontSize = look.size ? `${look.size}px` : ''
+  }, [look])
   const [settingsTab, setSettingsTab] = useState<'general' | 'appearance' | 'keys' | 'terminal'>('general')
   const [layout, setLayout] = useState<Layout>(storedLayout)
   const [draft, setDraft] = useState<Layout | null>(null) // set while UI edit mode is open; only Save copies it to layout
@@ -1017,6 +1028,7 @@ export function App() {
       </footer>
       {!shown.main && !draft && !hidePane && divider('pane')}
       {!shown.main && !draft && !hideRight && divider('right')}
+      <style>{customCss.text}</style>
       <div className="floats" ref={setFloatHost} />
       {calendarOut && widget('calendar', calendar)}
       {toast && <div className="toast" role="alert"><Mask /><Cut label="ALERT" /> {toast}</div>}
@@ -1094,6 +1106,7 @@ export function App() {
                 <button className={`row ${calm ? 'on' : ''}`} aria-pressed={calm} onClick={() => setCalm(c => !c)}><b>◆</b> {T('motion.reduce')}</button>
                 <div className="group">{T('edit.title')}</div>
                 <button className="row" onClick={startEdit}><b>▸</b> {T('edit.open')}</button>
+                <button className="row" disabled={!customCss.path} onClick={() => (setSettings(false), openFile(customCss.path))} title={T('custom.hint')}><b>▸</b> {T('custom.edit')} <span className="quiet">{T('custom.hint')}</span></button>
               </>
             )}
             {settingsTab === 'keys' && (['K', 'P', 'F', 'S', 'L', 'O', 'B', 'J', 'W', 'Tab', ','] as const).map(k => <div key={k} className="row"><b className="key">{k === 'Tab' ? 'Ctrl+Tab' : `${MOD}${k === 'F' ? '⇧F' : k}`}</b> {T(`key.${k}`)}</div>)}
@@ -1113,7 +1126,7 @@ export function App() {
         </div>
       )}
 
-      {draft && <LayoutEdit value={draft} onChange={setDraft} ws={ws} cols={split.pane !== undefined || split.right !== undefined ? cols : {}} top={ws.top} onSave={saveEdit} onCancel={() => setDraft(null)} T={T} />}
+      {draft && <LayoutEdit value={draft} onChange={setDraft} ws={ws} cols={split.pane !== undefined || split.right !== undefined ? cols : {}} top={ws.top} onSave={saveEdit} onCancel={() => setDraft(null)} look={look} onLook={setLook} T={T} />}
 
       {picker && (
         <div className="picker" onClick={() => setPicker(false)}>
