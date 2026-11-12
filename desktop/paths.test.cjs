@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert')
 const path = require('node:path')
-const { statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { skillDirsOf, skillFiles, SKILL_NAME, claudeLimitsOf, codexLimitsOf, statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 
 test('inside keeps paths within the project', () => {
   assert.ok(inside('/a/proj', '/a/proj'))
@@ -161,4 +161,48 @@ test('usageFromStatus reads context, every limit and cost from the status line J
   assert.deepStrictEqual(usageFromStatus('{"cwd":"/q"}'), { project: '/q', context: null, usd: null, limits: [] })
   // A session that has not sent anything yet has used none of its window, not an unknown amount.
   assert.strictEqual(usageFromStatus(JSON.stringify({ cwd: '/q', context_window: { total_input_tokens: 0, used_percentage: null } })).context, 0)
+})
+
+test('claudeLimitsOf reads the limits list: session, weekly, and a model limit by its name', () => {
+  const body = {
+    five_hour: { utilization: 1 },
+    limits: [
+      { kind: 'session', group: 'g', percent: 93, resets_at: '2026-11-12T04:50:00Z', scope: null },
+      { kind: 'weekly_all', group: 'g', percent: 57, resets_at: '2026-11-16T18:00:00Z', scope: null },
+      { kind: 'weekly_scoped', group: 'g', percent: 78, resets_at: null, scope: { model: { id: null, display_name: 'Fable' }, surface: null } },
+      { kind: 'weekly_scoped', percent: 5, scope: { model: { display_name: '<script>' } } },
+      { kind: 'session', percent: 'x' },
+    ],
+  }
+  assert.deepStrictEqual(claudeLimitsOf(body), [
+    { kind: 'five_hour', percent: 93, resetsAt: '2026-11-12T04:50:00.000Z' },
+    { kind: 'seven_day', percent: 57, resetsAt: '2026-11-16T18:00:00.000Z' },
+    { kind: 'model:Fable', percent: 78 },
+  ])
+})
+
+test('claudeLimitsOf falls back to the older five_hour / seven_day objects', () => {
+  const body = {
+    five_hour: { utilization: 85, resets_at: '2026-11-12T04:50:00Z' },
+    seven_day: { utilization: 53.5, resets_at: null },
+    seven_day_overage_included: { utilization: 77, resets_at: '2026-11-17T18:00:00Z' },
+    seven_day_opus: null,
+    extra_usage: { is_enabled: false, utilization: 12 },
+  }
+  assert.deepStrictEqual(claudeLimitsOf(body), [
+    { kind: 'five_hour', percent: 85, resetsAt: '2026-11-12T04:50:00.000Z' },
+    { kind: 'seven_day', percent: 53.5 },
+    { kind: 'seven_day_overage_included', percent: 77, resetsAt: '2026-11-17T18:00:00.000Z' },
+  ])
+  assert.deepStrictEqual(claudeLimitsOf(null), [])
+})
+
+test('codexLimitsOf names each window by its length', () => {
+  const body = { rate_limit: { primary_window: { used_percent: 12, limit_window_seconds: 18000, reset_at: 1762923000 }, secondary_window: { used_percent: 40, limit_window_seconds: 604800 } } }
+  assert.deepStrictEqual(codexLimitsOf(body), [
+    { kind: 'codex_five_hour', percent: 12, resetsAt: '2025-11-12T04:50:00.000Z' },
+    { kind: 'codex_seven_day', percent: 40 },
+  ])
+  assert.deepStrictEqual(codexLimitsOf({ rate_limit: { primary_window: { used_percent: 100, limit_window_seconds: 2592000 }, secondary_window: null } }), [{ kind: 'codex_thirty_day', percent: 100 }])
+  assert.deepStrictEqual(codexLimitsOf({}), [])
 })

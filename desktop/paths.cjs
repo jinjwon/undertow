@@ -183,4 +183,38 @@ const usageFromStatus = text => {
   return { project: String(s.workspace?.project_dir ?? s.cwd ?? ''), context: num(s.context_window?.used_percentage) ?? (s.context_window?.total_input_tokens === 0 ? 0 : null), usd: num(s.cost?.total_cost_usd), limits }
 }
 
-module.exports = { skillDirsOf, skillFiles, SKILL_NAME, statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }
+// Account limits before any work: Claude's from the usage endpoint Claude Code's /usage reads, Codex's from the one its /status reads.
+// Only the numbers and a model's name are kept. Claude's answer has a `limits` list: session (5 hours), weekly_all, and weekly_scoped
+// for one model (scope.model.display_name: the desktop app's "Fable limit"). Older answers only had five_hour / seven_day objects.
+const isoOf = t => {
+  const d = typeof t === 'number' ? new Date(t * 1000) : typeof t === 'string' ? new Date(t) : null
+  return d && Number.isFinite(d.getTime()) ? { resetsAt: d.toISOString() } : {}
+}
+const LIMIT_KINDS = { session: 'five_hour', weekly_all: 'seven_day' }
+const claudeLimitsOf = json => {
+  const list = Array.isArray(json?.limits) ? json.limits : []
+  const named = list
+    .filter(l => Number.isFinite(l?.percent))
+    .map(l => {
+      const model = l.scope?.model?.display_name
+      const kind = LIMIT_KINDS[l.kind] ?? (typeof model === 'string' && /^[\w .-]{1,40}$/.test(model) ? `model:${model}` : null)
+      return kind && { kind, percent: l.percent, ...isoOf(l.resets_at) }
+    })
+    .filter(Boolean)
+  if (named.length) return named
+  return Object.entries(json && typeof json === 'object' ? json : {})
+    .filter(([kind, l]) => /^(five_hour|seven_day)/.test(kind) && Number.isFinite(l?.utilization))
+    .map(([kind, l]) => ({ kind, percent: l.utilization, ...isoOf(l.resets_at) }))
+}
+// Codex: { rate_limit: { primary_window: { used_percent, limit_window_seconds, reset_at }, secondary_window: ... } }; named by window length
+// (5 hours, a week, or 30 days on some plans).
+const codexLimitsOf = json =>
+  [json?.rate_limit?.primary_window, json?.rate_limit?.secondary_window]
+    .filter(w => Number.isFinite(w?.used_percent))
+    .map(w => ({
+      kind: (w.limit_window_seconds ?? 0) <= 6 * 3600 ? 'codex_five_hour' : (w.limit_window_seconds ?? 0) <= 8 * 86400 ? 'codex_seven_day' : 'codex_thirty_day',
+      percent: w.used_percent,
+      ...(Number.isFinite(w.reset_at) ? isoOf(w.reset_at) : Number.isFinite(w.reset_after_seconds) ? isoOf(Date.now() / 1000 + w.reset_after_seconds) : {}),
+    }))
+
+module.exports = { skillDirsOf, skillFiles, SKILL_NAME, claudeLimitsOf, codexLimitsOf, statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }

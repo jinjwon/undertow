@@ -9,7 +9,7 @@ const SCENES = import.meta.glob('../../plugins/evoke/scenes/*.png', { eager: tru
 const scene = (menu: string, frame: number) => SCENES[`../../plugins/evoke/scenes/${menu}_${frame}.png`]
 const FRAMES = [25, 50, 75, 90, 100] // the cut-in, as the pane plays it
 
-export type Usage = { context: number | null; limits: { kind: string; percent: number; resetsAt?: string }[]; usd: number | null }
+export type Usage = { context: number | null; limits: { kind: string; percent: number; resetsAt?: string; stale?: boolean }[]; usd: number | null }
 
 function Gauge({ label, percent, reset }: { label: string; percent: number | null | undefined; reset?: string }) {
   const on = gauge(percent ?? 0, 10)
@@ -31,7 +31,7 @@ export function UsageStrip({ usage, now, label }: { usage: Usage | null; now: nu
       <Gauge label={label('context')} percent={usage?.context} />
       {kinds.map(k => {
         const l = usage?.limits.find(x => x.kind === k)
-        return <Gauge key={k} label={label(k)} percent={l?.percent} reset={untilReset(l?.resetsAt, now)} />
+        return <Gauge key={k} label={l?.stale ? `${label(k)} ${label('stale')}` : label(k)} percent={l?.percent} reset={untilReset(l?.resetsAt, now)} />
       })}
       <span className="usd"><i>{label('cost')}</i> <b>{usage?.usd != null ? `$${usage.usd.toFixed(2)}` : '--'}</b></span>
     </div>

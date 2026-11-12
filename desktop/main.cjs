@@ -7,7 +7,7 @@ const { execFile } = require('node:child_process')
 const pty = require('node-pty')
 const { startIde } = require('./ide.cjs')
 const { createStore } = require('./store.cjs')
-const { skillDirsOf, skillFiles, SKILL_NAME, statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { skillDirsOf, skillFiles, SKILL_NAME, claudeLimitsOf, codexLimitsOf, statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 const { start: startPreview } = require('./serve.cjs')
 const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
 
@@ -311,7 +311,63 @@ const transcriptContext = async root => {
     return contextOf(buffer.toString('utf8'))
   } finally { await handle.close() }
 }
+// Account limits before any work, read with the tokens Claude Code and Codex already keep on this machine.
+// The tokens stay inside these functions: never logged, never stored, never sent to the page, and sent only to
+// their own vendor's fixed address with redirects refused. An expired token is skipped, not refreshed, so the
+// CLIs' own sign-in is never disturbed. Only the percentages and reset times are kept, in usage/account.json.
+const ACCOUNT_TTL = 120_000
+const accountFile = path.join(usageDir, 'account.json')
+let account = { at: 0, limits: [] }
+const getJson = async (url, headers) => {
+  const res = await fetch(url, { headers: { ...headers, 'User-Agent': 'evoke-desktop' }, redirect: 'error', signal: AbortSignal.timeout(5000) })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`) // the status only: never the request
+  return res.json()
+}
+const claudeToken = async () => {
+  const raw = process.platform === 'darwin'
+    ? await new Promise(done => execFile('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'], { timeout: 5000 }, (e, out) => done(e ? '' : out)))
+    : await readFrom(path.join(home, '.claude', '.credentials.json'))
+  let oauth
+  try { oauth = JSON.parse(raw)?.claudeAiOauth } catch { return null }
+  if (typeof oauth?.accessToken !== 'string' || (Number.isFinite(oauth.expiresAt) && oauth.expiresAt < Date.now())) return null
+  return oauth.accessToken
+}
+const claudeAccount = async () => {
+  const token = await claudeToken()
+  if (!token) return []
+  return claudeLimitsOf(await getJson('https://api.anthropic.com/api/oauth/usage', { Authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20' }))
+}
+const codexAccount = async () => {
+  let auth
+  try { auth = JSON.parse(await readFrom(path.join(home, '.codex', 'auth.json'))) } catch { return [] }
+  const { access_token: token, account_id: id } = auth?.tokens ?? {}
+  if (typeof token !== 'string' || typeof id !== 'string') return [] // an API key has no plan limits to show
+  return codexLimitsOf(await getJson('https://chatgpt.com/backend-api/wham/usage', { Authorization: `Bearer ${token}`, 'ChatGPT-Account-Id': id }))
+}
+const accountLimits = async () => {
+  if (Date.now() - account.at < ACCOUNT_TTL) return account.limits
+  account.at = Date.now()
+  const [claude, codex] = await Promise.all([claudeAccount().catch(() => []), codexAccount().catch(() => [])])
+  const fresh = [...claude, ...codex]
+  if (fresh.length) {
+    account.limits = fresh
+    await fs.mkdir(usageDir, { recursive: true })
+    await fs.writeFile(accountFile, JSON.stringify({ at: account.at, limits: fresh }), { mode: 0o600 }).catch(() => {})
+  } else if (!account.limits.length) {
+    // Offline or signed out: the last numbers we had, marked as old, rather than nothing.
+    try { account.limits = (JSON.parse(await fs.readFile(accountFile, 'utf8')).limits ?? []).filter(l => typeof l?.kind === 'string' && Number.isFinite(l?.percent)).map(l => ({ kind: l.kind, percent: l.percent, ...(typeof l.resetsAt === 'string' ? { resetsAt: l.resetsAt } : {}), stale: true })) } catch {}
+  }
+  return account.limits
+}
+
+// Usage for the strip: the account's limits when they could be read, then whatever the session itself reports.
 ipcMain.handle('usage:get', async (_, root) => {
+  const [local, limits] = await Promise.all([localUsage(root), accountLimits()])
+  if (!limits.length) return local
+  const known = new Set(limits.map(l => l.kind))
+  return { context: local?.context ?? null, usd: local?.usd ?? null, limits: [...limits, ...(local?.limits ?? []).filter(l => !known.has(l.kind))] }
+})
+const localUsage = async root => {
   if (root) await guard(root)
   const status = await statusUsage(root)
   if (status && (status.context !== null || status.limits.length)) {
@@ -334,7 +390,7 @@ ipcMain.handle('usage:get', async (_, root) => {
   if (!root) return null
   const context = await transcriptContext(root)
   return context === null ? null : { context, limits: [], usd: null }
-})
+}
 
 // Past Claude Code sessions of a project, newest first, named by their first prompt.
 ipcMain.handle('sessions:list', async (_, root) => {
