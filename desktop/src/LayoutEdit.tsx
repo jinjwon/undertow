@@ -1,5 +1,7 @@
 // UI edit mode: one overlay above the whole window, so while it is open nothing underneath can be clicked or typed into,
 // and when it is closed none of this exists. Changes go to the draft in App, which draws them live; only Save keeps them.
+// Like an image editor: the boxes are outlines over the real layout, the options sit in one thin bar at the top,
+// and holding Space hides the overlay to look at the result.
 import { useEffect, useRef, useState, type PointerEvent as PE } from 'react'
 import { TOOL_IDS, groupOf, moveTool, parseDocks, type Docks } from './docks'
 import { EMPTY, FLOAT_IDS, MAIN_IDS, PRESETS as BUILT_IN, gapsOf, mainDefaults, moveRect, parseLayout, placeRect, resetMain, resizeRect, swapMain, toFrac, toPx, type Cols, type Ctx, type FloatId, type Guides, type Handle, type Id, type Layout, type MainId, type Rect, type Size } from './layout'
@@ -20,7 +22,9 @@ export function LayoutEdit({ value, onChange, ws, cols, top, onSave, onCancel, T
   const [sel, setSel] = useState<Id | null>(null)
   const [guides, setGuides] = useState<Guides>({ v: [], h: [] })
   const [keep, setKeep] = useState(false)
-  const [preview, setPreview] = useState(false)
+  const [peek, setPeek] = useState(false) // Space held: the overlay steps aside
+  const [more, setMore] = useState(false) // the bar's ⋯ menu: numbers, agent panel, presets
+  const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null) // W × H beside the cursor while dragging
   const [swapWith, setSwapWith] = useState<MainId | null>(null)
   const [presets, setPresets] = useState(readPresets)
   const [name, setName] = useState('')
@@ -77,7 +81,7 @@ export function LayoutEdit({ value, onChange, ws, cols, top, onSave, onCancel, T
     d.live = true
     const c = ctxOf(d.id, !e.altKey) // Alt: place freely, off the grid
     const out = d.mode === 'move' ? moveRect(d.start, dx, dy, c) : resizeRect(d.start, d.mode, dx, dy, c, keep || e.shiftKey)
-    if (out) { apply(d.id, out.rect); setGuides(out.guides) }
+    if (out) { apply(d.id, out.rect); setGuides(out.guides); setTip({ x: e.clientX, y: e.clientY, text: `${Math.round(out.rect.w)} × ${Math.round(out.rect.h)}` }) }
     setSwapWith(d.mode === 'move' && isMain(d.id) ? pointed(e, d.id) : null)
   }
   const up = (e: PE) => {
@@ -85,22 +89,28 @@ export function LayoutEdit({ value, onChange, ws, cols, top, onSave, onCancel, T
     drag.current = null
     setGuides({ v: [], h: [] })
     setSwapWith(null)
+    setTip(null)
     if (!d?.live || d.mode !== 'move' || !isMain(d.id)) return
     const other = pointed(e, d.id)
     const swapped = other && swapMain({ ...mains, [d.id]: d.start }, d.id, other)
     if (swapped) onChange({ ...value, main: Object.fromEntries(MAIN_IDS.map(m => [m, toFrac(swapped[m], ws)])) as Record<MainId, Rect> })
   }
 
-  const live = useRef({ sel, preview, rectOf, place, onCancel })
-  live.current = { sel, preview, rectOf, place, onCancel }
+  const live = useRef({ sel, rectOf, place, onCancel })
+  live.current = { sel, rectOf, place, onCancel }
   useEffect(() => {
+    const typing = (e: KeyboardEvent) => ['INPUT', 'SELECT'].includes((e.target as HTMLElement).tagName)
     const key = (e: KeyboardEvent) => {
-      const { sel, preview, rectOf, place, onCancel } = live.current
+      const { sel, rectOf, place, onCancel } = live.current
       if (e.key === 'Escape') {
         e.preventDefault(); e.stopPropagation()
-        return preview ? setPreview(false) : onCancel()
+        return onCancel()
       }
-      if (['INPUT', 'SELECT'].includes((e.target as HTMLElement).tagName) || !sel || preview) return
+      if (e.key === ' ' && !typing(e)) {
+        e.preventDefault(); e.stopPropagation()
+        return setPeek(true)
+      }
+      if (typing(e) || !sel) return
       const step = e.shiftKey ? 16 : 1
       const by = ({ ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] } as Record<string, number[]>)[e.key]
       if (!by) return
@@ -108,8 +118,12 @@ export function LayoutEdit({ value, onChange, ws, cols, top, onSave, onCancel, T
       const r = rectOf(sel)
       place(sel, { ...r, x: r.x + by[0], y: r.y + by[1] })
     }
+    const keyUp = (e: KeyboardEvent) => { if (e.key === ' ') setPeek(false) }
+    const blur = () => setPeek(false) // a Space released in another window must not leave the overlay hidden
     window.addEventListener('keydown', key, true)
-    return () => window.removeEventListener('keydown', key, true)
+    window.addEventListener('keyup', keyUp, true)
+    window.addEventListener('blur', blur)
+    return () => { window.removeEventListener('keydown', key, true); window.removeEventListener('keyup', keyUp, true); window.removeEventListener('blur', blur) }
   }, [])
 
   const current = sel && rectOf(sel)
@@ -127,13 +141,12 @@ export function LayoutEdit({ value, onChange, ws, cols, top, onSave, onCancel, T
     </label>
   )
 
-  if (preview) return (
-    <div className="edit previewing">
-      <div className="edit-bar"><b>{T('edit.previewing')}</b> <button onClick={() => setPreview(false)}>{T('edit.back')}</button></div>
-    </div>
-  )
+  const presetIds = [...Object.keys(BUILT_IN).map(n => `built:${n}`), ...Object.keys(presets)]
+  const pickPreset = (id: string) => onChange(id.startsWith('built:') ? BUILT_IN[id.slice(6) as keyof typeof BUILT_IN] : parseLayout(presets[id]))
+
+  if (peek) return <div className="edit peeking" />
   return (
-    <div className="edit" onPointerDown={() => setSel(null)}>
+    <div className="edit" onPointerDown={() => (setSel(null), setMore(false))}>
       <div className="edit-ws" style={{ top, height: ws.h }}>
         {all.map(id => {
           const r = rectOf(id)
@@ -158,57 +171,64 @@ export function LayoutEdit({ value, onChange, ws, cols, top, onSave, onCancel, T
         {guides.v.map(x => <div key={`v${x}`} className="guide v" style={{ left: x }} />)}
         {guides.h.map(y => <div key={`h${y}`} className="guide h" style={{ top: y }} />)}
       </div>
+      {tip && <div className="size-tip" style={{ left: tip.x + 14, top: tip.y + 14 }}>{tip.text}</div>}
 
-      <div className={`inspector ${current && current.x + current.w / 2 > ws.w / 2 ? 'left' : ''}`} onPointerDown={e => e.stopPropagation()}>
+      {/* The options bar: what is selected and the few things done most; the rest is behind ⋯. */}
+      <div className="inspector bar" role="toolbar" aria-label={T('edit.title')} onPointerDown={e => e.stopPropagation()}>
         <h3>{sel ? T(`layout.${sel}`) : T('edit.title')}</h3>
         {sel && current ? (
           <>
-            <div className="nums">{field('w', 'W')}{field('h', 'H')}{field('x', 'X')}{field('y', 'Y')}</div>
+            <span className="dims">{Math.round(current.w)} × {Math.round(current.h)}</span>
             <label className="check"><input type="checkbox" checked={keep} onChange={e => setKeep(e.target.checked)} /> {T('edit.lock')}</label>
             <button onClick={() => resetOne(sel)}>{T('edit.resetOne')}</button>
-            {/* The agent panel's tools, for the keyboard as much as for the mouse: show or hide each, pick its group, lay the groups out. */}
-            {sel === 'right' && (
-              <>
-                <h4>{T('edit.dock')}</h4>
-                {TOOL_IDS.map(t => (
-                  <div key={t} className="dock-row">
-                    <label className="check">
-                      <input type="checkbox" aria-label={`${T('edit.dockShow')}: ${t.toUpperCase()}`} checked={!value.docks.hidden.includes(t)} onChange={e => docks({ ...value.docks, hidden: e.target.checked ? value.docks.hidden.filter(h => h !== t) : [...value.docks.hidden, t] })} /> {t.toUpperCase()}
-                    </label>
-                    <select aria-label={t.toUpperCase()} value={groupOf(value.docks, t)} onChange={e => docks(moveTool(value.docks, t, Number(e.target.value), Infinity))}>
-                      {[0, 1].map(n => <option key={n} value={n}>{T('edit.dockGroup', { n: n + 1 })}</option>)}
-                    </select>
-                  </div>
-                ))}
-                <div className="dock-dir">
-                  {(['row', 'col'] as const).map(d => <button key={d} aria-pressed={value.docks.dir === d} onClick={() => docks({ ...value.docks, dir: d })}>{T(`edit.dockDir.${d}`)}</button>)}
-                </div>
-              </>
-            )}
           </>
-        ) : <p>{T('edit.pick')}</p>}
-        <button onClick={() => onChange(EMPTY)}>{T('edit.resetAll')}</button>
-        <h4>{T('edit.presets')}</h4>
-        <div className="preset-new">
-          <input value={name} placeholder={T('edit.presetName')} onChange={e => setName(e.target.value)} />
-          <button disabled={!name.trim()} onClick={() => { const p = { ...presets, [name.trim()]: value }; setPresets(p); writePresets(p); setName('') }}>{T('edit.presetSave')}</button>
-        </div>
-        {(Object.keys(BUILT_IN) as (keyof typeof BUILT_IN)[]).map(n => (
-          <div key={`built:${n}`} className="preset"><button onClick={() => onChange(BUILT_IN[n])}>{T(`preset.${n}`)}</button></div>
-        ))}
-        {Object.keys(presets).map(n => (
-          <div key={n} className="preset">
-            <button onClick={() => onChange(parseLayout(presets[n]))}>{n}</button>
-            <button className="x" aria-label={`${T('edit.presetDelete')}: ${n}`} onClick={() => { const { [n]: _, ...p } = presets; setPresets(p); writePresets(p) }}>×</button>
-          </div>
-        ))}
-        <div className="actions">
-          <button onClick={() => setPreview(true)}>{T('edit.preview')}</button>
-          <button onClick={onCancel}>{T('edit.cancel')}</button>
-          <button className="save" onClick={onSave}>{T('edit.save')}</button>
-        </div>
-        <small>{T('edit.hint')}</small>
+        ) : <span className="quiet">{T('edit.pick')}</span>}
+        <select aria-label={T('edit.presets')} value="" onChange={e => e.target.value && pickPreset(e.target.value)}>
+          <option value="">{T('edit.presets')}</option>
+          {presetIds.map(id => <option key={id} value={id}>{id.startsWith('built:') ? T(`preset.${id.slice(6)}`) : id}</option>)}
+        </select>
+        <button aria-expanded={more} aria-label={T('edit.more')} title={T('edit.more')} onClick={() => setMore(m => !m)}>⋯</button>
+        <button onClick={onCancel}>{T('edit.cancel')}</button>
+        <button className="save" onClick={onSave}>{T('edit.save')}</button>
       </div>
+
+      {more && (
+        <div className="inspector more" onPointerDown={e => e.stopPropagation()}>
+          {sel && current && <div className="nums">{field('w', 'W')}{field('h', 'H')}{field('x', 'X')}{field('y', 'Y')}</div>}
+          {/* The agent panel's tools, for the keyboard as much as for the mouse: show or hide each, pick its group, lay the groups out. */}
+          {sel === 'right' && (
+            <>
+              <h4>{T('edit.dock')}</h4>
+              {TOOL_IDS.map(t => (
+                <div key={t} className="dock-row">
+                  <label className="check">
+                    <input type="checkbox" aria-label={`${T('edit.dockShow')}: ${t.toUpperCase()}`} checked={!value.docks.hidden.includes(t)} onChange={e => docks({ ...value.docks, hidden: e.target.checked ? value.docks.hidden.filter(h => h !== t) : [...value.docks.hidden, t] })} /> {t.toUpperCase()}
+                  </label>
+                  <select aria-label={t.toUpperCase()} value={groupOf(value.docks, t)} onChange={e => docks(moveTool(value.docks, t, Number(e.target.value), Infinity))}>
+                    {[0, 1].map(n => <option key={n} value={n}>{T('edit.dockGroup', { n: n + 1 })}</option>)}
+                  </select>
+                </div>
+              ))}
+              <div className="dock-dir">
+                {(['row', 'col'] as const).map(d => <button key={d} aria-pressed={value.docks.dir === d} onClick={() => docks({ ...value.docks, dir: d })}>{T(`edit.dockDir.${d}`)}</button>)}
+              </div>
+            </>
+          )}
+          <h4>{T('edit.presets')}</h4>
+          <div className="preset-new">
+            <input value={name} placeholder={T('edit.presetName')} onChange={e => setName(e.target.value)} />
+            <button disabled={!name.trim()} onClick={() => { const p = { ...presets, [name.trim()]: value }; setPresets(p); writePresets(p); setName('') }}>{T('edit.presetSave')}</button>
+          </div>
+          {Object.keys(presets).map(n => (
+            <div key={n} className="preset">
+              <span>{n}</span>
+              <button className="x" aria-label={`${T('edit.presetDelete')}: ${n}`} onClick={() => { const { [n]: _, ...p } = presets; setPresets(p); writePresets(p) }}>×</button>
+            </div>
+          ))}
+          <button onClick={() => onChange(EMPTY)}>{T('edit.resetAll')}</button>
+          <small>{T('edit.hint')}</small>
+        </div>
+      )}
     </div>
   )
 }

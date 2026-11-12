@@ -65,6 +65,8 @@ Rules:
 
 Disabled is `opacity: .4` with no pointer events; there is no disabled colour.
 
+File badges (`.fi`, kinds and shapes in `iconOf` in `desktop/src/text.ts`) are data, like the git status colours: each kind has its own colour and each family its own outline (code: slanted tab; React, Vue, Svelte: pill; data and config: hexagon; docs: folded page; HTML and CSS: arrow; media: rounded; shell: notched; tests: octagon). They look the same in both themes and are the one place outside a theme block with fixed colours. Folders keep each theme's own mark. A new kind needs its colour in `style.css`; a test fails without it.
+
 ## States and motion
 
 | State | Rule |
@@ -91,7 +93,8 @@ Sizes: display 110 to 250px (empty page), sheet title 20px, chip 13 to 20px, bod
 
 ## Top bar
 
-- No logo. The bar holds the project button, branch, theme, UI edit, the two fold buttons, settings and the clock.
+- No logo. The bar holds the project button, branch, the ⌘K search field, theme, UI edit, the two fold buttons, settings and the clock.
+- ⌘K finds anything the window holds: menus, tools, projects, calendar events, TODOs (once QUEST has loaded), changed files, themes, settings, and project files by name.
 - TIDE draws a short blue wedge and a cyan slash under the macOS window buttons only. The project button starts clear of the slash. On Windows the wedge is hidden, since the window buttons sit on the other side.
 - The bar is the window's drag region; every button in it opts out.
 
@@ -116,8 +119,9 @@ Shown in Settings → Shortcuts. `⌘` is `Ctrl` on Windows.
 
 | Key | Does |
 |---|---|
+| `⌘K` | Find anything (menus, tools, projects, events, TODOs, files) |
 | `⌘P` | Open a file |
-| `⌘⇧F` | Search the project |
+| `⌘⇧F` | Search the project: match case, whole word, regex, files to include and exclude, Replace all (asks first, skips open files with unsaved edits) |
 | `⌘S` | Format and save |
 | `⌘L` | Send the selection to Claude or Codex |
 | `⌘O` | Projects |
@@ -137,12 +141,12 @@ Function follows a code editor (side bar, preview tabs, panel, status bar, quick
 | Welcome (no project) | Display word top left, recent projects on a plate below | `.empty`, `.welcome`, `.row` with a number key |
 | Empty editor (project open) | Display word and one hint line | `.empty` |
 | Editor | Tabs on a dark band, page below; a single click opens a preview tab (italic) | `.tabs`, `.tab`, Monaco |
-| Side bar | Nine menus, each content list under band headers with counts | `.pane`, `.group`, `.entry` |
-| Terminals | Chips pick the terminal; tools on their own row | `.head.sides`, `.tools`, `.claude` |
+| Side bar | Nine menus, each content list under band headers with counts. STATUS has a commit box on top (`git commit -a`: tracked files only, so new files need `git add` first) and the last 15 commits below the changes. CALENDAR holds your own events (stored in `events.json`, any project) beside Claude sessions; kinds differ by shape (meeting a block, dev a slanted bar, personal an outline), never by a second colour | `.pane`, `.group`, `.entry`, `.dot`, `.ev-form` |
+| Terminals | A usage strip on top (context, every limit Claude Code reports, cost), then chips that pick the terminal; tools on their own row | `.usage-strip`, `.gauge`, `.head.sides`, `.tools`, `.claude` |
 | Status bar | Menu chip, project, branch, changes | `.hud` |
 | Sheets (projects, quick open, search, settings) | Overlay, one skewed plate, title band, rows | `.picker`, `.sheet`, `.row`, `.set-tabs` |
 | Alert | Plate at the bottom right, 5 seconds | `.toast` |
-| UI edit mode | Grid overlay, panel boxes, inspector, bar | `.edit`, `.box`, `.inspector`, `.edit-bar` |
+| UI edit mode | Outline boxes over the live layout (no fill, no grid), one options bar in the top band, a ⋯ menu for numbers, agent panel and presets, W × H beside the cursor while dragging; hold Space to hide the overlay | `.edit`, `.box`, `.inspector.bar`, `.inspector.more`, `.size-tip` |
 | Loading, error | See States | `.state`, `.state-error` |
 
 Rules:
@@ -177,16 +181,14 @@ The HUD and the SKILL ranks work whether or not the Evoke plugin is installed in
 
 ## Terminal pane (the plugin)
 
-The MENU pane the plugin draws inside Claude Code. Colours are in `plugins/evoke/hooks/tokens.js`; the art is laid out on a 56 × 41 cell grid.
+The MENU pane the plugin draws inside Claude Code. Colours are in `plugins/evoke/hooks/tokens.js`.
 
-Two modes:
+One mode: plain rows, sections with band headers (MENU, the content, COMMAND). The picture mode for Ghostty and other image terminals was removed on 2026-11-12; Evoke's own terminals (xterm.js) never drew it.
 
-- **Picture mode:** one image is the whole pane and text lies on it in the art's grid. Only for terminals that draw images: Ghostty, kitty, iTerm, WezTerm.
-- **Plain rows:** sections with band headers (MENU, the content, COMMAND). Used everywhere else, including Evoke's own terminals (xterm.js).
+The scene art in `plugins/evoke/scenes/` (made by `tools/render.sh` from `tools/scene.html`) now belongs to the desktop: TIDE's MENU pane shows it, with the menu buttons on `ITEM_ROWS`.
 
 Rules:
 
-- **Never draw picture mode without knowing the terminal draws pictures.** If the session's setup has not run, the pane asks the terminal at draw time. The failure this prevents: menu keys `1:`–`9:` with no names beside them and an empty skill list.
 - Menu names must always be readable as text in plain rows; the picked one sits on a white plate.
 - The keys row stands above the content, so a short pane cuts log rows, not controls.
 - The pane's colours are fixed (underwater navy and cyan). They do not follow the desktop theme.
@@ -197,4 +199,4 @@ Rules:
 - Fold each panel and confirm the others take the room.
 - Check the settings sheet, UI edit mode and a `.state-error` in REBEL: no TIDE colour may show.
 - Tab through the side bar: every row shows the focus ring and opens on Enter.
-- For the pane: check picture mode in Ghostty and plain rows in Evoke's terminal.
+- For the pane: check plain rows in Evoke's terminal, and TIDE's scene art in the desktop MENU pane.

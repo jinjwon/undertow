@@ -145,4 +145,76 @@ const codexTrusted = toml => {
   return out
 }
 
-module.exports = { contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }
+// DISCOVER: the skills in a GitHub repository, from its git tree (GET /repos/:repo/git/trees/HEAD?recursive=1).
+// A skill is a folder holding SKILL.md; its name is the folder's. A SKILL.md at the top makes the whole repository one skill.
+const skillDirsOf = (tree, repoName) =>
+  tree
+    .filter(e => e.type === 'blob' && (e.path === 'SKILL.md' || e.path.endsWith('/SKILL.md')))
+    .map(e => e.path.slice(0, -'SKILL.md'.length).replace(/\/$/, ''))
+    .map(folder => ({ folder, name: folder ? folder.split('/').pop() : repoName }))
+    .filter(s => SKILL_NAME.test(s.name))
+    .sort((a, b) => a.folder.localeCompare(b.folder))
+const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/ // becomes a folder under ~/.claude/skills, so no separators and no leading dot
+// The plain files of one skill, each with its path inside the skill. Symlinks and submodules are left out: an install only ever writes ordinary files.
+const skillFiles = (tree, folder) =>
+  tree
+    .filter(e => e.type === 'blob' && e.mode !== '120000' && (!folder || e.path.startsWith(`${folder}/`)))
+    .map(e => ({ path: e.path, rel: folder ? e.path.slice(folder.length + 1) : e.path, size: e.size ?? 0 }))
+    .filter(f => f.rel.split('/').every(part => part && part !== '..' && part !== '.git'))
+    .sort((a, b) => (b.rel === 'SKILL.md') - (a.rel === 'SKILL.md') || a.rel.localeCompare(b.rel))
+
+// Claude Code hands its status line command the session's usage as JSON (context, 5-hour and 7-day limits, cost).
+// Sessions Evoke starts get a status line that copies that JSON to $EVOKE_USAGE_FILE and then runs your own status line, if you have one.
+const statusLineOf = settingsJson => {
+  let own = ''
+  try { own = JSON.parse(settingsJson)?.statusLine?.command ?? '' } catch {}
+  return typeof own === 'string' && own.trim() ? `tee "$EVOKE_USAGE_FILE" | { ${own.trim()}; }` : 'cat > "$EVOKE_USAGE_FILE"'
+}
+
+// The HUD's usage from one status line JSON; null while Claude Code is half way through writing it.
+const usageFromStatus = text => {
+  let s
+  try { s = JSON.parse(text) } catch { return null }
+  if (!s || typeof s !== 'object') return null
+  const num = n => (Number.isFinite(n) ? n : null)
+  const limits = Object.entries(s.rate_limits ?? {})
+    .filter(([, l]) => Number.isFinite(l?.used_percentage))
+    .map(([kind, l]) => ({ kind, percent: l.used_percentage, ...(Number.isFinite(l.resets_at) ? { resetsAt: new Date(l.resets_at * 1000).toISOString() } : {}) }))
+  return { project: String(s.workspace?.project_dir ?? s.cwd ?? ''), context: num(s.context_window?.used_percentage) ?? (s.context_window?.total_input_tokens === 0 ? 0 : null), usd: num(s.cost?.total_cost_usd), limits }
+}
+
+// Account limits before any work: Claude's from the usage endpoint Claude Code's /usage reads, Codex's from the one its /status reads.
+// Only the numbers and a model's name are kept. Claude's answer has a `limits` list: session (5 hours), weekly_all, and weekly_scoped
+// for one model (scope.model.display_name: the desktop app's "Fable limit"). Older answers only had five_hour / seven_day objects.
+const isoOf = t => {
+  const d = typeof t === 'number' ? new Date(t * 1000) : typeof t === 'string' ? new Date(t) : null
+  return d && Number.isFinite(d.getTime()) ? { resetsAt: d.toISOString() } : {}
+}
+const LIMIT_KINDS = { session: 'five_hour', weekly_all: 'seven_day' }
+const claudeLimitsOf = json => {
+  const list = Array.isArray(json?.limits) ? json.limits : []
+  const named = list
+    .filter(l => Number.isFinite(l?.percent))
+    .map(l => {
+      const model = l.scope?.model?.display_name
+      const kind = LIMIT_KINDS[l.kind] ?? (typeof model === 'string' && /^[\w .-]{1,40}$/.test(model) ? `model:${model}` : null)
+      return kind && { kind, percent: l.percent, ...isoOf(l.resets_at) }
+    })
+    .filter(Boolean)
+  if (named.length) return named
+  return Object.entries(json && typeof json === 'object' ? json : {})
+    .filter(([kind, l]) => /^(five_hour|seven_day)/.test(kind) && Number.isFinite(l?.utilization))
+    .map(([kind, l]) => ({ kind, percent: l.utilization, ...isoOf(l.resets_at) }))
+}
+// Codex: { rate_limit: { primary_window: { used_percent, limit_window_seconds, reset_at }, secondary_window: ... } }; named by window length
+// (5 hours, a week, or 30 days on some plans).
+const codexLimitsOf = json =>
+  [json?.rate_limit?.primary_window, json?.rate_limit?.secondary_window]
+    .filter(w => Number.isFinite(w?.used_percent))
+    .map(w => ({
+      kind: (w.limit_window_seconds ?? 0) <= 6 * 3600 ? 'codex_five_hour' : (w.limit_window_seconds ?? 0) <= 8 * 86400 ? 'codex_seven_day' : 'codex_thirty_day',
+      percent: w.used_percent,
+      ...(Number.isFinite(w.reset_at) ? isoOf(w.reset_at) : Number.isFinite(w.reset_after_seconds) ? isoOf(Date.now() / 1000 + w.reset_after_seconds) : {}),
+    }))
+
+module.exports = { skillDirsOf, skillFiles, SKILL_NAME, claudeLimitsOf, codexLimitsOf, statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }

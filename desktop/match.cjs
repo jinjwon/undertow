@@ -18,16 +18,45 @@ const fuzzy = (query, path) => {
   return score - p.length / 1000 // shorter paths win ties
 }
 
-const searchText = (text, query, limit) => {
-  if (!query || text.includes('\0')) return []
-  const q = query.toLowerCase()
+// The search sheet's toggles (match case, whole word, regular expression) as one RegExp; null when a typed regex does not compile.
+const patternOf = (query, { caseSensitive = false, word = false, regex = false } = {}) => {
+  let src = regex ? String(query) : String(query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  if (word) src = `\\b(?:${src})\\b`
+  try {
+    const re = new RegExp(src, caseSensitive ? 'g' : 'gi')
+    return re.test('') ? null : re // a pattern that matches nothing at all would hit every position
+  } catch { return null }
+}
+
+const searchText = (text, query, limit, opts) => {
+  const re = query && patternOf(query, opts)
+  if (!re || text.includes('\0')) return []
   const hits = []
   const lines = text.split('\n')
   for (let i = 0; i < lines.length && hits.length < limit; i++) {
-    const col = lines[i].toLowerCase().indexOf(q)
-    if (col >= 0) hits.push({ line: i + 1, col: col + 1, preview: lines[i].trim().slice(0, 200) })
+    re.lastIndex = 0
+    const m = re.exec(lines[i])
+    if (m) hits.push({ line: i + 1, col: m.index + 1, preview: lines[i].trim().slice(0, 200) })
   }
   return hits
+}
+
+// Replace every match in a file's text; n is how many. $1-style groups work only in regex mode, as in VS Code.
+const replaceText = (text, query, replacement, opts = {}) => {
+  const re = query && patternOf(query, opts)
+  if (!re || text.includes('\0')) return { text, n: 0 }
+  let n = 0
+  const out = text.replace(re, (...m) => (n++, opts.regex ? m[0].replace(new RegExp(re.source, re.flags.replace('g', '')), replacement) : replacement))
+  return { text: out, n }
+}
+
+// "files to include / exclude": comma-separated, * is any run of characters, matched anywhere in the project path.
+const globs = list => String(list ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  .map(g => new RegExp(g.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*'), 'i'))
+const pathAllowed = (rel, include, exclude) => {
+  const p = rel.split('\\').join('/')
+  const inc = globs(include)
+  return (!inc.length || inc.some(r => r.test(p))) && !globs(exclude).some(r => r.test(p))
 }
 
 // `git status --porcelain=v1 -z`: "XY path" records split by NUL; a rename or copy carries its old path as the next record.
@@ -43,4 +72,4 @@ const parseStatus = z => {
   return out
 }
 
-module.exports = { walkSkip, fuzzy, searchText, parseStatus }
+module.exports = { walkSkip, fuzzy, searchText, replaceText, pathAllowed, parseStatus }

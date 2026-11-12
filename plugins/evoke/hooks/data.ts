@@ -109,22 +109,6 @@ export const entryOf = (tool: string, input: Record<string, unknown>) => {
   return said ? printable(`${tool} ${String(said).split('\n')[0]}`) : tool
 }
 
-// The pane's rows from its size. The engine does not report a cell's pixels, so the cell's width over its height is Iosevka 14's measured 7 x 17.5 pt unless EVOKE_CELL names another font's.
-export const CELL = 0.4
-export const cellOf = (said: string | undefined) => {
-  const cell = Number(said)
-  return cell >= 0.3 && cell <= 0.7 ? cell : CELL // Outside what a terminal font can be, the art would only break.
-}
-export const layoutOf = (columns: number, rows: number, art: { width: number; height: number }, grid: { rows: number; content: number; footer: number }, cell = CELL) => {
-  const perRow = art.width / art.height / cell
-  const height = Math.min(rows, Math.floor(columns / perRow))
-  if (height < 28) return null // Too small for the name column to keep one row each: the pane falls back to plain rows.
-  const scale = height / grid.rows
-  const content = Math.round(grid.content * scale)
-  const footer = height - (grid.rows - grid.footer)
-  return { height, columns: Math.round(height * perRow), content, footer, scale }
-}
-
 export const fitName = (name: string, width: number) => (name.length > width ? `${name.slice(0, Math.max(1, width - 1))}…` : name)
 
 type Skill = { name: string; description: string; plugin: string }

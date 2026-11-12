@@ -7,9 +7,9 @@ const { execFile } = require('node:child_process')
 const pty = require('node-pty')
 const { startIde } = require('./ide.cjs')
 const { createStore } = require('./store.cjs')
-const { contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { skillDirsOf, skillFiles, SKILL_NAME, claudeLimitsOf, codexLimitsOf, statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 const { start: startPreview } = require('./serve.cjs')
-const { walkSkip, fuzzy, searchText, parseStatus } = require('./match.cjs')
+const { walkSkip, fuzzy, searchText, replaceText, pathAllowed, parseStatus } = require('./match.cjs')
 
 const home = os.homedir()
 const roots = new Set() // real paths of the folders the window has opened; file access stays inside them
@@ -93,19 +93,46 @@ ipcMain.handle('fs:files', async (_, root, query) => {
     .sort((a, b) => b.score - a.score)
     .slice(0, 50)
 })
-ipcMain.handle('fs:search', async (_, root, query) => {
+// opts: caseSensitive, word, regex, include, exclude (the search sheet's toggles and file filters).
+const searchable = async (root, opts) => {
+  const out = []
+  for (const file of await filesOf(root)) {
+    if (!pathAllowed(path.relative(root, file), opts?.include, opts?.exclude)) continue
+    const stat = await fs.stat(file).catch(() => null)
+    if (stat && stat.size <= 1e6) out.push(file)
+  }
+  return out
+}
+ipcMain.handle('fs:search', async (_, root, query, opts = {}) => {
   await guard(root)
   const q = String(query)
   if (q.length < 2) return []
   const hits = []
-  for (const file of await filesOf(root)) {
+  for (const file of await searchable(root, opts)) {
     if (hits.length >= 500) break
-    const stat = await fs.stat(file).catch(() => null)
-    if (!stat || stat.size > 1e6) continue
     const text = await fs.readFile(file, 'utf8').catch(() => '')
-    for (const h of searchText(text, q, 500 - hits.length)) hits.push({ path: file, rel: path.relative(root, file), ...h })
+    for (const h of searchText(text, q, 500 - hits.length, opts)) hits.push({ path: file, rel: path.relative(root, file), ...h })
   }
   return hits
+})
+// Replace in every matching file under the same filters. skip: open files with unsaved edits, left alone so nothing typed is lost.
+ipcMain.handle('fs:replace', async (_, root, query, replacement, opts = {}, skip = []) => {
+  await guard(root)
+  const q = String(query)
+  if (q.length < 2) return { files: 0, n: 0 }
+  let files = 0
+  let n = 0
+  for (const file of await searchable(root, opts)) {
+    if (skip.includes(file)) continue
+    const text = await fs.readFile(file, 'utf8').catch(() => null)
+    if (text == null) continue
+    const out = replaceText(text, q, String(replacement), opts)
+    if (!out.n) continue
+    await fs.writeFile(file, out.text)
+    files++
+    n += out.n
+  }
+  return { files, n }
 })
 ipcMain.handle('fs:read', async (_, file) => fs.readFile(await guard(file), 'utf8'))
 // Images for the preview tab, as a data URL the page's CSP allows (img-src data:).
@@ -159,6 +186,22 @@ ipcMain.handle('git:status', async (_, root) => {
   const out = await git(root, ['status', '--porcelain=v1', '-z', '-uall'])
   return out == null ? [] : parseStatus(out).map(c => ({ ...c, path: path.join(root, c.path) }))
 })
+// STATUS: commit every change to tracked files (git commit -a). New files stay out until added, so stray files never ride along.
+ipcMain.handle('git:commit', async (_, root, message) => {
+  await guard(root)
+  const msg = String(message).trim()
+  if (!msg) throw new Error('Empty commit message')
+  return new Promise(resolve => execFile('git', ['-C', root, 'commit', '-a', '-m', msg], (err, out, errOut) => resolve(err ? { ok: false, error: (errOut || out || err.message).trim().split('\n').slice(-3).join('\n') } : { ok: true })))
+})
+// STATUS: the last commits on the current branch, one line each. \x1f splits the fields, since a subject can hold anything else.
+ipcMain.handle('git:log', async (_, root) => {
+  await guard(root)
+  const out = await git(root, ['log', '-n', '15', '--pretty=format:%h%x1f%s%x1f%an%x1f%ct'])
+  return (out ?? '').split('\n').filter(Boolean).map(l => {
+    const [hash, subject, author, at] = l.split('\x1f')
+    return { hash, subject, author, at: Number(at) * 1000 }
+  })
+})
 // The file as of the last commit: '' for a new file. A deleted file has no real path, so this checks the name only.
 ipcMain.handle('git:head', async (_, root, file) => {
   await guard(root)
@@ -186,15 +229,194 @@ ipcMain.handle('skills:list', async () => {
   }
   return lists.flat().map(s => ({ ...s, uses: uses[s.name] ?? 0 })).sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name))
 })
+// DISCOVER: skills from GitHub repositories, read and copied by this process only. Nothing fetched is ever run.
+// No sign-in, so GitHub allows 60 lookups an hour; every answer is kept for the life of the window.
+const PINNED = ['MengTo/Skills', 'anthropics/skills']
+const REPO = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]+$/
+const PREVIEW_MAX = 400_000 // bytes of text shown in the preview tab
+const INSTALL_MAX = { files: 300, bytes: 20_000_000 }
+const TEXT = /\.(md|mdx|txt|json|ya?ml|toml|js|cjs|mjs|ts|tsx|jsx|py|sh|bash|zsh|rb|go|rs|html|css|svg|xml|csv|ini|cfg)$|(^|\/)[A-Z]+$/i
+const seen = new Map()
+const once = (key, make) => {
+  if (!seen.has(key)) seen.set(key, make().catch(e => { seen.delete(key); throw e }))
+  return seen.get(key)
+}
+const github = async url => {
+  const res = await fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'evoke-desktop' } })
+  if (!res.ok) throw new Error(`GitHub answered ${res.status}`)
+  return res
+}
+const repoOf = repo => {
+  if (!REPO.test(String(repo))) throw new Error(`Not a repository: ${repo}`)
+  return String(repo)
+}
+const treeOf = repo => once(`tree:${repo}`, async () => (await (await github(`https://api.github.com/repos/${repo}/git/trees/HEAD?recursive=1`)).json()).tree ?? [])
+const rawOf = (repo, file) => github(`https://raw.githubusercontent.com/${repo}/HEAD/${file.split('/').map(encodeURIComponent).join('/')}`)
+const skillOf = async (repo, folder) => {
+  const skill = skillDirsOf(await treeOf(repo), repo.split('/')[1]).find(s => s.folder === String(folder))
+  if (!skill) throw new Error(`No such skill: ${repo}/${folder}`)
+  return { ...skill, files: skillFiles(await treeOf(repo), skill.folder), dest: path.join(home, '.claude', 'skills', skill.name) }
+}
+const exists = target => fs.stat(target).then(() => true, () => false)
+
+ipcMain.handle('discover:repos', () => once('repos', async () => {
+  const brief = r => ({ repo: r.full_name, description: r.description ?? '', stars: r.stargazers_count })
+  const [pinned, found] = await Promise.all([
+    Promise.all(PINNED.map(async repo => brief(await (await github(`https://api.github.com/repos/${repo}`)).json()))),
+    github('https://api.github.com/search/repositories?q=topic:claude-skills&sort=stars&per_page=12').then(r => r.json()),
+  ])
+  return [...pinned, ...(found.items ?? []).map(brief).filter(r => !PINNED.includes(r.repo))]
+}))
+ipcMain.handle('discover:skills', async (_, repo) => {
+  const skills = skillDirsOf(await treeOf(repoOf(repo)), String(repo).split('/')[1])
+  return Promise.all(skills.map(async s => ({ ...s, installed: await exists(path.join(home, '.claude', 'skills', s.name)) })))
+})
+// Everything the skill would bring, as one text: SKILL.md first, then each other file under a rule with its name.
+ipcMain.handle('discover:preview', (_, repo, folder) => once(`preview:${repo}/${folder}`, async () => {
+  const skill = await skillOf(repoOf(repo), folder)
+  let room = PREVIEW_MAX
+  const parts = []
+  for (const f of skill.files) {
+    const rule = f.rel === 'SKILL.md' ? '' : `\n\n──────── ${f.rel} (${f.size} bytes) ────────\n`
+    if (!TEXT.test(f.rel) || f.size > room) { parts.push(rule); continue } // named, not shown: a binary, or past the preview's size
+    room -= f.size
+    parts.push(rule + await (await rawOf(repo, f.path)).text())
+  }
+  return { name: skill.name, text: parts.join(''), files: skill.files.length, installed: await exists(skill.dest) }
+}))
+// Copies one skill's files into ~/.claude/skills/<name>. Never over an existing skill, never outside that folder, never executable.
+ipcMain.handle('discover:install', async (_, repo, folder) => {
+  const skill = await skillOf(repoOf(repo), folder)
+  if (!SKILL_NAME.test(skill.name)) throw new Error(`Not a skill name: ${skill.name}`)
+  if (await exists(skill.dest)) throw new Error('exists')
+  if (skill.files.length > INSTALL_MAX.files || skill.files.reduce((n, f) => n + f.size, 0) > INSTALL_MAX.bytes) throw new Error('too large')
+  const part = `${skill.dest}.part` // whole or not at all: the folder appears under its name only once every file is in
+  await fs.rm(part, { recursive: true, force: true })
+  try {
+    let bytes = 0
+    for (const f of skill.files) {
+      const target = path.join(part, f.rel)
+      if (!inside(part, target)) throw new Error(`Outside the skill: ${f.rel}`)
+      const data = Buffer.from(await (await rawOf(repo, f.path)).arrayBuffer())
+      if ((bytes += data.length) > INSTALL_MAX.bytes) throw new Error('too large')
+      await fs.mkdir(path.dirname(target), { recursive: true })
+      await fs.writeFile(target, data, { mode: 0o644 })
+    }
+    await fs.rename(part, skill.dest)
+  } catch (e) {
+    await fs.rm(part, { recursive: true, force: true })
+    throw e
+  }
+  seen.delete(`preview:${repo}/${folder}`)
+  return skill.name
+})
+
 // EQUIP: what Claude Code carries into this project.
 ipcMain.handle('equip:list', async (_, root) => ({
   mcp: mcpOf(await claudeJson(), String(root)),
   plugins: pluginsOf(await readFrom(path.join(home, '.claude', 'plugins', 'installed_plugins.json')), await readFrom(path.join(home, '.claude', 'settings.json'))).map(p => p.name),
 }))
 
-// With the Evoke plugin on, its store file holds the last usage a session measured (context, limits, cost); the newest one wins.
-// Without it that file only goes stale, so the context comes from the project's newest transcript and the limits stay empty.
+// The HUD's usage, from the first source that has it:
+// 1. the status line JSON of sessions Evoke started (see pty:spawn): context, 5-hour and 7-day limits and cost, no plugin needed;
+// 2. the Evoke plugin's store file, when the plugin is on;
+// 3. the context from the end of the project's newest transcript (limits stay empty).
+const usageDir = path.join(app.getPath('userData'), 'usage')
+const lastGood = new Map() // file -> its last whole reading, for a tick that catches Claude Code mid-write
+const statusUsage = async root => {
+  const names = (await fs.readdir(usageDir).catch(() => [])).filter(n => n.endsWith('.json'))
+  const found = []
+  for (const n of names) {
+    const file = path.join(usageDir, n)
+    const [stat, text] = await Promise.all([fs.stat(file), fs.readFile(file, 'utf8')]).catch(() => [null, ''])
+    const u = (stat && usageFromStatus(text)) ?? lastGood.get(file)
+    if (!stat || !u) continue
+    lastGood.set(file, u)
+    found.push({ ...u, mtime: stat.mtimeMs })
+  }
+  found.sort((a, b) => b.mtime - a.mtime)
+  if (!found.length) return null
+  const here = root ? found.find(u => u.project && inside(root, u.project)) : found[0]
+  // Limits belong to the account, so the newest reading from any session counts.
+  return { context: here?.context ?? null, usd: here?.usd ?? null, limits: found.find(u => u.limits.length)?.limits ?? [] }
+}
+const transcriptContext = async root => {
+  const dir = path.join(home, '.claude', 'projects', slugOf(path.resolve(root)))
+  const names = (await fs.readdir(dir).catch(() => [])).filter(n => n.endsWith('.jsonl') && isSessionId(n.slice(0, -6)))
+  const found = await Promise.all(names.map(async n => ({ file: path.join(dir, n), mtime: (await fs.stat(path.join(dir, n))).mtimeMs })))
+  const newest = found.sort((a, b) => b.mtime - a.mtime)[0]
+  if (!newest) return null
+  const handle = await fs.open(newest.file)
+  try {
+    const { size } = await handle.stat()
+    const length = Math.min(size, 262144)
+    const { buffer } = await handle.read(Buffer.alloc(length), 0, length, size - length)
+    return contextOf(buffer.toString('utf8'))
+  } finally { await handle.close() }
+}
+// Account limits before any work, read with the tokens Claude Code and Codex already keep on this machine.
+// The tokens stay inside these functions: never logged, never stored, never sent to the page, and sent only to
+// their own vendor's fixed address with redirects refused. An expired token is skipped, not refreshed, so the
+// CLIs' own sign-in is never disturbed. Only the percentages and reset times are kept, in usage/account.json.
+const ACCOUNT_TTL = 120_000
+const accountFile = path.join(usageDir, 'account.json')
+let account = { at: 0, limits: [] }
+const getJson = async (url, headers) => {
+  const res = await fetch(url, { headers: { ...headers, 'User-Agent': 'evoke-desktop' }, redirect: 'error', signal: AbortSignal.timeout(5000) })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`) // the status only: never the request
+  return res.json()
+}
+const claudeToken = async () => {
+  const raw = process.platform === 'darwin'
+    ? await new Promise(done => execFile('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'], { timeout: 5000 }, (e, out) => done(e ? '' : out)))
+    : await readFrom(path.join(home, '.claude', '.credentials.json'))
+  let oauth
+  try { oauth = JSON.parse(raw)?.claudeAiOauth } catch { return null }
+  if (typeof oauth?.accessToken !== 'string' || (Number.isFinite(oauth.expiresAt) && oauth.expiresAt < Date.now())) return null
+  return oauth.accessToken
+}
+const claudeAccount = async () => {
+  const token = await claudeToken()
+  if (!token) return []
+  return claudeLimitsOf(await getJson('https://api.anthropic.com/api/oauth/usage', { Authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20' }))
+}
+const codexAccount = async () => {
+  let auth
+  try { auth = JSON.parse(await readFrom(path.join(home, '.codex', 'auth.json'))) } catch { return [] }
+  const { access_token: token, account_id: id } = auth?.tokens ?? {}
+  if (typeof token !== 'string' || typeof id !== 'string') return [] // an API key has no plan limits to show
+  return codexLimitsOf(await getJson('https://chatgpt.com/backend-api/wham/usage', { Authorization: `Bearer ${token}`, 'ChatGPT-Account-Id': id }))
+}
+const accountLimits = async () => {
+  if (Date.now() - account.at < ACCOUNT_TTL) return account.limits
+  account.at = Date.now()
+  const [claude, codex] = await Promise.all([claudeAccount().catch(() => []), codexAccount().catch(() => [])])
+  const fresh = [...claude, ...codex]
+  if (fresh.length) {
+    account.limits = fresh
+    await fs.mkdir(usageDir, { recursive: true })
+    await fs.writeFile(accountFile, JSON.stringify({ at: account.at, limits: fresh }), { mode: 0o600 }).catch(() => {})
+  } else if (!account.limits.length) {
+    // Offline or signed out: the last numbers we had, marked as old, rather than nothing.
+    try { account.limits = (JSON.parse(await fs.readFile(accountFile, 'utf8')).limits ?? []).filter(l => typeof l?.kind === 'string' && Number.isFinite(l?.percent)).map(l => ({ kind: l.kind, percent: l.percent, ...(typeof l.resetsAt === 'string' ? { resetsAt: l.resetsAt } : {}), stale: true })) } catch {}
+  }
+  return account.limits
+}
+
+// Usage for the strip: the account's limits when they could be read, then whatever the session itself reports.
 ipcMain.handle('usage:get', async (_, root) => {
+  const [local, limits] = await Promise.all([localUsage(root), accountLimits()])
+  if (!limits.length) return local
+  const known = new Set(limits.map(l => l.kind))
+  return { context: local?.context ?? null, usd: local?.usd ?? null, limits: [...limits, ...(local?.limits ?? []).filter(l => !known.has(l.kind))] }
+})
+const localUsage = async root => {
+  if (root) await guard(root)
+  const status = await statusUsage(root)
+  if (status && (status.context !== null || status.limits.length)) {
+    if (status.context === null && root) status.context = await transcriptContext(root)
+    return status
+  }
   const plugins = pluginsOf(await readFrom(path.join(home, '.claude', 'plugins', 'installed_plugins.json')), await readFrom(path.join(home, '.claude', 'settings.json')))
   if (plugins.some(p => p.name === 'evoke')) {
     const dir = path.join(home, '.claude', 'plugins', 'store')
@@ -209,21 +431,9 @@ ipcMain.handle('usage:get', async (_, root) => {
     return latestUsage(files)
   }
   if (!root) return null
-  await guard(root)
-  const dir = path.join(home, '.claude', 'projects', slugOf(path.resolve(root)))
-  const names = (await fs.readdir(dir).catch(() => [])).filter(n => n.endsWith('.jsonl') && isSessionId(n.slice(0, -6)))
-  const found = await Promise.all(names.map(async n => ({ file: path.join(dir, n), mtime: (await fs.stat(path.join(dir, n))).mtimeMs })))
-  const newest = found.sort((a, b) => b.mtime - a.mtime)[0]
-  if (!newest) return null
-  const handle = await fs.open(newest.file)
-  try {
-    const { size } = await handle.stat()
-    const length = Math.min(size, 262144)
-    const { buffer } = await handle.read(Buffer.alloc(length), 0, length, size - length)
-    const context = contextOf(buffer.toString('utf8'))
-    return context === null ? null : { context, limits: [], usd: null }
-  } finally { await handle.close() }
-})
+  const context = await transcriptContext(root)
+  return context === null ? null : { context, limits: [], usd: null }
+}
 
 // Past Claude Code sessions of a project, newest first, named by their first prompt.
 ipcMain.handle('sessions:list', async (_, root) => {
@@ -258,12 +468,22 @@ ipcMain.handle('pty:spawn', async (_, id, cwd, cols, rows, kind, resume) => {
   }
   const windows = process.platform === 'win32'
   const claude = kind === 'codex' ? 'codex' : again ? `claude --resume ${resume}` : 'claude' // the agent's command line: Claude Code or Codex
+  const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }
+  // Claude Code's status line feeds the HUD (see usage:get). The settings ride on --settings, so your own settings file is never touched.
+  // shortcut: macOS and Linux only; Windows' cmd.exe line would need its own quoting, so Windows keeps the transcript fallback.
+  let settings = ''
+  if (kind === 'claude' && !windows) {
+    const extra = path.join(app.getPath('userData'), 'claude-statusline.json')
+    await fs.writeFile(extra, JSON.stringify({ statusLine: { type: 'command', command: statusLineOf(await readFrom(path.join(home, '.claude', 'settings.json'))) } }))
+    await fs.mkdir(usageDir, { recursive: true })
+    env.EVOKE_USAGE_FILE = path.join(usageDir, `${slugOf(cwd)}.json`)
+    settings = ` --settings '${extra.replace(/'/g, "'\\''")}'`
+  }
   const [file, args] =
     remote ? [windows ? 'ssh.exe' : 'ssh', [cwd]]
     : kind === 'shell'
       ? windows ? ['powershell.exe', ['-NoLogo']] : [process.env.SHELL || '/bin/zsh', ['-il']]
-      : windows ? ['cmd.exe', ['/c', ...claude.split(' ')]] : [process.env.SHELL || '/bin/zsh', ['-ilc', claude]]
-  const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }
+      : windows ? ['cmd.exe', ['/c', ...claude.split(' ')]] : [process.env.SHELL || '/bin/zsh', ['-ilc', claude + settings]]
   // Claude Code connects to the editor through these, as it does in VS Code's terminal.
   if (kind === 'claude' && ide) Object.assign(env, { CLAUDE_CODE_SSE_PORT: String(ide.port), ENABLE_IDE_INTEGRATION: 'true' })
   delete env.TERM_PROGRAM // xterm.js draws no images: the Evoke pane falls back to plain rows

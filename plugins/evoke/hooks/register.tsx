@@ -1,8 +1,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import { ART, COLOR as K, GRID, ITEM_ROWS } from './tokens.js'
-import { CELL, baseName, cellOf, dayOf, entryOf, fitName, lastUsedOf, layoutOf, menuOf, openerOf, projectsOf, rankProjects, samePath, skillsOf, usageOf } from './data'
+import { COLOR as K, ITEM_ROWS } from './tokens.js'
+import { baseName, dayOf, entryOf, fitName, lastUsedOf, menuOf, openerOf, projectsOf, rankProjects, samePath, skillsOf, usageOf } from './data'
 import { action, content, cut, hud, limitName, section } from './views'
 import type { View } from './views'
 
@@ -34,8 +34,6 @@ const SAYS: Record<keyof typeof MENU, string> = {
   CALENDAR: '사용량을 확인한다',
   SYSTEM: '설정을 연다',
 }
-// Terminals that draw pictures; elsewhere the menu falls back to plain rows.
-const ART_TERMINALS = ['ghostty', 'kitty', 'iTerm.app', 'WezTerm']
 const SPINNER = { requesting: 'Calling', thinking: 'Analyzing', responding: 'Reporting', 'tool-input': 'Preparing', 'tool-use': 'Running' } as const
 
 const counts = atom({ plugin: 'evoke', key: 'counts' } as const, {})
@@ -43,7 +41,7 @@ const last = atom({ plugin: 'evoke', key: 'last' } as const, null)
 const day = atom({ plugin: 'evoke', key: 'day' } as const, '')
 const usage = atom({ plugin: 'evoke', key: 'usage' } as const, null)
 const projects = atom({ plugin: 'evoke', key: 'projects' } as const, [])
-const place = atom({ plugin: 'evoke', key: 'place' } as const, { cwd: '', branch: '', art: true, cell: CELL })
+const place = atom({ plugin: 'evoke', key: 'place' } as const, { cwd: '', branch: '' })
 const page = atom({ plugin: 'evoke', key: 'page' } as const, 0)
 
 const skills = atom({ plugin: 'evoke', key: 'skills' } as const, [])
@@ -52,18 +50,14 @@ const log = atom({ plugin: 'evoke', key: 'log' } as const, {})
 
 const PROJECTS = 'evoke-projects'
 const BOOK = 'evoke-skills'
-// More small frames instead of a few large ones: an Image swap is cheap, so the cut-in reads as motion.
-const FRAMES = [25, 50, 75, 90]
 // What the plain rows spend around the content: the HUD's 4, the menu's 3, the action bar's 3 and their 2 gaps.
 const PLAIN_ROWS = 12
-const scene = (root: string, menu: string, frame: number) => ({ file: `${root}/scenes/${menu}_${frame}.png`, format: 'png' as const })
 
 const today = async ($: { clock: { now: () => Promise<number> } }) => {
   const { date, moon } = dayOf(await $.clock.now())
   return `${date}  ${moon}`
 }
 
-let isMoving = false
 const warned = new Set<string>()
 
 const loadSkills = async ($: EngineInterface) => {
@@ -73,22 +67,9 @@ const loadSkills = async ($: EngineInterface) => {
   await update($, skills, () => all)
 }
 
-// Play the scene's cut-in, then settle the state so the redraw lands on its last frame.
+// Settle the menu; a new menu starts on its first page.
 async function show($: EngineInterface, menu: string, tool: string) {
   const was = (await read($, last))?.menu
-  if (was !== menu && !isMoving) {
-    isMoving = true
-    try {
-      for (const frame of FRAMES) {
-        await $.ui.blit({ requestId: PANE, key: 'scene', source: scene($.plugin.root, menu, frame) })
-        await $.clock.sleep(24)
-      }
-    } catch {
-      // A cut-in that cannot play must not lose the menu change below.
-    } finally {
-      isMoving = false
-    }
-  }
   if (was !== menu) await update($, page, () => 0)
   await update($, last, () => ({ menu, tool }))
 }
@@ -104,8 +85,8 @@ const openProjects = async ($: EngineInterface) => {
   await $.ui.open({ id: PROJECTS, title: 'PROJECT', columns: 56, backgroundColor: K.NAVY, focus: true, closeOnEscape: true })
 }
 
-// Where the session is and what its terminal can draw. A pane drawn in a session whose start never got here
-// (or failed part way) would otherwise keep the defaults: picture mode with no picture, and no skills.
+// Where the session is. A pane drawn in a session whose start never got here
+// (or failed part way) would otherwise keep the defaults: no skills, no branch.
 // So the next event that may write state sets it up instead.
 let isSetUp = false
 const setUp = async ($: EngineInterface, cwd?: string) => {
@@ -114,9 +95,7 @@ const setUp = async ($: EngineInterface, cwd?: string) => {
   const at = cwd ?? (await $.env.get('PWD').catch(() => undefined)) ?? ''
   // No git on the machine only costs the branch name.
   const git = at ? await $.process.run(['git', '-C', at, 'rev-parse', '--abbrev-ref', 'HEAD']).catch(() => null) : null
-  const terminal = await $.env.get('TERM_PROGRAM').catch(() => undefined)
-  const cell = cellOf(await $.env.get('EVOKE_CELL').catch(() => undefined))
-  await update($, place, () => ({ cwd: at, branch: git?.exitCode === 0 ? git.stdout.trim() : '', art: ART_TERMINALS.includes(terminal ?? ''), cell }))
+  await update($, place, () => ({ cwd: at, branch: git?.exitCode === 0 ? git.stdout.trim() : '' }))
 }
 
 export const register: Register = on => {
@@ -280,28 +259,6 @@ export const register: Register = on => {
     )
   })
 
-  on('ui.render', { component: 'UserMessage', props: { origin: { kind: 'composer' } } }, async ($, e, next) => {
-    if (e.surface !== 'terminal') return next(e)
-    const { Box, Image } = $.ui.resolve(e)
-    return (
-      <Box flexDirection="column">
-        <Image source={{ file: `${$.plugin.root}/scenes/tag-you.png`, format: 'png' }} columns={12} rows={2} alt="YOU" />
-        {await next(e)}
-      </Box>
-    )
-  })
-
-  on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    if (!e.props.isFirstOfReply || e.surface !== 'terminal') return next(e)
-    const { Box, Image } = $.ui.resolve(e)
-    return (
-      <Box flexDirection="column">
-        <Image source={{ file: `${$.plugin.root}/scenes/tag-claude.png`, format: 'png' }} columns={12} rows={2} alt="CLAUDE" />
-        {await next(e)}
-      </Box>
-    )
-  })
-
   on('ui.render', { component: 'AskUserQuestion' }, async ($, e, next) => {
     const { Box, Text } = $.ui.resolve(e)
     return (
@@ -353,13 +310,11 @@ export const register: Register = on => {
     await read($, day)
     const on_ = (now?.menu ?? 'SKILL') as keyof typeof MENU
     const ms = await $.clock.now()
-    // Drawing cannot write state: until an event has set the place up, ask the terminal directly whether it draws pictures.
-    const where = isSetUp ? await read($, place) : { ...(await read($, place)), art: ART_TERMINALS.includes((await $.env.get('TERM_PROGRAM').catch(() => undefined)) ?? '') }
+    const where = await read($, place)
     const history = await read($, log)
-    const layout = e.surface !== 'terminal' || where.art === false ? null : layoutOf(e.props.bodyColumns, e.props.scroll.bodyRows, ART, GRID, where.cell)
     const width = e.props.bodyColumns - 2
-    // With no picture and room for it, the names stand in the art's crooked column, one to a row.
-    const isTall = !layout && e.props.scroll.bodyRows >= 28
+    // With room for it, the names stand in a crooked column, one to a row.
+    const isTall = e.props.scroll.bodyRows >= 28
     const step = (by: number) => () => {
       const m = MENUS[(MENUS.indexOf(on_) + by + MENUS.length) % MENUS.length] as keyof typeof MENU
       return show($, m, MENU[m])
@@ -373,7 +328,7 @@ export const register: Register = on => {
       menu: on_,
       command: MENU[on_],
       width,
-      rows: layout ? layout.footer - layout.content : Math.max(8, e.props.scroll.bodyRows - PLAIN_ROWS - (isTall ? MENUS.length - 1 : 0)),
+      rows: Math.max(8, e.props.scroll.bodyRows - PLAIN_ROWS - (isTall ? MENUS.length - 1 : 0)),
       now: ms,
       page: await read($, page),
       tally,
@@ -400,46 +355,24 @@ export const register: Register = on => {
       </Box>
     )
 
-    // Too small for the composition, or a terminal with no pictures: the same content in plain rows.
-    if (!layout || e.surface !== 'terminal') {
-      return (
-        <Box flexDirection="column" paddingX={1}>
-          {hud(view, dayOf(ms))}
-          <Box marginTop={1}>{section({ Box, Text, Button }, width, <Text backgroundColor={K.MIDNIGHT} color={K.WHITE} bold>MENU</Text>, `${MENUS.indexOf(on_) + 1}/${MENUS.length}`)}</Box>
-          <Box flexWrap="wrap" flexDirection={isTall ? 'column' : 'row'}>
-            {MENUS.map((m, i) => (
-              <Box key={m} marginRight={1} marginLeft={isTall ? Math.round(((ITEM_ROWS[i] as { x: number }).x - 440) / 25) : 0}>
-                <Button key={m} plain hotkey={String(i + 1)} onPress={() => pick(m)}>
-                  {/* The art's selection: a white plate, black name, pink edge. */}
-                  {m === on_ ? cut(Text, m, K.WHITE, K.BLACK) : <Text color={[K.CYAN, K.ICE, '#2FC6FA'][i % 3]} bold italic>{m}</Text>}
-                </Button>
-                {m === on_ ? <Text color={K.PINK} bold>◣</Text> : null}
-              </Box>
-            ))}
-          </Box>
-          {/* The keys stand above the content: a short pane (inline, under 110 columns) cuts its last rows, and those must be the log's, not the controls'. */}
-          {action(view, SAYS[on_], keys, e.props.isFocused)}
-          <Box marginTop={1}>{content(view)}</Box>
-        </Box>
-      )
-    }
-
-    // One picture is the whole pane; the text lies on it in the art's grid. A row's text clears the picture from its first cell to the pane's edge, so text keeps to open water and the keys stand at the art's right edge.
-    const { Image } = $.ui.resolve(e)
-    // An absolute Box only overwrites the cells it draws, so what it held before would show through a shorter text: new content gets a new Box.
-    const stamp = JSON.stringify([on_, view.page, view.total, view.list.length, view.entries.length, view.entries[0], view.ai?.usd, where.branch, Math.floor(ms / 60000)])
-    const keyColumn = Math.ceil(layout.columns * 0.93)
     return (
-      <Box height={layout.height} width={e.props.bodyColumns}>
-        <Image key="scene" source={scene($.plugin.root, on_, 100)} columns={layout.columns} rows={layout.height} alt={on_} />
-        <Box position="absolute" top={0} left={0}>{hud(view, dayOf(ms))}</Box>
-        {MENUS.map((m, i) => (
-          <Box key={m} position="absolute" top={Math.round(((ITEM_ROWS[i] as { y: number }).y / ART.cellY - 0.5) * layout.scale)} left={keyColumn}>
-            <Button key={m} plain hotkey={String(i + 1)} label={m} onPress={() => pick(m)}><Text> </Text></Button>
-          </Box>
-        ))}
-        <Box key={stamp} position="absolute" top={layout.content} left={1} height={view.rows} overflow="hidden">{content(view)}</Box>
-        <Box key={`footer${on_}${e.props.isFocused}`} position="absolute" top={layout.footer} left={1}>{action(view, SAYS[on_], keys, e.props.isFocused)}</Box>
+      <Box flexDirection="column" paddingX={1}>
+        {hud(view, dayOf(ms))}
+        <Box marginTop={1}>{section({ Box, Text, Button }, width, <Text backgroundColor={K.MIDNIGHT} color={K.WHITE} bold>MENU</Text>, `${MENUS.indexOf(on_) + 1}/${MENUS.length}`)}</Box>
+        <Box flexWrap="wrap" flexDirection={isTall ? 'column' : 'row'}>
+          {MENUS.map((m, i) => (
+            <Box key={m} marginRight={1} marginLeft={isTall ? Math.round(((ITEM_ROWS[i] as { x: number }).x - 440) / 25) : 0}>
+              <Button key={m} plain hotkey={String(i + 1)} onPress={() => pick(m)}>
+                {/* The art's selection: a white plate, black name, pink edge. */}
+                {m === on_ ? cut(Text, m, K.WHITE, K.BLACK) : <Text color={[K.CYAN, K.ICE, '#2FC6FA'][i % 3]} bold italic>{m}</Text>}
+              </Button>
+              {m === on_ ? <Text color={K.PINK} bold>◣</Text> : null}
+            </Box>
+          ))}
+        </Box>
+        {/* The keys stand above the content: a short pane (inline, under 110 columns) cuts its last rows, and those must be the log's, not the controls'. */}
+        {action(view, SAYS[on_], keys, e.props.isFocused)}
+        <Box marginTop={1}>{content(view)}</Box>
       </Box>
     )
   })

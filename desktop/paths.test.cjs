@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert')
 const path = require('node:path')
-const { contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
+const { skillDirsOf, skillFiles, SKILL_NAME, claudeLimitsOf, codexLimitsOf, statusLineOf, usageFromStatus, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo } = require('./paths.cjs')
 
 test('inside keeps paths within the project', () => {
   assert.ok(inside('/a/proj', '/a/proj'))
@@ -104,4 +104,105 @@ test('sendTo drops messages for a closed window instead of throwing', () => {
   assert.doesNotThrow(() => sendTo(closing, 'pty:exit:x', 0))
   assert.doesNotThrow(() => sendTo(undefined, 'pty:exit:x', 0))
   assert.deepStrictEqual(sent, [['pty:data:x', 'hi']])
+})
+
+test('skillDirsOf finds each folder with a SKILL.md and names it after the folder', () => {
+  const { skillDirsOf } = require('./paths.cjs')
+  const tree = [
+    { path: 'README.md', type: 'blob' },
+    { path: 'agent-skills/ui/glass-card/SKILL.md', type: 'blob' },
+    { path: 'agent-skills/ui/glass-card/scripts/run.py', type: 'blob' },
+    { path: 'agent-skills/3d/3d-water/SKILL.md', type: 'blob' },
+    { path: 'agent-skills/bad name/SKILL.md', type: 'blob' },
+    { path: 'agent-skills/.hidden/SKILL.md', type: 'blob' },
+    { path: 'docs/SKILL.md', type: 'tree' },
+  ]
+  assert.deepEqual(skillDirsOf(tree, 'Skills'), [
+    { folder: 'agent-skills/3d/3d-water', name: '3d-water' },
+    { folder: 'agent-skills/ui/glass-card', name: 'glass-card' },
+  ])
+  assert.deepEqual(skillDirsOf([{ path: 'SKILL.md', type: 'blob' }], 'one-skill'), [{ folder: '', name: 'one-skill' }])
+})
+
+test('skillFiles keeps only plain files inside the skill, SKILL.md first', () => {
+  const { skillFiles } = require('./paths.cjs')
+  const tree = [
+    { path: 'a/skill/scripts/run.py', type: 'blob', mode: '100755', size: 10 },
+    { path: 'a/skill/SKILL.md', type: 'blob', mode: '100644', size: 5 },
+    { path: 'a/skill/link', type: 'blob', mode: '120000', size: 3 },
+    { path: 'a/skill/sub', type: 'commit', mode: '160000' },
+    { path: 'a/skill/../../escape', type: 'blob', mode: '100644', size: 1 },
+    { path: 'a/skill-other/SKILL.md', type: 'blob', mode: '100644', size: 1 },
+  ]
+  assert.deepEqual(skillFiles(tree, 'a/skill'), [
+    { path: 'a/skill/SKILL.md', rel: 'SKILL.md', size: 5 },
+    { path: 'a/skill/scripts/run.py', rel: 'scripts/run.py', size: 10 },
+  ])
+})
+
+test('statusLineOf copies the status JSON for Evoke and still feeds your own status line', () => {
+  assert.strictEqual(statusLineOf('{}'), 'cat > "$EVOKE_USAGE_FILE"')
+  assert.strictEqual(statusLineOf('not json'), 'cat > "$EVOKE_USAGE_FILE"')
+  assert.strictEqual(statusLineOf(JSON.stringify({ statusLine: { type: 'command', command: 'cat > ~/.figmon/claude_status.json' } })), 'tee "$EVOKE_USAGE_FILE" | { cat > ~/.figmon/claude_status.json; }')
+})
+
+test('usageFromStatus reads context, every limit and cost from the status line JSON', () => {
+  const status = {
+    cwd: '/p', workspace: { project_dir: '/p' },
+    context_window: { used_percentage: 8 },
+    cost: { total_cost_usd: 0.5 },
+    rate_limits: { five_hour: { used_percentage: 23.5, resets_at: 1738425600 }, seven_day: { used_percentage: 41.2, resets_at: 1738857600 } },
+  }
+  assert.deepStrictEqual(usageFromStatus(JSON.stringify(status)), {
+    project: '/p', context: 8, usd: 0.5,
+    limits: [{ kind: 'five_hour', percent: 23.5, resetsAt: '2025-02-01T16:00:00.000Z' }, { kind: 'seven_day', percent: 41.2, resetsAt: '2025-02-06T16:00:00.000Z' }],
+  })
+  assert.strictEqual(usageFromStatus('{"cwd": "/p", "context'), null) // read while Claude Code was still writing it
+  assert.deepStrictEqual(usageFromStatus('{"cwd":"/q"}'), { project: '/q', context: null, usd: null, limits: [] })
+  // A session that has not sent anything yet has used none of its window, not an unknown amount.
+  assert.strictEqual(usageFromStatus(JSON.stringify({ cwd: '/q', context_window: { total_input_tokens: 0, used_percentage: null } })).context, 0)
+})
+
+test('claudeLimitsOf reads the limits list: session, weekly, and a model limit by its name', () => {
+  const body = {
+    five_hour: { utilization: 1 },
+    limits: [
+      { kind: 'session', group: 'g', percent: 93, resets_at: '2026-11-12T04:50:00Z', scope: null },
+      { kind: 'weekly_all', group: 'g', percent: 57, resets_at: '2026-11-16T18:00:00Z', scope: null },
+      { kind: 'weekly_scoped', group: 'g', percent: 78, resets_at: null, scope: { model: { id: null, display_name: 'Fable' }, surface: null } },
+      { kind: 'weekly_scoped', percent: 5, scope: { model: { display_name: '<script>' } } },
+      { kind: 'session', percent: 'x' },
+    ],
+  }
+  assert.deepStrictEqual(claudeLimitsOf(body), [
+    { kind: 'five_hour', percent: 93, resetsAt: '2026-11-12T04:50:00.000Z' },
+    { kind: 'seven_day', percent: 57, resetsAt: '2026-11-16T18:00:00.000Z' },
+    { kind: 'model:Fable', percent: 78 },
+  ])
+})
+
+test('claudeLimitsOf falls back to the older five_hour / seven_day objects', () => {
+  const body = {
+    five_hour: { utilization: 85, resets_at: '2026-11-12T04:50:00Z' },
+    seven_day: { utilization: 53.5, resets_at: null },
+    seven_day_overage_included: { utilization: 77, resets_at: '2026-11-17T18:00:00Z' },
+    seven_day_opus: null,
+    extra_usage: { is_enabled: false, utilization: 12 },
+  }
+  assert.deepStrictEqual(claudeLimitsOf(body), [
+    { kind: 'five_hour', percent: 85, resetsAt: '2026-11-12T04:50:00.000Z' },
+    { kind: 'seven_day', percent: 53.5 },
+    { kind: 'seven_day_overage_included', percent: 77, resetsAt: '2026-11-17T18:00:00.000Z' },
+  ])
+  assert.deepStrictEqual(claudeLimitsOf(null), [])
+})
+
+test('codexLimitsOf names each window by its length', () => {
+  const body = { rate_limit: { primary_window: { used_percent: 12, limit_window_seconds: 18000, reset_at: 1762923000 }, secondary_window: { used_percent: 40, limit_window_seconds: 604800 } } }
+  assert.deepStrictEqual(codexLimitsOf(body), [
+    { kind: 'codex_five_hour', percent: 12, resetsAt: '2025-11-12T04:50:00.000Z' },
+    { kind: 'codex_seven_day', percent: 40 },
+  ])
+  assert.deepStrictEqual(codexLimitsOf({ rate_limit: { primary_window: { used_percent: 100, limit_window_seconds: 2592000 }, secondary_window: null } }), [{ kind: 'codex_thirty_day', percent: 100 }])
+  assert.deepStrictEqual(codexLimitsOf({}), [])
 })
