@@ -159,6 +159,15 @@ ipcMain.handle('git:status', async (_, root) => {
   const out = await git(root, ['status', '--porcelain=v1', '-z', '-uall'])
   return out == null ? [] : parseStatus(out).map(c => ({ ...c, path: path.join(root, c.path) }))
 })
+// STATUS: the last commits on the current branch, one line each. \x1f splits the fields, since a subject can hold anything else.
+ipcMain.handle('git:log', async (_, root) => {
+  await guard(root)
+  const out = await git(root, ['log', '-n', '15', '--pretty=format:%h%x1f%s%x1f%an%x1f%ct'])
+  return (out ?? '').split('\n').filter(Boolean).map(l => {
+    const [hash, subject, author, at] = l.split('\x1f')
+    return { hash, subject, author, at: Number(at) * 1000 }
+  })
+})
 // The file as of the last commit: '' for a new file. A deleted file has no real path, so this checks the name only.
 ipcMain.handle('git:head', async (_, root, file) => {
   await guard(root)

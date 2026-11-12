@@ -93,7 +93,8 @@ Sizes: display 110 to 250px (empty page), sheet title 20px, chip 13 to 20px, bod
 
 ## Top bar
 
-- No logo. The bar holds the project button, branch, theme, UI edit, the two fold buttons, settings and the clock.
+- No logo. The bar holds the project button, branch, the ⌘K search field, theme, UI edit, the two fold buttons, settings and the clock.
+- ⌘K finds anything the window holds: menus, tools, projects, calendar events, TODOs (once QUEST has loaded), changed files, themes, settings, and project files by name.
 - TIDE draws a short blue wedge and a cyan slash under the macOS window buttons only. The project button starts clear of the slash. On Windows the wedge is hidden, since the window buttons sit on the other side.
 - The bar is the window's drag region; every button in it opts out.
 
@@ -118,6 +119,7 @@ Shown in Settings → Shortcuts. `⌘` is `Ctrl` on Windows.
 
 | Key | Does |
 |---|---|
+| `⌘K` | Find anything (menus, tools, projects, events, TODOs, files) |
 | `⌘P` | Open a file |
 | `⌘⇧F` | Search the project |
 | `⌘S` | Format and save |
@@ -139,7 +141,7 @@ Function follows a code editor (side bar, preview tabs, panel, status bar, quick
 | Welcome (no project) | Display word top left, recent projects on a plate below | `.empty`, `.welcome`, `.row` with a number key |
 | Empty editor (project open) | Display word and one hint line | `.empty` |
 | Editor | Tabs on a dark band, page below; a single click opens a preview tab (italic) | `.tabs`, `.tab`, Monaco |
-| Side bar | Nine menus, each content list under band headers with counts | `.pane`, `.group`, `.entry` |
+| Side bar | Nine menus, each content list under band headers with counts. STATUS adds the last 15 commits. CALENDAR holds your own events (stored in `events.json`, any project) beside Claude sessions; kinds differ by shape (meeting a block, dev a slanted bar, personal an outline), never by a second colour | `.pane`, `.group`, `.entry`, `.dot`, `.ev-form` |
 | Terminals | A usage strip on top (context, every limit Claude Code reports, cost), then chips that pick the terminal; tools on their own row | `.usage-strip`, `.gauge`, `.head.sides`, `.tools`, `.claude` |
 | Status bar | Menu chip, project, branch, changes | `.hud` |
 | Sheets (projects, quick open, search, settings) | Overlay, one skewed plate, title band, rows | `.picker`, `.sheet`, `.row`, `.set-tabs` |

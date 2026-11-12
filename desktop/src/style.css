@@ -638,3 +638,31 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 [data-theme='rebel'] .dock-split { background: #000000; }
 [data-theme='rebel'] .dock-split:hover, [data-theme='rebel'] .dock-split:active { background: var(--blood); }
 [data-theme='rebel'] .right:has(.dock-head.focused) .dock-head:not(.focused) { opacity: .6; }
+
+/* ⌘K: the search field in the top bar, centred in the free space between the branch and the theme chip. */
+.find-open { display: flex; align-items: center; gap: 8px; margin-left: auto; min-width: 0; width: min(320px, 28vw); padding: 4px 12px; color: var(--gray); background: var(--page); border: 1px solid var(--line); transform: skewX(-8deg); transition: transform .12s, border-color .12s; }
+.find-open > * { transform: skewX(8deg); }
+.find-open span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.find-open:hover, .find-open:focus-visible { border-color: var(--edge); transform: skewX(-8deg) translateX(3px); outline: none; }
+.find-open kbd { font: 900 italic 12px Barlow, sans-serif; color: var(--hi); }
+.find-open + .theme { margin-left: 0; }
+.row b.kind { width: 64px; flex: none; font-size: 11px; color: var(--gray); }
+.row.on b.kind, .row:hover b.kind { color: inherit; }
+
+/* CALENDAR events. Kinds differ by shape, not colour, so REBEL keeps its one red: meeting a solid block, dev a slanted bar, personal an outline. */
+.dot { display: inline-block; width: 7px; height: 7px; vertical-align: middle; }
+.dot.k-meeting { background: var(--hi); }
+.dot.k-dev { background: var(--sel); transform: skewX(-20deg); width: 9px; }
+.dot.k-personal { box-shadow: inset 0 0 0 1.5px var(--edge); }
+.calendar .dots { display: flex; justify-content: center; gap: 2px; height: 7px; }
+.calendar .month button { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.entry.event { white-space: normal; }
+.ev-form { display: grid; gap: 6px; padding: 8px 12px; }
+.ev-form input { width: 100%; min-width: 0; padding: 4px 8px; background: var(--page); color: var(--text); border: 1px solid var(--line); font: 13px Pretendard, sans-serif; color-scheme: light dark; }
+.ev-form input:focus { outline: 2px solid var(--edge); outline-offset: -2px; }
+.ev-line { display: flex; gap: 6px; }
+.ev-form .views { display: flex; }
+.ev-form button { padding: 2px 10px; font: 900 italic 12px Barlow, Pretendard, sans-serif; color: var(--hi); }
+.ev-form button.on { background: var(--sel); color: var(--sel-ink); }
+[data-theme='rebel'] .ev-form button.on { background: #FFFFFF; color: #000000; box-shadow: 3px 2px 0 var(--blood); }
+.entry.commit { white-space: normal; cursor: default; }
