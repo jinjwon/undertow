@@ -121,7 +121,7 @@ Shown in Settings → Shortcuts. `⌘` is `Ctrl` on Windows.
 |---|---|
 | `⌘K` | Find anything (menus, tools, projects, events, TODOs, files) |
 | `⌘P` | Open a file |
-| `⌘⇧F` | Search the project |
+| `⌘⇧F` | Search the project: match case, whole word, regex, files to include and exclude, Replace all (asks first, skips open files with unsaved edits) |
 | `⌘S` | Format and save |
 | `⌘L` | Send the selection to Claude or Codex |
 | `⌘O` | Projects |
@@ -141,7 +141,7 @@ Function follows a code editor (side bar, preview tabs, panel, status bar, quick
 | Welcome (no project) | Display word top left, recent projects on a plate below | `.empty`, `.welcome`, `.row` with a number key |
 | Empty editor (project open) | Display word and one hint line | `.empty` |
 | Editor | Tabs on a dark band, page below; a single click opens a preview tab (italic) | `.tabs`, `.tab`, Monaco |
-| Side bar | Nine menus, each content list under band headers with counts. STATUS adds the last 15 commits. CALENDAR holds your own events (stored in `events.json`, any project) beside Claude sessions; kinds differ by shape (meeting a block, dev a slanted bar, personal an outline), never by a second colour | `.pane`, `.group`, `.entry`, `.dot`, `.ev-form` |
+| Side bar | Nine menus, each content list under band headers with counts. STATUS has a commit box on top (`git commit -a`: tracked files only, so new files need `git add` first) and the last 15 commits below the changes. CALENDAR holds your own events (stored in `events.json`, any project) beside Claude sessions; kinds differ by shape (meeting a block, dev a slanted bar, personal an outline), never by a second colour | `.pane`, `.group`, `.entry`, `.dot`, `.ev-form` |
 | Terminals | A usage strip on top (context, every limit Claude Code reports, cost), then chips that pick the terminal; tools on their own row | `.usage-strip`, `.gauge`, `.head.sides`, `.tools`, `.claude` |
 | Status bar | Menu chip, project, branch, changes | `.hud` |
 | Sheets (projects, quick open, search, settings) | Overlay, one skewed plate, title band, rows | `.picker`, `.sheet`, `.row`, `.set-tabs` |

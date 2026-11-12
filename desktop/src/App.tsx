@@ -36,7 +36,9 @@ type Found = { folder: string; name: string; installed: boolean }
 type Change = { path: string; code: string }
 // group and run: a ⌘K hit that is not a file (a menu, a tool, a project, an event) carries its own action.
 type Hit = { path: string; rel: string; line?: number; col?: number; preview?: string; group?: string; run?: () => void }
-type Finder = { mode: 'files' | 'search' | 'all'; query: string; hits: Hit[]; at: number }
+// opts: the search sheet's toggles and file filters; replace: the text Replace all puts in.
+type SearchOpts = { caseSensitive?: boolean; word?: boolean; regex?: boolean; include?: string; exclude?: string }
+type Finder = { mode: 'files' | 'search' | 'all'; query: string; hits: Hit[]; at: number; opts?: SearchOpts; replace?: string }
 type Usage = { context: number | null; limits: { kind: string; percent: number; resetsAt?: string }[]; usd: number | null }
 
 const LIMITS: Record<string, string> = { five_hour: '5H', seven_day: '7D', spend_limit: 'SPEND' } // same labels as the pane's HUD
@@ -577,16 +579,39 @@ export function App() {
     const { mode, query } = finder
     const id = setTimeout(async () => {
       const hits: Hit[] = mode === 'all' ? [...everywhere(query), ...(root && query.trim() ? (await api.files(root, query)).slice(0, 10).map((h: Hit) => ({ ...h, group: 'FILE' })) : [])]
-        : mode === 'files' ? await api.files(root, query) : await api.search(root, query)
+        : mode === 'files' ? await api.files(root, query) : await api.search(root, query, finder.opts)
       setFinder(f => (f && f.mode === mode && f.query === query ? { ...f, hits, at: 0 } : f))
     }, mode === 'files' ? 60 : 250)
     return () => clearTimeout(id)
-  }, [finder?.mode, finder?.query, root])
+  }, [finder?.mode, finder?.query, JSON.stringify(finder?.opts), root])
   const pickHit = (h?: Hit) => {
     if (!h) return
     setFinder(null)
     if (h.run) h.run()
     else openFile(h.path, h.line, h.col)
+  }
+  // Replace all, after a confirm: files open with unsaved edits are skipped; clean open tabs then reload from disk.
+  const replaceAll = async () => {
+    if (!finder || !root || !finder.hits.length) return
+    const files = new Set(finder.hits.map(h => h.path)).size
+    if (!window.confirm(T('replace.confirm', { n: finder.hits.length, files, text: finder.replace ?? '' }))) return
+    const dirty = tabs.filter(t => t.text !== t.saved).map(t => t.path)
+    try {
+      const done = await api.replace(root, finder.query, finder.replace ?? '', finder.opts ?? {}, dirty)
+      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved && isFile(t) ? api.read(t.path).catch(() => t.saved) : t.saved)))
+      setTabs(ts => ts.map((t, i) => (t.text === t.saved && fresh[i] !== undefined ? { ...t, text: fresh[i], saved: fresh[i] } : t)))
+      setToast(T('replace.done', { n: done.n, files: done.files }) + (dirty.length ? ` ${T('replace.skipped', { n: dirty.length })}` : ''))
+      setFinder(f => f && { ...f, hits: [] })
+      refreshGit()
+    } catch (e) { setToast(String((e as Error).message ?? e)) }
+  }
+  const [message, setMessage] = useState('')
+  const commit = async () => {
+    if (!root || !message.trim()) return
+    const r = await api.commit(root, message).catch((e: Error) => ({ ok: false, error: e.message }))
+    if (r.ok) setMessage('')
+    setToast(r.ok ? T('commit.done') : r.error)
+    refreshGit()
   }
   // ⌘K: what the window already holds, matched by name. Files come from the project on top of these.
   const everywhere = (query: string): Hit[] => {
@@ -711,6 +736,12 @@ export function App() {
         {/* Every menu's content starts under a section header, as the terminal pane's does. */}
         {menu === 'ITEM' && root && <div className="group">FILES</div>}
         {menu === 'ITEM' && root && <Tree key={root} dir={root} depth={0} onOpen={openFile} active={active} />}
+        {menu === 'STATUS' && branch && (
+          <form className="commit-box" onSubmit={e => (e.preventDefault(), commit())}>
+            <input value={message} onChange={e => setMessage(e.target.value)} placeholder={T('commit.placeholder', { branch })} onKeyDown={e => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.preventDefault(), commit())} />
+            <button type="submit" disabled={!message.trim() || !changes.some(c => c.code !== '??')} title={T('commit.hint')}>✓ COMMIT</button>
+          </form>
+        )}
         {menu === 'STATUS' && <div className="group">CHANGES <span>{changes.length}</span></div>}
         {menu === 'STATUS' && (changes.length ? changes.map(c => (
           <div tabIndex={0} key={c.path} className={`entry change ${active === `diff:${c.path}` ? 'on' : ''}`} onClick={() => openDiff(c.path)} title={relative(root, c.path)}>
@@ -997,7 +1028,7 @@ export function App() {
                 autoFocus
                 value={finder.query}
                 placeholder={finder.mode === 'files' ? T('fileName') : finder.mode === 'all' ? T('find.all') : T('searchText')}
-                onChange={e => setFinder({ ...finder, query: e.target.value })}
+                onChange={e => { const query = e.target.value; setFinder(f => f && { ...f, query }) }}
                 onKeyDown={e => {
                   const n = finder.hits.length
                   if (e.key === 'Escape') setFinder(null)
@@ -1009,6 +1040,21 @@ export function App() {
                 }}
               />
             </div>
+            {finder.mode === 'search' && (
+              <div className="search-opts">
+                <span className="ev-line">
+                  <input value={finder.replace ?? ''} placeholder={T('replace.with')} onChange={e => { const replace = e.target.value; setFinder(f => f && { ...f, replace }) }} />
+                  {([['caseSensitive', 'Aa'], ['word', 'ab'], ['regex', '.*']] as const).map(([k, label]) => (
+                    <button key={k} type="button" className={finder.opts?.[k] ? 'on' : ''} aria-pressed={!!finder.opts?.[k]} title={T(`search.${k}`)} onClick={() => setFinder(f => f && { ...f, opts: { ...f.opts, [k]: !f.opts?.[k] } })}>{label}</button>
+                  ))}
+                  <button type="button" disabled={!finder.hits.length} onClick={replaceAll} title={T('replace.all')}>{T('replace.all')}</button>
+                </span>
+                <span className="ev-line">
+                  <input value={finder.opts?.include ?? ''} placeholder={T('search.include')} onChange={e => { const include = e.target.value; setFinder(f => f && { ...f, opts: { ...f.opts, include } }) }} />
+                  <input value={finder.opts?.exclude ?? ''} placeholder={T('search.exclude')} onChange={e => { const exclude = e.target.value; setFinder(f => f && { ...f, opts: { ...f.opts, exclude } }) }} />
+                </span>
+              </div>
+            )}
             <div className="hits">
               {finder.hits.map((h, i) => (
                 <button key={`${h.group}:${h.path}:${h.line}:${h.rel}:${i}`} className={`row ${i === finder.at ? 'on' : ''}`} onClick={() => pickHit(h)}>

@@ -666,3 +666,16 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .ev-form button.on { background: var(--sel); color: var(--sel-ink); }
 [data-theme='rebel'] .ev-form button.on { background: #FFFFFF; color: #000000; box-shadow: 3px 2px 0 var(--blood); }
 .entry.commit { white-space: normal; cursor: default; }
+
+/* Search sheet: replace, the three toggles and the file filters, under the query. */
+.search-opts { display: grid; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--line); }
+.search-opts input, .commit-box input { flex: 1; min-width: 0; padding: 4px 8px; background: var(--page); color: var(--text); border: 1px solid var(--line); font: 13px Pretendard, sans-serif; }
+.search-opts input:focus, .commit-box input:focus { outline: 2px solid var(--edge); outline-offset: -2px; }
+.search-opts button, .commit-box button { padding: 2px 10px; font: 900 italic 12px Barlow, Pretendard, sans-serif; color: var(--hi); white-space: nowrap; }
+.search-opts button.on { background: var(--sel); color: var(--sel-ink); }
+[data-theme='rebel'] .search-opts button.on { background: #FFFFFF; color: #000000; box-shadow: 3px 2px 0 var(--blood); }
+.search-opts button:disabled, .commit-box button:disabled { opacity: .4; pointer-events: none; }
+/* STATUS: the commit message and its button above the changes. */
+.commit-box { display: flex; gap: 6px; padding: 8px 12px; }
+.commit-box button { background: var(--sel); color: var(--sel-ink); }
+[data-theme='rebel'] .commit-box button { background: #FFFFFF; color: #000000; box-shadow: 3px 2px 0 var(--blood); }
