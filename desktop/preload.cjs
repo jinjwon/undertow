@@ -28,6 +28,12 @@ contextBridge.exposeInMainWorld('evoke', {
   sessions: root => ipcRenderer.invoke('sessions:list', root),
   skills: () => ipcRenderer.invoke('skills:list'),
   equip: root => ipcRenderer.invoke('equip:list', root),
+  discover: {
+    repos: () => ipcRenderer.invoke('discover:repos'),
+    skills: repo => ipcRenderer.invoke('discover:skills', repo),
+    preview: (repo, folder) => ipcRenderer.invoke('discover:preview', repo, folder),
+    install: (repo, folder) => ipcRenderer.invoke('discover:install', repo, folder),
+  },
   previewUrl: file => ipcRenderer.invoke('preview:url', file),
   previewOpen: url => ipcRenderer.send('preview:open', url),
   sshHosts: () => ipcRenderer.invoke('ssh:hosts'),

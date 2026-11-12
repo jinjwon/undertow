@@ -145,4 +145,22 @@ const codexTrusted = toml => {
   return out
 }
 
-module.exports = { contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }
+// DISCOVER: the skills in a GitHub repository, from its git tree (GET /repos/:repo/git/trees/HEAD?recursive=1).
+// A skill is a folder holding SKILL.md; its name is the folder's. A SKILL.md at the top makes the whole repository one skill.
+const skillDirsOf = (tree, repoName) =>
+  tree
+    .filter(e => e.type === 'blob' && (e.path === 'SKILL.md' || e.path.endsWith('/SKILL.md')))
+    .map(e => e.path.slice(0, -'SKILL.md'.length).replace(/\/$/, ''))
+    .map(folder => ({ folder, name: folder ? folder.split('/').pop() : repoName }))
+    .filter(s => SKILL_NAME.test(s.name))
+    .sort((a, b) => a.folder.localeCompare(b.folder))
+const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/ // becomes a folder under ~/.claude/skills, so no separators and no leading dot
+// The plain files of one skill, each with its path inside the skill. Symlinks and submodules are left out: an install only ever writes ordinary files.
+const skillFiles = (tree, folder) =>
+  tree
+    .filter(e => e.type === 'blob' && e.mode !== '120000' && (!folder || e.path.startsWith(`${folder}/`)))
+    .map(e => ({ path: e.path, rel: folder ? e.path.slice(folder.length + 1) : e.path, size: e.size ?? 0 }))
+    .filter(f => f.rel.split('/').every(part => part && part !== '..' && part !== '.git'))
+    .sort((a, b) => (b.rel === 'SKILL.md') - (a.rel === 'SKILL.md') || a.rel.localeCompare(b.rel))
+
+module.exports = { skillDirsOf, skillFiles, SKILL_NAME, contextOf, usesOf, codexTrusted, sshHosts, inside, latestUsage, trusted, isSessionId, slugOf, titleOf, frontOf, pluginsOf, mcpOf, sendTo }

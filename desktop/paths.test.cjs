@@ -105,3 +105,37 @@ test('sendTo drops messages for a closed window instead of throwing', () => {
   assert.doesNotThrow(() => sendTo(undefined, 'pty:exit:x', 0))
   assert.deepStrictEqual(sent, [['pty:data:x', 'hi']])
 })
+
+test('skillDirsOf finds each folder with a SKILL.md and names it after the folder', () => {
+  const { skillDirsOf } = require('./paths.cjs')
+  const tree = [
+    { path: 'README.md', type: 'blob' },
+    { path: 'agent-skills/ui/glass-card/SKILL.md', type: 'blob' },
+    { path: 'agent-skills/ui/glass-card/scripts/run.py', type: 'blob' },
+    { path: 'agent-skills/3d/3d-water/SKILL.md', type: 'blob' },
+    { path: 'agent-skills/bad name/SKILL.md', type: 'blob' },
+    { path: 'agent-skills/.hidden/SKILL.md', type: 'blob' },
+    { path: 'docs/SKILL.md', type: 'tree' },
+  ]
+  assert.deepEqual(skillDirsOf(tree, 'Skills'), [
+    { folder: 'agent-skills/3d/3d-water', name: '3d-water' },
+    { folder: 'agent-skills/ui/glass-card', name: 'glass-card' },
+  ])
+  assert.deepEqual(skillDirsOf([{ path: 'SKILL.md', type: 'blob' }], 'one-skill'), [{ folder: '', name: 'one-skill' }])
+})
+
+test('skillFiles keeps only plain files inside the skill, SKILL.md first', () => {
+  const { skillFiles } = require('./paths.cjs')
+  const tree = [
+    { path: 'a/skill/scripts/run.py', type: 'blob', mode: '100755', size: 10 },
+    { path: 'a/skill/SKILL.md', type: 'blob', mode: '100644', size: 5 },
+    { path: 'a/skill/link', type: 'blob', mode: '120000', size: 3 },
+    { path: 'a/skill/sub', type: 'commit', mode: '160000' },
+    { path: 'a/skill/../../escape', type: 'blob', mode: '100644', size: 1 },
+    { path: 'a/skill-other/SKILL.md', type: 'blob', mode: '100644', size: 1 },
+  ]
+  assert.deepEqual(skillFiles(tree, 'a/skill'), [
+    { path: 'a/skill/SKILL.md', rel: 'SKILL.md', size: 5 },
+    { path: 'a/skill/scripts/run.py', rel: 'scripts/run.py', size: 10 },
+  ])
+})

@@ -27,7 +27,10 @@ type Entry = { name: string; path: string; dir: boolean }
 // web: a preview page's address on the preview server (a PDF, a video, or the live view of an HTML or Markdown file, whose tab is named live:<path>);
 // head: a diff tab against the last commit; image: a picture shown instead of text; preview: replaced by the next single click, as in VS Code
 // proposal: an edit Claude Code offers through the IDE link, shown as a diff of this file until it is accepted or rejected
-type Tab = { path: string; text: string; saved: string; head?: string; image?: string; web?: string; preview?: boolean; proposal?: string }
+// skill: a read-only look at a skill from GitHub before it is installed (DISCOVER in the SKILL menu)
+type Tab = { path: string; text: string; saved: string; head?: string; image?: string; web?: string; preview?: boolean; proposal?: string; skill?: { repo: string; folder: string; files: number; installed: boolean; note?: string } }
+type Repo = { repo: string; description: string; stars: number }
+type Found = { folder: string; name: string; installed: boolean }
 type Change = { path: string; code: string }
 type Hit = { path: string; rel: string; line?: number; col?: number; preview?: string }
 type Finder = { mode: 'files' | 'search'; query: string; hits: Hit[]; at: number }
@@ -90,7 +93,7 @@ const focusTerm = (id: string) => requestAnimationFrame(() => document.querySele
 // Text typed into a terminal for you: no control characters, so a file or skill name can never press Enter or send keys.
 const typed = (text: string) => text.replace(/[\x00-\x1f\x7f]/g, '')
 const fileUrl = (path: string) => encodeURI(`file://${path.startsWith('/') ? '' : '/'}${path.replace(/\\/g, '/')}`)
-const isFile = (t: { path: string; head?: string; web?: string; image?: string }) => t.head === undefined && t.web === undefined && t.image === undefined
+const isFile = (t: { path: string; head?: string; web?: string; image?: string; skill?: unknown }) => t.head === undefined && t.web === undefined && t.image === undefined && !t.skill
 const relative = (root: string, path: string) => path.slice(root.length).replace(/^[\\/]/, '')
 
 const Cut = ({ label, ground = 'var(--chip)', ink = 'var(--chip-ink)' }: { label: string; ground?: string; ink?: string }) => (
@@ -135,6 +138,9 @@ export function App() {
   const [finder, setFinder] = useState<Finder | null>(null)
   const [menu, setMenu] = useState('ITEM')
   const [skills, setSkills] = useState<{ name: string; description: string; plugin: string; uses: number }[]>([])
+  // DISCOVER: null while loading, a string when GitHub could not be reached. One repository is open at a time.
+  const [repos, setRepos] = useState<Repo[] | null | string>(null)
+  const [shelf, setShelf] = useState<{ repo: string; skills: Found[] | null | string }>()
   const [equip, setEquip] = useState<{ mcp: string[]; plugins: string[] }>({ mcp: [], plugins: [] })
   const [quests, setQuests] = useState<Hit[] | null>(null)
   const [day, setDay] = useState<string | null>(null) // CALENDAR: the day whose sessions are listed
@@ -207,7 +213,7 @@ export function App() {
   useEffect(() => {
     if (menu === 'LINK') api.sshHosts().then(setHosts, () => setHosts([]))
     if (!root) return
-    if (menu === 'SKILL') api.skills().then(setSkills)
+    if (menu === 'SKILL') (api.skills().then(setSkills), api.discover.repos().then(setRepos, () => setRepos(T('discover.failed'))))
     if (menu === 'EQUIP') api.equip(root).then(setEquip)
     if (menu === 'AGENT' || menu === 'CALENDAR' || calendarOut) api.sessions(root).then(setSessions)
     if (menu === 'STATUS') refreshGit()
@@ -429,7 +435,7 @@ export function App() {
   // Claude Code edits files on disk: tabs without your own unsaved edits follow the disk when you come back to the window.
   useEffect(() => {
     const sync = async () => {
-      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved && t.head === undefined && t.image === undefined && t.web === undefined ? api.read(t.path).catch(() => t.saved) : t.saved)))
+      const fresh = await Promise.all(tabs.map(t => (t.text === t.saved && isFile(t) ? api.read(t.path).catch(() => t.saved) : t.saved)))
       setTabs(ts => ts.map((t, i) => (t.text === t.saved && fresh[i] !== undefined && fresh[i] !== t.saved ? { ...t, text: fresh[i], saved: fresh[i] } : t)))
     }
     window.addEventListener('focus', sync)
@@ -556,6 +562,33 @@ export function App() {
     openFile(h.path, h.line, h.col)
   }
 
+  const openShelf = (repo: string) => {
+    if (shelf?.repo === repo) return setShelf(undefined)
+    setShelf({ repo, skills: null })
+    api.discover.skills(repo).then((skills: Found[]) => setShelf(s => (s?.repo === repo ? { repo, skills } : s)), () => setShelf(s => (s?.repo === repo ? { repo, skills: T('discover.failed') } : s)))
+  }
+  const skillTab = (repo: string, folder: string) => `skill:${repo}/${folder}`
+  const openSkill = async (repo: string, s: Found) => {
+    const id = skillTab(repo, s.folder)
+    const got = await api.discover.preview(repo, s.folder).catch(() => undefined)
+    if (!got) return setShelf(x => (x?.repo === repo ? { repo, skills: T('discover.failed') } : x))
+    setTabs(ts => [...ts.filter(t => t.path !== id), { path: id, text: got.text, saved: got.text, skill: { repo, folder: s.folder, files: got.files, installed: got.installed } }])
+    setActive(id)
+  }
+  // Copies the skill into ~/.claude/skills and nothing else: it runs only when you later call it in a session.
+  const installSkill = async (t: Tab) => {
+    if (!t.skill) return
+    const { repo, folder } = t.skill
+    const mark = (skill: Partial<NonNullable<Tab['skill']>>) => setTabs(ts => ts.map(x => (x.path === t.path && x.skill ? { ...x, skill: { ...x.skill, ...skill } } : x)))
+    try {
+      await api.discover.install(repo, folder)
+      mark({ installed: true, note: undefined })
+      api.skills().then(setSkills)
+      api.discover.skills(repo).then((skills: Found[]) => setShelf(s => (s?.repo === repo ? { repo, skills } : s)), () => {})
+    } catch (e) {
+      mark({ note: T(String(e).includes('exists') ? 'discover.exists' : 'discover.failed') })
+    }
+  }
   const tab = tabs.find(t => t.path === active)
   const save = async (path: string, text: string) => {
     await api.write(path, text)
@@ -653,6 +686,27 @@ export function App() {
             )),
           ]
         })}
+        {menu === 'SKILL' && (
+          <>
+            <div className="group">DISCOVER <span>{Array.isArray(repos) ? repos.length : ''}</span></div>
+            {repos === null && <div className="entry quiet">{T('searching')}</div>}
+            {typeof repos === 'string' && <div className="entry quiet">{repos}</div>}
+            {Array.isArray(repos) && repos.flatMap(r => [
+              <div tabIndex={0} key={r.repo} className="entry skill" onClick={() => openShelf(r.repo)} title={r.description} aria-expanded={shelf?.repo === r.repo}>
+                <span>{shelf?.repo === r.repo ? '▾' : '▸'} {r.repo}</span> <b className="rank">★{r.stars >= 1000 ? `${(r.stars / 1000).toFixed(1)}k` : r.stars}</b>
+                <div className="desc">{r.description}</div>
+              </div>,
+              ...(shelf?.repo !== r.repo ? [] : !Array.isArray(shelf.skills)
+                ? [<div key={`${r.repo}:state`} className="entry sub quiet">{shelf.skills ?? T('searching')}</div>]
+                : shelf.skills.length ? shelf.skills.map(s => (
+                  <div tabIndex={0} key={`${r.repo}/${s.folder}`} className={`entry sub ${active === skillTab(r.repo, s.folder) ? 'on' : ''}`} onClick={() => openSkill(r.repo, s)} title={s.folder}>
+                    {s.name} {s.installed && <b className="got" aria-label={T('discover.installed')}>✓</b>}
+                    <div className="desc">{s.folder.split('/').slice(0, -1).join('/')}</div>
+                  </div>
+                )) : [<div key={`${r.repo}:none`} className="entry sub quiet">{T('discover.none')}</div>]),
+            ])}
+          </>
+        )}
         {menu === 'EQUIP' && (
           <>
             <div className="group">MCP <span>{equip.mcp.length}</span></div>
@@ -735,6 +789,23 @@ export function App() {
         </>
         ) : tab?.image !== undefined ? (
           <div className="image-view">{tab.image ? <img src={tab.image} alt={baseName(tab.path)} /> : <p className="quiet">{T('binary')}</p>}</div>
+        ) : tab?.skill ? (<>
+          <div className="web-bar proposal" role="group" aria-label={T('discover.preview')}>
+            <span>{tab.skill.repo}/{tab.skill.folder} · {T('discover.files', { n: tab.skill.files })}{tab.skill.note && ` · ${tab.skill.note}`}</span>
+            {tab.skill.installed
+              ? <b className="got">✓ {T('discover.installed')}</b>
+              : <button onClick={() => installSkill(tab)}><Cut label={T('discover.install')} ground="var(--sel)" ink="var(--sel-ink)" /></button>}
+          </div>
+          <Editor
+            path={tab.path}
+            language="markdown"
+            value={tab.text}
+            theme={`evoke-${theme}`}
+            beforeMount={defineThemes}
+            loading={<div className="state">{T('loading')}</div>}
+            options={{ readOnly: true, wordWrap: 'on', fontFamily: 'Iosevka, Menlo, Consolas, monospace', fontSize: 14, minimap: { enabled: false }, padding: { top: 12 } }}
+          />
+        </>
         ) : tab ? (
           <Editor
             path={tab.path}
