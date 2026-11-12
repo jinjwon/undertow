@@ -2,7 +2,7 @@
 // and when it is closed none of this exists. Changes go to the draft in App, which draws them live; only Save keeps them.
 // Like an image editor: the boxes are outlines over the real layout, the options sit in one thin bar at the top,
 // and holding Space hides the overlay to look at the result.
-import { LOOK_VARS, NO_LOOK, type Look } from './look'
+import { LOOK_SIZES, LOOK_VARS, NO_LOOK, type Look, type SizeKey } from './look'
 import { useEffect, useRef, useState, type PointerEvent as PE } from 'react'
 import { TOOL_IDS, groupOf, moveTool, parseDocks, type Docks } from './docks'
 import { EMPTY, FLOAT_IDS, MAIN_IDS, PRESETS as BUILT_IN, gapsOf, mainDefaults, moveRect, parseLayout, placeRect, resetMain, resizeRect, swapMain, toFrac, toPx, type Cols, type Ctx, type FloatId, type Guides, type Handle, type Id, type Layout, type MainId, type Rect, type Size } from './layout'
@@ -234,9 +234,11 @@ export function LayoutEdit({ value, onChange, ws, cols, top, onSave, onCancel, l
               <input type="color" value={look.vars[k] ?? (getComputedStyle(document.documentElement).getPropertyValue(k).trim().slice(0, 7) || '#000000')} onChange={e => onLook({ ...look, vars: { ...look.vars, [k]: e.target.value } })} />
             </label>
           ))}
-          <label className="look-row">{T('look.size')} <output>{look.size ?? 13}</output>
-            <input type="range" min={11} max={18} value={look.size ?? 13} onChange={e => onLook({ ...look, size: Number(e.target.value) })} />
-          </label>
+          {(Object.keys(LOOK_SIZES) as SizeKey[]).map(k => (
+            <label key={k} className="look-row">{T(`look.${k}`)} <output>{look[k] ?? LOOK_SIZES[k][2]}{k === 'menu' ? '%' : ''}</output>
+              <input type="range" min={LOOK_SIZES[k][0]} max={LOOK_SIZES[k][1]} step={k === 'menu' ? 5 : 1} value={look[k] ?? LOOK_SIZES[k][2]} onChange={e => onLook({ ...look, [k]: Number(e.target.value) })} />
+            </label>
+          ))}
           <button onClick={() => onLook(NO_LOOK)}>{T('look.reset')}</button>
           <small>{T('edit.hint')}</small>
         </div>

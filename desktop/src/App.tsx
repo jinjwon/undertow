@@ -1,7 +1,9 @@
 // The window: projects on top, files on the left, the editor in the middle, Claude Code on the right, the HUD below.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
+import type { OnMount } from '@monaco-editor/react'
+const Editor = lazy(() => import('./monaco').then(m => ({ default: m.Editor })))
+const DiffEditor = lazy(() => import('./monaco').then(m => ({ default: m.DiffEditor })))
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { EmptyArt } from './EmptyArt'
@@ -135,6 +137,8 @@ export function App() {
     const root = document.documentElement.style
     for (const k of LOOK_VARS) look.vars[k] ? root.setProperty(k, look.vars[k]!) : root.removeProperty(k)
     document.body.style.fontSize = look.size ? `${look.size}px` : ''
+    look.list ? root.setProperty('--list-size', `${look.list}px`) : root.removeProperty('--list-size')
+    look.menu ? root.setProperty('--menu-k', String(look.menu / 100)) : root.removeProperty('--menu-k')
   }, [look])
   const [settingsTab, setSettingsTab] = useState<'general' | 'appearance' | 'keys' | 'terminal'>('general')
   const [layout, setLayout] = useState<Layout>(storedLayout)
@@ -859,6 +863,7 @@ export function App() {
             <button className="live" onClick={() => openLive(tab.path)} title={T('live.open')} aria-label={T('live.open')}><Cut label="LIVE" ground="var(--edge)" /></button>
           )}
         </nav>
+        <Suspense fallback={<div className="state">{T('loading')}</div>}>
         {tab?.web !== undefined ? (
           <WebView key={tab.path} url={tab.web} T={T} />
         ) : tab?.head !== undefined ? (<>
@@ -933,6 +938,7 @@ export function App() {
             )}
           </div>
         )}
+        </Suspense>
       </main>
 
       {/* The agent panel: one or two dock groups on a grid. Every terminal stays a child of this section, so moving a tool never restarts it. */}
