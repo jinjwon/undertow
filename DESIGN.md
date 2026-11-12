@@ -181,16 +181,14 @@ The HUD and the SKILL ranks work whether or not the Evoke plugin is installed in
 
 ## Terminal pane (the plugin)
 
-The MENU pane the plugin draws inside Claude Code. Colours are in `plugins/evoke/hooks/tokens.js`; the art is laid out on a 56 × 41 cell grid.
+The MENU pane the plugin draws inside Claude Code. Colours are in `plugins/evoke/hooks/tokens.js`.
 
-Two modes:
+One mode: plain rows, sections with band headers (MENU, the content, COMMAND). The picture mode for Ghostty and other image terminals was removed on 2026-11-12; Evoke's own terminals (xterm.js) never drew it.
 
-- **Picture mode:** one image is the whole pane and text lies on it in the art's grid. Only for terminals that draw images: Ghostty, kitty, iTerm, WezTerm.
-- **Plain rows:** sections with band headers (MENU, the content, COMMAND). Used everywhere else, including Evoke's own terminals (xterm.js).
+The scene art in `plugins/evoke/scenes/` (made by `tools/render.sh` from `tools/scene.html`) now belongs to the desktop: TIDE's MENU pane shows it, with the menu buttons on `ITEM_ROWS`.
 
 Rules:
 
-- **Never draw picture mode without knowing the terminal draws pictures.** If the session's setup has not run, the pane asks the terminal at draw time. The failure this prevents: menu keys `1:`–`9:` with no names beside them and an empty skill list.
 - Menu names must always be readable as text in plain rows; the picked one sits on a white plate.
 - The keys row stands above the content, so a short pane cuts log rows, not controls.
 - The pane's colours are fixed (underwater navy and cyan). They do not follow the desktop theme.
@@ -201,4 +199,4 @@ Rules:
 - Fold each panel and confirm the others take the room.
 - Check the settings sheet, UI edit mode and a `.state-error` in REBEL: no TIDE colour may show.
 - Tab through the side bar: every row shows the focus ring and opens on Enter.
-- For the pane: check picture mode in Ghostty and plain rows in Evoke's terminal.
+- For the pane: check plain rows in Evoke's terminal, and TIDE's scene art in the desktop MENU pane.
